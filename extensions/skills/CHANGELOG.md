@@ -1,5 +1,9 @@
 # Changelog
 
+## [Fix `npx` Resolution on macOS] - {PR_MERGE_DATE}
+
+- Fix macOS/Linux `zsh: command not found: npx` failures by running via interactive `zsh -li`
+
 ## [Inline Detail Panel] - 2026-02-26
 
 - Replace push-to-detail views with inline detail panels across all commands

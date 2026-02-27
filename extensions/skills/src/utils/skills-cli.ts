@@ -6,18 +6,26 @@ import type { InstalledSkill, Skill } from "../shared";
 const execAsync = promisify(exec);
 const home = homedir();
 const isWindows = process.platform === "win32";
-const SKILLS_CLI = "npx -y skills@latest";
 
 /**
  * Run a CLI command with the user's full PATH.
- * - macOS/Linux: wraps in `zsh -l -c` so PATH includes mise, nvm, homebrew, etc.
+ * - macOS/Linux: wraps in `zsh -li -c` so PATH includes zsh interactive setup (nvm/fnm, homebrew, etc.).
  * - Windows: runs directly via cmd since PATH is inherited.
  */
 function execWithPath(command: string) {
   if (isWindows) {
     return execAsync(command);
   }
-  return execAsync(`zsh -l -c ${shellEscape(command)}`);
+  return execAsync(`zsh -li -c ${shellEscape(command)}`);
+}
+
+function buildSkillsCliCommand(args: string[]): string {
+  return ["npx", "-y", "skills@latest", ...args].map(shellEscape).join(" ");
+}
+
+async function runSkillsCli(args: string[]): Promise<string> {
+  const { stdout } = await execWithPath(buildSkillsCliCommand(args));
+  return stdout;
 }
 
 // eslint-disable-next-line no-control-regex
@@ -93,14 +101,14 @@ function parseSkillsList(raw: string): InstalledSkill[] {
 }
 
 export async function listInstalledSkills(): Promise<InstalledSkill[]> {
-  const { stdout } = await execWithPath(`${SKILLS_CLI} list -g`);
+  const stdout = await runSkillsCli(["list", "-g"]);
   return parseSkillsList(stdout);
 }
 
 export async function installSkill(skill: Skill): Promise<void> {
-  await execWithPath(`${SKILLS_CLI} add ${shellEscape(`${skill.source}@${skill.skillId}`)} -g -y`);
+  await runSkillsCli(["add", `${skill.source}@${skill.skillId}`, "-g", "-y"]);
 }
 
 export async function removeSkill(skillName: string): Promise<void> {
-  await execWithPath(`${SKILLS_CLI} remove ${shellEscape(skillName)} -g -y`);
+  await runSkillsCli(["remove", skillName, "-g", "-y"]);
 }
