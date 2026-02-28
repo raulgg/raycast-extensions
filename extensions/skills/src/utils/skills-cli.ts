@@ -1,5 +1,5 @@
-import { homedir } from "os";
-import { basename } from "path";
+import { homedir } from "node:os";
+import { basename } from "node:path";
 import { getCustomNpxPath } from "../preferences";
 import type { InstalledSkill, Skill } from "../shared";
 import { execAsync } from "./exec-async";

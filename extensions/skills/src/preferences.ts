@@ -1,6 +1,6 @@
 import { getPreferenceValues } from "@raycast/api";
-import { homedir } from "os";
-import { sep } from "path";
+import { homedir } from "node:os";
+import { sep } from "node:path";
 
 export const preferences = getPreferenceValues<Preferences>();
 

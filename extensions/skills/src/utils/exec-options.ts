@@ -1,4 +1,4 @@
-import { dirname } from "path";
+import { dirname } from "node:path";
 import { getCustomNpxPath } from "../preferences";
 import { getEnhancedNodePaths } from "./node-path-resolver";
 

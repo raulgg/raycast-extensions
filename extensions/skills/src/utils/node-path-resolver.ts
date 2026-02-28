@@ -1,6 +1,6 @@
-import { existsSync, readdirSync } from "fs";
-import { cpus } from "os";
-import { join } from "path";
+import { existsSync, readdirSync } from "node:fs";
+import { cpus } from "node:os";
+import { join } from "node:path";
 import semver from "semver";
 
 const isWindows = process.platform === "win32";
