@@ -28,6 +28,23 @@ View the top skills ranked by total installs. Browse skill details without leavi
 
 View and remove installed skills. Filter by agent to see which skills are available for each AI agent.
 
+## Requirements & Troubleshooting
+
+- Requires Node.js with `npx` available.
+- The copied install command remains `npx skills add ...` for portability.
+- Runtime execution uses a macOS PATH resolver aligned with the `ccusage` extension plus an optional custom `npx` binary path.
+
+If `npx` cannot be resolved in Raycast:
+
+1. Run `which npx` in Terminal.
+2. Open Extension Preferences (`Cmd+Shift+,` while the extension is open).
+3. Set **Custom npx Path** to the full path returned by `which npx` (supports `~` paths like `~/.local/bin/npx`).
+
+If `npx` resolves but the command still fails:
+
+1. Run `npx -y skills@latest list -g` in Terminal.
+2. Use that output to diagnose CLI/package/network errors (not PATH resolution).
+
 ## Screenshots
 
 ![Trending Skills](assets/skills-1.png)

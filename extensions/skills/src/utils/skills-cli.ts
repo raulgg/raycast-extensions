@@ -1,23 +1,41 @@
-import { exec } from "child_process";
-import { promisify } from "util";
 import { homedir } from "os";
+import { basename } from "path";
+import { getCustomNpxPath } from "../preferences";
 import type { InstalledSkill, Skill } from "../shared";
+import { execAsync } from "./exec-async";
+import { getExecOptions } from "./exec-options";
 
-const execAsync = promisify(exec);
 const home = homedir();
 const isWindows = process.platform === "win32";
-const SKILLS_CLI = "npx -y skills@latest";
 
-/**
- * Run a CLI command with the user's full PATH.
- * - macOS/Linux: wraps in `zsh -l -c` so PATH includes mise, nvm, homebrew, etc.
- * - Windows: runs directly via cmd since PATH is inherited.
- */
-function execWithPath(command: string) {
-  if (isWindows) {
-    return execAsync(command);
+type ExecFailure = Error & {
+  code?: string | number;
+  stderr?: string;
+};
+
+export class NpxResolutionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NpxResolutionError";
   }
-  return execAsync(`zsh -l -c ${shellEscape(command)}`);
+}
+
+export function isNpxResolutionError(error: unknown): boolean {
+  return error instanceof NpxResolutionError;
+}
+
+function buildSkillsCliCommand(npxCommand: string, args: string[]): string {
+  return [npxCommand, "-y", "skills@latest", ...args].map(shellEscape).join(" ");
+}
+
+async function runSkillsCli(args: string[]): Promise<string> {
+  const npxCommand = getCustomNpxPath() ?? "npx";
+  try {
+    const { stdout } = await execAsync(buildSkillsCliCommand(npxCommand, args), getExecOptions());
+    return stdout.toString();
+  } catch (error) {
+    throw normalizeCliError(error, npxCommand);
+  }
 }
 
 // eslint-disable-next-line no-control-regex
@@ -37,6 +55,48 @@ function shellEscape(arg: string): string {
     return `"${arg.replace(/"/g, '\\"')}"`;
   }
   return `'${arg.replace(/'/g, "'\\''")}'`;
+}
+
+function normalizeCliError(error: unknown, npxCommand: string): Error {
+  if (isNpxCommandResolutionFailure(error, npxCommand)) {
+    return new NpxResolutionError(
+      "Unable to find a working npx command. Run `which npx` in Terminal, then set that path in Extension Preferences under 'Custom npx Path'.",
+    );
+  }
+
+  if (error instanceof Error) {
+    return error;
+  }
+
+  return new Error("Failed to execute the skills CLI command.");
+}
+
+function isNpxCommandResolutionFailure(error: unknown, npxCommand: string): boolean {
+  const failure = error as ExecFailure | undefined;
+  const code = typeof failure?.code === "string" || typeof failure?.code === "number" ? String(failure.code) : "";
+  const details = [failure?.message, failure?.stderr]
+    .filter((value): value is string => typeof value === "string")
+    .join("\n")
+    .toLowerCase();
+  const normalizedNpxCommand = npxCommand.toLowerCase();
+  const commandBase = basename(normalizedNpxCommand).replace(/\.exe$/, "");
+  const windowsCommandNotFound = `'${commandBase}' is not recognized as an internal or external command`;
+
+  const mentionsCommand =
+    details.includes(`spawn ${normalizedNpxCommand} `) ||
+    details.includes(`spawn ${commandBase} `) ||
+    details.includes(`command not found: ${commandBase}`) ||
+    details.includes(`${commandBase}: command not found`) ||
+    details.includes(windowsCommandNotFound);
+
+  return (
+    (code === "ENOENT" && mentionsCommand) ||
+    details.includes(`spawn ${normalizedNpxCommand} enoent`) ||
+    details.includes(`spawn ${commandBase} enoent`) ||
+    details.includes(`command not found: ${commandBase}`) ||
+    details.includes(`${commandBase}: command not found`) ||
+    details.includes(windowsCommandNotFound)
+  );
 }
 
 /**
@@ -93,14 +153,14 @@ function parseSkillsList(raw: string): InstalledSkill[] {
 }
 
 export async function listInstalledSkills(): Promise<InstalledSkill[]> {
-  const { stdout } = await execWithPath(`${SKILLS_CLI} list -g`);
+  const stdout = await runSkillsCli(["list", "-g"]);
   return parseSkillsList(stdout);
 }
 
 export async function installSkill(skill: Skill): Promise<void> {
-  await execWithPath(`${SKILLS_CLI} add ${shellEscape(`${skill.source}@${skill.skillId}`)} -g -y`);
+  await runSkillsCli(["add", `${skill.source}@${skill.skillId}`, "-g", "-y"]);
 }
 
 export async function removeSkill(skillName: string): Promise<void> {
-  await execWithPath(`${SKILLS_CLI} remove ${shellEscape(skillName)} -g -y`);
+  await runSkillsCli(["remove", skillName, "-g", "-y"]);
 }

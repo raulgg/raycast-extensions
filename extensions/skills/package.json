@@ -7,7 +7,8 @@
   "author": "keito4",
   "contributors": [
     "DaleSeo",
-    "dominik_lukes"
+    "dominik_lukes",
+    "raulg"
   ],
   "categories": [
     "Developer Tools"
@@ -33,16 +34,28 @@
       "mode": "view"
     }
   ],
+  "preferences": [
+    {
+      "name": "customNpxPath",
+      "type": "textfield",
+      "required": false,
+      "title": "Custom npx Path",
+      "description": "Override the default npx path if needed (optional)",
+      "placeholder": "e.g., /opt/homebrew/bin/npx or ~/.local/bin/npx"
+    }
+  ],
   "dependencies": {
     "@raycast/api": "1.104.5",
     "@raycast/utils": "2.2.2",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "semver": "^7.7.3"
   },
   "devDependencies": {
     "@raycast/eslint-config": "^2.1.1",
     "@types/node": "^25.2.3",
     "@types/react": "^19.2.13",
+    "@types/semver": "^7.7.1",
     "eslint": "^10.0.0",
     "prettier": "^3.8.1",
     "typescript": "^5.9.3"

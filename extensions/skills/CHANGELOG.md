@@ -1,5 +1,13 @@
 # Changelog
 
+## [Align macOS `npx` Execution] - {PR_MERGE_DATE}
+
+- Replace shell-dependent `zsh -li` execution with a runtime path resolver and standardized exec options
+- Use a single command resolution flow: `customNpxPath ?? "npx"` with shared `execAsync` execution
+- Keep semver-based nvm/fnm path sorting and HOME-based Node env defaults (`NVM_DIR`, `FNM_DIR`, `npm_config_prefix`)
+- Add extension preference **Custom npx Path** with `~` expansion for non-standard setups
+- Preserve command compatibility (`npx -y skills@latest ...`) and existing error guidance in Manage Skills
+
 ## [Inline Detail Panel] - 2026-02-26
 
 - Replace push-to-detail views with inline detail panels across all commands
