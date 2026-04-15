@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import { getProviderMetadata, isKnownProviderId, isProviderSelectorId } from "../providers/registry";
 import { extractProviderErrorMessage, normalizeProviderDetailPayload } from "../providers/normalize";
 import type { ConfiguredProvider, ProviderDetailData } from "../providers/types";
+import { getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
 
 const CODEXBAR_TIMEOUT_MS = 15_000;
 const CODEXBAR_WEB_TIMEOUT_SECONDS = 5;
@@ -15,7 +16,7 @@ const CONFIG_PATH = join(homedir(), ".codexbar", "config.json");
 
 export type ResolvedCodexBarBinary = {
   command: string;
-  source: "path" | "fallback";
+  source: "path" | "fallback" | "mock";
 };
 
 export type CodexBarCliErrorKind = "unavailable" | "timeout" | "invalid-json" | "execution";
@@ -348,6 +349,16 @@ export async function smokeTestCodexBar(binary: ResolvedCodexBarBinary): Promise
 }
 
 export async function getCodexBarAvailability(): Promise<CodexBarAvailability> {
+  if (isCodexBarMockMode()) {
+    return {
+      status: "available",
+      binary: {
+        command: "codexbar-mock",
+        source: "mock",
+      },
+    };
+  }
+
   try {
     const binary = await resolveCodexBarBinary();
     await smokeTestCodexBar(binary);
@@ -379,6 +390,10 @@ export async function fetchProviderDetail(
   const normalizedProviderId = providerId.trim();
   if (!normalizedProviderId || isProviderSelectorId(normalizedProviderId)) {
     throw new CodexBarCliError("execution", "Cannot fetch provider detail without an enabled provider id.");
+  }
+
+  if (binary.source === "mock" || isCodexBarMockMode()) {
+    return normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId);
   }
 
   const payload = await executeCodexBar(binary, buildUsageCommandArgs("--provider", normalizedProviderId));
