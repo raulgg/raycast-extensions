@@ -1,0 +1,41 @@
+import { describe, expect, it } from "vitest";
+import { buildProviderErrorMarkdown, formatLocalDateTime } from "./presentation";
+import { extractSvgMarkup } from "../../test/svg-markdown";
+
+describe("presentation helpers", () => {
+  it("formats timestamps as compact local datetimes", () => {
+    expect(formatLocalDateTime("2026-04-05T15:11:00.000Z", "en-US", "UTC")).toBe("Apr 5, 2026, 3:11 PM");
+  });
+
+  it("returns the raw timestamp when parsing fails", () => {
+    expect(formatLocalDateTime("not-a-date")).toBe("not-a-date");
+  });
+
+  it("builds markdown blocks for errors", () => {
+    const markdown = buildProviderErrorMarkdown("Load failed", new Error("boom"));
+    const [svg] = extractSvgMarkup(markdown);
+
+    expect(markdown).toContain("data:image/svg+xml;base64,");
+    expect(svg).toContain(">Load failed<");
+    expect(svg).toContain(">boom<");
+    expect(svg).toContain('font-size="22"');
+    expect(svg).toContain('fill="#111827"');
+    expect(svg).toContain('stroke="#E5E7EB"');
+    expect(svg).toContain('fill="#FF6B6B"');
+  });
+
+  it("builds dark markdown blocks for errors", () => {
+    const markdown = buildProviderErrorMarkdown("Load failed", new Error("boom"), "dark");
+    const [svg] = extractSvgMarkup(markdown);
+
+    expect(svg).toContain('fill="#F3F4F6"');
+    expect(svg).toContain('stroke="#374151"');
+    expect(svg).toContain('fill="#FF6B6B"');
+  });
+
+  it("escapes html in error messages", () => {
+    const [svg] = extractSvgMarkup(buildProviderErrorMarkdown("Load failed", new Error('<boom> & "bad"')));
+
+    expect(svg).toContain("&lt;boom&gt; &amp; &quot;bad&quot;");
+  });
+});
