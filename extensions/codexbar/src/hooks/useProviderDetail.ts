@@ -4,6 +4,7 @@ import type { ProviderDetailData } from "../providers/types";
 
 /** Provider detail newer than this is still considered valid while a refetch errors. */
 const PROVIDER_DETAIL_FRESHNESS_WINDOW_MS = 5 * 60 * 1000;
+const PROVIDER_DETAIL_SCHEMA_VERSION = "provider-sections-v2";
 
 /**
  * Non-enumerable key on thrown `Error` instances so callers can tell which provider
@@ -24,12 +25,14 @@ export function useProviderDetail(binary?: ResolvedCodexBarBinary, providerId?: 
     error: fetchError,
     isLoading,
     revalidate,
-  } = useCachedPromise(fetchProviderDetailWithTaggedErrors, [binary, providerId], {
+  } = useCachedPromise(fetchProviderDetailWithTaggedErrors, [binary, providerId, PROVIDER_DETAIL_SCHEMA_VERSION], {
     keepPreviousData: true,
   });
 
   const detailForActiveSelection =
-    cachedDetail && providerId && cachedDetail.id === providerId ? cachedDetail : undefined;
+    cachedDetail && providerId && cachedDetail.id === providerId && isProviderDetailSchemaCurrent(cachedDetail)
+      ? cachedDetail
+      : undefined;
 
   const cacheIsFreshEnoughToMaskError = detailForActiveSelection
     ? isProviderDetailStillFresh(detailForActiveSelection)
@@ -51,7 +54,10 @@ export function useProviderDetail(binary?: ResolvedCodexBarBinary, providerId?: 
 async function fetchProviderDetailWithTaggedErrors(
   resolvedBinary?: ResolvedCodexBarBinary,
   selectedProviderId?: string,
+  schemaVersion?: string,
 ): Promise<ProviderDetailData | undefined> {
+  void schemaVersion;
+
   if (!resolvedBinary || !selectedProviderId) {
     return undefined;
   }
@@ -61,6 +67,19 @@ async function fetchProviderDetailWithTaggedErrors(
   } catch (caughtError) {
     throw tagFetchErrorWithProviderId(caughtError, selectedProviderId);
   }
+}
+
+function isProviderDetailSchemaCurrent(detail: ProviderDetailData): boolean {
+  return detail.sections.every((section) => {
+    const kind = Reflect.get(section, "kind");
+    return (
+      kind === "usage" ||
+      kind === "supplementalUsage" ||
+      kind === "credits" ||
+      kind === "providerCost" ||
+      kind === "info"
+    );
+  });
 }
 
 function isProviderDetailStillFresh(detail: ProviderDetailData, now = Date.now()): boolean {

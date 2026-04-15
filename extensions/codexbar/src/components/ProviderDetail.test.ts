@@ -49,15 +49,14 @@ function makeDetail(): ProviderDetailData {
     markdown: "stale cached markdown",
     sections: [
       {
+        kind: "usage",
         title: "Primary",
         displayTitle: "Session",
-        progressPercent: 53,
-        items: [
-          { label: "Remaining", value: "53%" },
-          { label: "Resets In", value: "1 hour 30 minutes" },
-        ],
+        remainingPercent: 53,
+        resetsIn: "1 hour 30 minutes",
       },
       {
+        kind: "info",
         title: "General",
         items: [{ label: "Last Updated", value: "Apr 5, 2026, 5:11 PM" }],
       },
@@ -91,6 +90,30 @@ describe("ProviderDetail", () => {
     expect(svg).toContain('fill="#49A3B0"');
     expect(svg).toContain(">Session<");
     expect(element.props.metadata).toBeUndefined();
+  });
+
+  it("falls back to cached markdown for previous-schema detail data", () => {
+    appearanceMock.value = "light";
+    const detail = {
+      ...makeDetail(),
+      markdown: "cached legacy markdown",
+      sections: [
+        {
+          title: "Primary",
+          displayTitle: "Session",
+          progressPercent: 53,
+          items: [],
+        },
+      ],
+    } as unknown as ProviderDetailData;
+
+    const element = ProviderDetail({
+      provider,
+      detail,
+      isLoading: false,
+    });
+
+    expect(element.props.markdown).toBe("cached legacy markdown");
   });
 
   it("switches svg colors with the dark appearance", () => {

@@ -35,16 +35,38 @@ describe("provider normalization", () => {
     expect(detail.id).toBe("codex");
     expect(detail.name).toBe("Codex");
     expect(detail.updatedAt).toBe("2026-03-23T09:00:00Z");
-    expect(detail.sections.map((section) => section.title)).toEqual(["Primary", "Secondary", "Credits", "General"]);
-    expect(detail.sections.map((section) => section.displayTitle)).toEqual(["Session", "Weekly", undefined, undefined]);
-    expect(detail.sections[0].progressPercent).toBe(53);
-    expect(detail.sections[0].items).toEqual([
-      { label: "Remaining", value: "53%" },
-      { label: "Resets In", value: "1h 30m" },
-    ]);
-    expect(detail.sections[2].items).toEqual([
-      { label: "Remaining", value: "112.4" },
-      { label: "Code Review Remaining", value: "78%" },
+    expect(detail.sections).toMatchObject([
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Session",
+        remainingPercent: 53,
+        resetsIn: "1h 30m",
+      },
+      {
+        kind: "usage",
+        title: "Secondary",
+        displayTitle: "Weekly",
+        remainingPercent: 88,
+        resetsIn: "6d 21h",
+      },
+      {
+        kind: "supplementalUsage",
+        title: "Code review",
+        remainingPercent: 78,
+      },
+      {
+        kind: "credits",
+        title: "Credits",
+        remaining: "112.4",
+        remainingPercent: 11,
+        scaleLabel: "1K tokens",
+      },
+      {
+        kind: "info",
+        title: "General",
+        items: [{ label: "Last Updated", value: expectedUpdated }],
+      },
     ]);
     expect(detail.markdown).toContain("data:image/svg+xml;base64,");
     expect(detail.markdown).not.toContain("prefers-color-scheme");
@@ -58,8 +80,11 @@ describe("provider normalization", () => {
     expect(detailSvg).toContain(">Weekly<");
     expect(detailSvg).toContain(">53% left<");
     expect(detailSvg).toContain(">Resets in 1h 30m");
+    expect(detailSvg).toContain(">Code review<");
+    expect(detailSvg).toContain(">78% left<");
     expect(detailSvg).toContain(">Credits<");
     expect(detailSvg).toContain(">112.4<");
+    expect(detailSvg).toContain(">1K tokens<");
     expect(detailSvg).not.toContain(">General<");
     expect(detailSvg.match(/<line /g)).toHaveLength(2);
     expect(detailSvg).toContain('width="440"');
@@ -79,13 +104,22 @@ describe("provider normalization", () => {
     );
     const [detailSvg] = extractSvgMarkup(detail.markdown);
 
-    expect(detail.sections.map((section) => section.title)).toEqual(["Primary", "Secondary"]);
-    expect(detail.sections.map((section) => section.displayTitle)).toEqual(["Session", "Weekly"]);
-    expect(detail.sections[0].progressPercent).toBe(80);
-    expect(detail.sections[1].progressPercent).toBe(55);
-    expect(detail.sections[0].items[0]).toMatchObject({ label: "Remaining", value: "80%" });
-    expect(detail.sections[1].items[0]).toMatchObject({ label: "Remaining", value: "55%" });
-    expect(detail.sections[1].items[1]).toMatchObject({ label: "Resets In", value: "1d 1h" });
+    expect(detail.sections).toMatchObject([
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Session",
+        remainingPercent: 80,
+        resetsIn: "30m",
+      },
+      {
+        kind: "usage",
+        title: "Secondary",
+        displayTitle: "Weekly",
+        remainingPercent: 55,
+        resetsIn: "1d 1h",
+      },
+    ]);
     expect(detail.markdown).toContain("data:image/svg+xml;base64,");
     expect(detailSvg).toContain(">Session<");
     expect(detailSvg).toContain(">Weekly<");
@@ -107,8 +141,8 @@ describe("provider normalization", () => {
       Date.parse("2026-03-23T10:30:00Z"),
     );
 
-    expect(detail.sections[0].items[1]).toMatchObject({ label: "Resets In", value: "30m" });
-    expect(detail.sections[1].items[1]).toMatchObject({ label: "Resets In", value: "5d" });
+    expect(detail.sections[0]).toMatchObject({ resetsIn: "30m" });
+    expect(detail.sections[1]).toMatchObject({ resetsIn: "5d" });
   });
 
   it("keeps sub-day countdowns in hours even when minute rounding reaches 24h", () => {
@@ -122,7 +156,7 @@ describe("provider normalization", () => {
       Date.parse("2026-03-23T10:30:00Z"),
     );
 
-    expect(detail.sections[0].items[1]).toMatchObject({ label: "Resets In", value: "24h" });
+    expect(detail.sections[0]).toMatchObject({ resetsIn: "24h" });
   });
 
   it("switches to day formatting at an exact 24h boundary", () => {
@@ -136,7 +170,7 @@ describe("provider normalization", () => {
       Date.parse("2026-03-23T10:30:00Z"),
     );
 
-    expect(detail.sections[0].items[1]).toMatchObject({ label: "Resets In", value: "1d" });
+    expect(detail.sections[0]).toMatchObject({ resetsIn: "1d" });
   });
 
   it("rounds up sub-hour countdowns to the next minute boundary", () => {
@@ -150,7 +184,38 @@ describe("provider normalization", () => {
       Date.parse("2026-03-23T10:30:00Z"),
     );
 
-    expect(detail.sections[0].items[1]).toMatchObject({ label: "Resets In", value: "1h" });
+    expect(detail.sections[0]).toMatchObject({ resetsIn: "1h" });
+  });
+
+  it("normalizes provider cost as a typed progress section", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "claude",
+        usage: {
+          providerCost: {
+            used: 1.42,
+            limit: 20,
+            currencyCode: "USD",
+            period: "monthly",
+          },
+        },
+      },
+      "claude",
+      Date.parse("2026-03-23T10:30:00Z"),
+    );
+    const [detailSvg] = extractSvgMarkup(detail.markdown);
+
+    expect(detail.sections).toMatchObject([
+      {
+        kind: "providerCost",
+        title: "Extra usage",
+        usedPercent: 7,
+        spendLine: "monthly: $1.42 / $20",
+      },
+    ]);
+    expect(detailSvg).toContain(">Extra usage<");
+    expect(detailSvg).toContain(">monthly: $1.42 / $20<");
+    expect(detailSvg).toContain(">7% used<");
   });
 
   it("keeps sparse payloads as minimal details instead of throwing", () => {

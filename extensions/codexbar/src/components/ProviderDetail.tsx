@@ -11,7 +11,7 @@ type ProviderDetailProps = {
 };
 
 export function ProviderDetail({ provider, detail, error, isLoading }: ProviderDetailProps) {
-  const detailMarkdown = detail ? buildProviderDetailMarkdown(detail, environment.appearance).trim() : undefined;
+  const detailMarkdown = detail ? buildSafeProviderDetailMarkdown(detail) : undefined;
   const markdown = error
     ? buildProviderErrorMarkdown(provider.name, error, environment.appearance)
     : detailMarkdown
@@ -21,4 +21,20 @@ export function ProviderDetail({ provider, detail, error, isLoading }: ProviderD
         : "No data available";
 
   return <List.Item.Detail isLoading={isLoading} markdown={markdown} />;
+}
+
+function buildSafeProviderDetailMarkdown(detail: ProviderDetailData): string | undefined {
+  try {
+    return buildProviderDetailMarkdown(detail, environment.appearance).trim();
+  } catch (error) {
+    if (isLegacySectionShapeError(error)) {
+      return detail.markdown.trim() || undefined;
+    }
+
+    throw error;
+  }
+}
+
+function isLegacySectionShapeError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("Unsupported metric section kind: undefined");
 }

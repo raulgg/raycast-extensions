@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { useCachedPromiseMock } = vi.hoisted(() => {
   return {
@@ -13,6 +13,10 @@ vi.mock("@raycast/utils", () => ({
 import { useProviderDetail } from "./useProviderDetail";
 
 describe("useProviderDetail", () => {
+  beforeEach(() => {
+    useCachedPromiseMock.mockReset();
+  });
+
   it("hides errors when active provider has fresh cached detail", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-12T00:00:00Z"));
@@ -145,5 +149,32 @@ describe("useProviderDetail", () => {
     const result = useProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "codex");
 
     expect(result.detail).toMatchObject({ id: "codex", name: "Codex" });
+  });
+
+  it("drops cached detail that uses the previous untyped section schema", () => {
+    useCachedPromiseMock.mockReturnValue({
+      data: {
+        id: "claude",
+        name: "Claude",
+        raw: {},
+        fetchedAt: new Date().toISOString(),
+        sections: [
+          {
+            title: "Primary",
+            displayTitle: "Session",
+            progressPercent: 80,
+            items: [],
+          },
+        ],
+        markdown: "# Claude",
+      },
+      error: undefined,
+      isLoading: true,
+      revalidate: vi.fn(),
+    });
+
+    const result = useProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "claude");
+
+    expect(result.detail).toBeUndefined();
   });
 });

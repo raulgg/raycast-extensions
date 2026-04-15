@@ -18,7 +18,7 @@ import {
   getTextBottomY,
   type DetailAppearance,
 } from "../lib/detailMarkdown";
-import type { ProviderDetailData, ProviderSection, ProviderSectionItem } from "./types";
+import type { ProviderDetailData, ProviderInfoSection, ProviderSection } from "./types";
 
 export type ProviderDetailAppearance = DetailAppearance;
 
@@ -48,14 +48,6 @@ function formatPercent(value: number): string {
   return `${Math.max(0, Math.min(100, Math.round(value)))}%`;
 }
 
-function findSectionItem(section: ProviderSection, label: string): ProviderSectionItem | undefined {
-  return section.items.find((item) => item.label.toLowerCase() === label);
-}
-
-function getSectionDisplayTitle(section: ProviderSection): string {
-  return section.displayTitle ?? section.title;
-}
-
 function getHeaderSubtitle(updatedAt?: string): string | undefined {
   const formatted = formatLocalDateTime(updatedAt);
   return formatted ? `Updated ${formatted}` : undefined;
@@ -78,18 +70,18 @@ function getGenericSectionEmptyNextY(emptyStateY: number): number {
 }
 
 function splitRenderableSections(sections: ProviderSection[]): {
-  usageSections: ProviderSection[];
+  metricSections: ProviderSection[];
   otherSections: ProviderSection[];
 } {
-  const usageSections = sections.filter((section) => section.progressPercent !== undefined);
+  const metricSections = sections.filter((section) => section.kind === "usage" || section.kind === "supplementalUsage");
   const otherSections: ProviderSection[] = [];
 
   for (const section of sections) {
-    if (section.progressPercent !== undefined) {
+    if (section.kind === "usage" || section.kind === "supplementalUsage") {
       continue;
     }
 
-    if (section.title === "General") {
+    if (section.kind === "info" && section.title === "General") {
       const remainingItems = section.items.filter((item) => item.label !== "Last Updated");
       if (remainingItems.length > 0) {
         otherSections.push({ ...section, items: remainingItems });
@@ -100,7 +92,7 @@ function splitRenderableSections(sections: ProviderSection[]): {
     otherSections.push(section);
   }
 
-  return { usageSections, otherSections };
+  return { metricSections, otherSections };
 }
 
 function buildProgressBarSvg(
@@ -125,16 +117,16 @@ function buildProgressBarSvg(
   ].join("");
 }
 
-function renderUsageSection(
-  section: ProviderSection,
+function renderProgressSection(
+  title: string,
+  percent: number,
+  footerLeft: string,
+  footerRight: string | undefined,
   providerId: string,
   appearance: ProviderDetailAppearance,
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
   const palette = PANEL_PALETTES[appearance];
-  const remainingValue = findSectionItem(section, "remaining")?.value ?? formatPercent(section.progressPercent ?? 0);
-  const resetsIn = findSectionItem(section, "resets in")?.value;
-  const title = getSectionDisplayTitle(section);
   const progressY = getUsageProgressY(startY);
   const footerY = getUsageFooterY(progressY);
   const markup = [
@@ -146,25 +138,11 @@ function renderUsageSection(
       TYPOGRAPHY.sectionTitleSize,
       FONT_WEIGHT.bold,
     ),
-    buildProgressBarSvg(
-      section.progressPercent ?? 0,
-      getLeftContentX(),
-      progressY,
-      getContentWidth(),
-      appearance,
-      providerId,
-    ),
-    buildText(
-      `${remainingValue} left`,
-      getLeftContentX(),
-      footerY,
-      palette.valueFill,
-      TYPOGRAPHY.rowValueSize,
-      FONT_WEIGHT.semibold,
-    ),
-    resetsIn
+    buildProgressBarSvg(percent, getLeftContentX(), progressY, getContentWidth(), appearance, providerId),
+    buildText(footerLeft, getLeftContentX(), footerY, palette.valueFill, TYPOGRAPHY.rowValueSize, FONT_WEIGHT.semibold),
+    footerRight
       ? buildText(
-          `Resets in ${resetsIn}`,
+          footerRight,
           getRightContentX(),
           footerY,
           palette.labelFill,
@@ -178,7 +156,40 @@ function renderUsageSection(
   return { markup, contentBottomY: getTextBottomY(footerY, TYPOGRAPHY.rowValueSize) };
 }
 
-function renderUsageSections(
+function renderMetricSection(
+  section: ProviderSection,
+  providerId: string,
+  appearance: ProviderDetailAppearance,
+  startY: number,
+): { markup: string[]; contentBottomY: number } {
+  if (section.kind === "usage") {
+    return renderProgressSection(
+      section.displayTitle,
+      section.remainingPercent,
+      `${formatPercent(section.remainingPercent)} left`,
+      section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
+      providerId,
+      appearance,
+      startY,
+    );
+  }
+
+  if (section.kind === "supplementalUsage") {
+    return renderProgressSection(
+      section.title,
+      section.remainingPercent,
+      `${formatPercent(section.remainingPercent)} left`,
+      section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
+      providerId,
+      appearance,
+      startY,
+    );
+  }
+
+  throw new Error(`Unsupported metric section kind: ${section.kind}`);
+}
+
+function renderMetricSections(
   sections: ProviderSection[],
   providerId: string,
   appearance: ProviderDetailAppearance,
@@ -189,7 +200,7 @@ function renderUsageSections(
   let contentBottomY = startY;
 
   for (const [index, section] of sections.entries()) {
-    const rendered = renderUsageSection(section, providerId, appearance, currentY);
+    const rendered = renderMetricSection(section, providerId, appearance, currentY);
     markup.push(...rendered.markup);
     contentBottomY = rendered.contentBottomY;
     currentY = rendered.contentBottomY + USAGE_LAYOUT.bottomSpacing;
@@ -203,7 +214,7 @@ function renderUsageSections(
 }
 
 function renderGenericSection(
-  section: ProviderSection,
+  section: ProviderInfoSection,
   appearance: ProviderDetailAppearance,
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
@@ -266,13 +277,48 @@ function renderGenericSection(
   return { markup, contentBottomY: getTextBottomY(currentY, TYPOGRAPHY.rowLabelSize) };
 }
 
+function renderStandaloneSection(
+  section: ProviderSection,
+  providerId: string,
+  appearance: ProviderDetailAppearance,
+  startY: number,
+): { markup: string[]; contentBottomY: number } {
+  if (section.kind === "credits") {
+    return renderProgressSection(
+      section.title,
+      section.remainingPercent,
+      section.remaining,
+      section.scaleLabel,
+      providerId,
+      appearance,
+      startY,
+    );
+  }
+
+  if (section.kind === "providerCost") {
+    return renderProgressSection(
+      section.title,
+      section.usedPercent,
+      section.spendLine,
+      `${formatPercent(section.usedPercent)} used`,
+      providerId,
+      appearance,
+      startY,
+    );
+  }
+
+  if (section.kind === "info") {
+    return renderGenericSection(section, appearance, startY);
+  }
+
+  return renderMetricSection(section, providerId, appearance, startY);
+}
+
 export function buildProviderDetailMarkdown(
   detail: Pick<ProviderDetailData, "id" | "name" | "sections" | "updatedAt">,
   appearance: ProviderDetailAppearance = "light",
 ): string {
-  const sections = detail.sections.filter(
-    (section) => section.items.length > 0 || section.progressPercent !== undefined,
-  );
+  const sections = detail.sections.filter((section) => section.kind !== "info" || section.items.length > 0);
 
   if (sections.length === 0) {
     return "No data available";
@@ -280,16 +326,16 @@ export function buildProviderDetailMarkdown(
 
   const palette = PANEL_PALETTES[appearance];
   const subtitle = getHeaderSubtitle(detail.updatedAt);
-  const { usageSections, otherSections } = splitRenderableSections(sections);
+  const { metricSections, otherSections } = splitRenderableSections(sections);
   const header = buildHeaderMarkup(detail.name, appearance, subtitle, `${detail.name} detail`);
   const markup = [...header.markup];
   let currentY = header.contentBottomY;
 
-  if (usageSections.length > 0) {
+  if (metricSections.length > 0) {
     markup.push(buildSectionDivider(getSectionDividerY(currentY), palette.dividerStroke));
     currentY = getSectionTitleY(currentY);
 
-    const rendered = renderUsageSections(usageSections, detail.id, appearance, currentY);
+    const rendered = renderMetricSections(metricSections, detail.id, appearance, currentY);
     markup.push(...rendered.markup);
     currentY = rendered.contentBottomY;
   }
@@ -298,7 +344,7 @@ export function buildProviderDetailMarkdown(
     markup.push(buildSectionDivider(getSectionDividerY(currentY), palette.dividerStroke));
     currentY = getSectionTitleY(currentY);
 
-    const rendered = renderGenericSection(section, appearance, currentY);
+    const rendered = renderStandaloneSection(section, detail.id, appearance, currentY);
     markup.push(...rendered.markup);
     currentY = rendered.contentBottomY;
   }

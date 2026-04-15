@@ -43,28 +43,33 @@ describe("provider markdown", () => {
         updatedAt: "2026-03-23T09:00:00Z",
         sections: [
           {
+            kind: "usage",
             title: "Primary",
             displayTitle: "Session",
-            items: [
-              { label: "Remaining", value: "53%" },
-              { label: "Resets In", value: "1h 30m" },
-            ],
-            progressPercent: 53,
+            remainingPercent: 53,
+            resetsIn: "1h 30m",
           },
           {
+            kind: "usage",
             title: "Secondary",
             displayTitle: "Weekly",
-            items: [
-              { label: "Remaining", value: "88%" },
-              { label: "Resets In", value: "7d" },
-            ],
-            progressPercent: 88,
+            remainingPercent: 88,
+            resetsIn: "7d",
           },
           {
+            kind: "supplementalUsage",
+            title: "Code review",
+            remainingPercent: 78,
+          },
+          {
+            kind: "credits",
             title: "Credits",
-            items: [{ label: "Remaining", value: "112.4" }],
+            remaining: "112.4",
+            remainingPercent: 11,
+            scaleLabel: "1K tokens",
           },
           {
+            kind: "info",
             title: "General",
             items: [{ label: "Last Updated", value: "2026-03-23T09:00:00Z" }],
           },
@@ -87,8 +92,11 @@ describe("provider markdown", () => {
     expect(svg).toContain(">Weekly<");
     expect(svg).toContain(">53% left<");
     expect(svg).toContain(">Resets in 1h 30m<");
+    expect(svg).toContain(">Code review<");
+    expect(svg).toContain(">78% left<");
     expect(svg).toContain(">Credits<");
     expect(svg).toContain(">112.4<");
+    expect(svg).toContain(">1K tokens<");
     expect(svg).not.toContain(">General<");
   });
 
@@ -99,13 +107,11 @@ describe("provider markdown", () => {
         name: "Codex",
         sections: [
           {
+            kind: "usage",
             title: "Primary",
             displayTitle: "Session",
-            items: [
-              { label: "Remaining", value: "53%" },
-              { label: "Resets In", value: "1h 30m" },
-            ],
-            progressPercent: 53,
+            remainingPercent: 53,
+            resetsIn: "1h 30m",
           },
         ],
       },
@@ -117,13 +123,11 @@ describe("provider markdown", () => {
         name: "Codex",
         sections: [
           {
+            kind: "usage",
             title: "Primary",
             displayTitle: "Session",
-            items: [
-              { label: "Remaining", value: "53%" },
-              { label: "Resets In", value: "1h 30m" },
-            ],
-            progressPercent: 53,
+            remainingPercent: 53,
+            resetsIn: "1h 30m",
           },
         ],
       },
@@ -153,13 +157,11 @@ describe("provider markdown", () => {
         name: "Claude",
         sections: [
           {
+            kind: "usage",
             title: "Primary",
             displayTitle: "Session",
-            items: [
-              { label: "Remaining", value: "80%" },
-              { label: "Resets In", value: "30m" },
-            ],
-            progressPercent: 80,
+            remainingPercent: 80,
+            resetsIn: "30m",
           },
         ],
       },
@@ -173,16 +175,17 @@ describe("provider markdown", () => {
     expect(svg).not.toContain(">Primary<");
   });
 
-  it("falls back to semantic titles when display titles are absent", () => {
+  it("renders supplemental usage sections", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "claude",
         name: "Claude",
         sections: [
           {
-            title: "Primary",
-            items: [{ label: "Remaining", value: "80%" }],
-            progressPercent: 80,
+            kind: "supplementalUsage",
+            title: "Sonnet",
+            remainingPercent: 80,
+            resetsIn: "30m",
           },
         ],
       },
@@ -191,8 +194,9 @@ describe("provider markdown", () => {
 
     const [svg] = extractSvgMarkup(markdown);
 
-    expect(svg).toContain(">Primary<");
-    expect(svg).not.toContain(">Session<");
+    expect(svg).toContain(">Sonnet<");
+    expect(svg).toContain(">80% left<");
+    expect(svg).toContain(">Resets in 30m<");
   });
 
   it("falls back to plain text for empty details", () => {
@@ -212,26 +216,25 @@ describe("provider markdown", () => {
         name: "Codex",
         sections: [
           {
+            kind: "usage",
             title: "Primary",
             displayTitle: "Session",
-            items: [
-              { label: "Remaining", value: "53%" },
-              { label: "Resets In", value: "1h 30m" },
-            ],
-            progressPercent: 53,
+            remainingPercent: 53,
+            resetsIn: "1h 30m",
           },
           {
+            kind: "usage",
             title: "Secondary",
             displayTitle: "Weekly",
-            items: [
-              { label: "Remaining", value: "88%" },
-              { label: "Resets In", value: "7d" },
-            ],
-            progressPercent: 88,
+            remainingPercent: 88,
+            resetsIn: "7d",
           },
           {
+            kind: "credits",
             title: "Credits",
-            items: [{ label: "Remaining", value: "112.4" }],
+            remaining: "112.4",
+            remainingPercent: 11,
+            scaleLabel: "1K tokens",
           },
         ],
       },

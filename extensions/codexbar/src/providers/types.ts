@@ -14,12 +14,50 @@ export type ProviderSectionItem = {
   value: string;
 };
 
-export type ProviderSection = {
-  title: string;
-  displayTitle?: string;
-  items: ProviderSectionItem[];
-  progressPercent?: number;
+export type ProviderUsageSectionTitle = "Primary" | "Secondary" | "Tertiary";
+
+export type ProviderUsageSection = {
+  kind: "usage";
+  title: ProviderUsageSectionTitle;
+  displayTitle: string;
+  remainingPercent: number;
+  resetsIn?: string;
 };
+
+export type ProviderSupplementalUsageSection = {
+  kind: "supplementalUsage";
+  title: string;
+  remainingPercent: number;
+  resetsIn?: string;
+};
+
+export type ProviderCreditsSection = {
+  kind: "credits";
+  title: "Credits";
+  remaining: string;
+  remainingPercent: number;
+  scaleLabel: string;
+};
+
+export type ProviderCostSection = {
+  kind: "providerCost";
+  title: "Extra usage" | "Quota usage";
+  usedPercent: number;
+  spendLine: string;
+};
+
+export type ProviderInfoSection = {
+  kind: "info";
+  title: string;
+  items: ProviderSectionItem[];
+};
+
+export type ProviderSection =
+  | ProviderUsageSection
+  | ProviderSupplementalUsageSection
+  | ProviderCreditsSection
+  | ProviderCostSection
+  | ProviderInfoSection;
 
 export type ProviderDetailData = {
   id: string;

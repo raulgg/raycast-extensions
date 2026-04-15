@@ -1,5 +1,5 @@
 import { getProviderMetadata, getProviderUsageSectionDisplayTitle } from "./registry";
-import type { ProviderDetailData, ProviderSection, ProviderSectionItem, RawProviderPayload } from "./types";
+import type { ProviderDetailData, ProviderInfoSection, ProviderSection, RawProviderPayload } from "./types";
 import { formatLocalDateTime } from "../lib/presentation";
 import { buildProviderDetailMarkdown } from "./markdown";
 
@@ -30,8 +30,20 @@ function formatNumber(value: number): string {
   }).format(value);
 }
 
-function formatPercent(value: number): string {
-  return `${Math.round(value)}%`;
+function formatCurrency(value: number, currencyCode: string): string {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currencyCode,
+      maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    }).format(value);
+  } catch {
+    return `${formatNumber(value)} ${currencyCode}`;
+  }
+}
+
+function clampPercent(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
 }
 
 function normalizePercentFromFraction(value: number): number | undefined {
@@ -102,30 +114,17 @@ function formatCountdown(isoTimestamp: string, now = Date.now()): string | undef
   return `${days}d ${hours}h`;
 }
 
-function buildWindowItems(
+function buildWindowReset(
   window: RawProviderPayload,
-  fallbackRemainingPercent?: number,
   fallbackResetTimestamp?: string,
   now?: number,
-): ProviderSectionItem[] {
-  const items: ProviderSectionItem[] = [];
-  const usedPercent = toFiniteNumber(window.usedPercent);
-  const remainingPercent =
-    usedPercent !== undefined ? Math.max(0, Math.round(100 - usedPercent)) : fallbackRemainingPercent;
-
-  if (remainingPercent !== undefined) {
-    items.push({ label: "Remaining", value: formatPercent(remainingPercent) });
-  }
-
+): string | undefined {
   const resetsAt = toString(window.resetsAt) ?? fallbackResetTimestamp;
   if (resetsAt) {
-    const countdown = formatCountdown(resetsAt, now);
-    if (countdown) {
-      items.push({ label: "Resets In", value: countdown });
-    }
+    return formatCountdown(resetsAt, now);
   }
 
-  return items;
+  return undefined;
 }
 
 function buildUsageSections(providerId: string, payload: RawProviderPayload, now = Date.now()): ProviderSection[] {
@@ -133,7 +132,7 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
   const sections: ProviderSection[] = [];
   const slotFallbacks = [
     {
-      title: "Primary",
+      title: "Primary" as const,
       record: toRecord(usage?.primary),
       remainingPercent:
         toFiniteNumber(payload.sessionPercentLeft) ??
@@ -142,13 +141,13 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
       resetTimestamp: toString(payload.sessionResetsAt) ?? toString(payload.resetsAt),
     },
     {
-      title: "Secondary",
+      title: "Secondary" as const,
       record: toRecord(usage?.secondary),
       remainingPercent: toFiniteNumber(payload.weeklyPercentLeft),
       resetTimestamp: toString(payload.weeklyResetsAt),
     },
     {
-      title: "Tertiary",
+      title: "Tertiary" as const,
       record: toRecord(usage?.tertiary),
       remainingPercent: undefined,
       resetTimestamp: undefined,
@@ -160,13 +159,13 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
     const usedPercent = toFiniteNumber(record.usedPercent);
     const progressPercent =
       slot.remainingPercent ?? (usedPercent !== undefined ? Math.max(0, Math.round(100 - usedPercent)) : undefined);
-    const items = buildWindowItems(record, slot.remainingPercent, slot.resetTimestamp, now);
-    if (items.length > 0) {
+    if (progressPercent !== undefined) {
       sections.push({
+        kind: "usage",
         title: slot.title,
         displayTitle: getProviderUsageSectionDisplayTitle(providerId, slot.title),
-        items,
-        progressPercent,
+        remainingPercent: clampPercent(progressPercent),
+        resetsIn: buildWindowReset(record, slot.resetTimestamp, now),
       });
     }
   }
@@ -174,39 +173,77 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
   return sections;
 }
 
-function buildCreditsSection(payload: RawProviderPayload): ProviderSection | undefined {
-  const credits = toRecord(payload.credits);
+function buildSupplementalUsageSections(payload: RawProviderPayload, now = Date.now()): ProviderSection[] {
   const dashboard = toRecord(payload.openaiDashboard);
-  const items: ProviderSectionItem[] = [];
-
-  const remaining = toFiniteNumber(credits?.remaining);
-  if (remaining !== undefined) {
-    items.push({ label: "Remaining", value: formatNumber(remaining) });
-  }
+  const sections: ProviderSection[] = [];
 
   const codeReviewRemainingPercent = toFiniteNumber(dashboard?.codeReviewRemainingPercent);
   if (codeReviewRemainingPercent !== undefined) {
-    items.push({
-      label: "Code Review Remaining",
-      value: formatPercent(codeReviewRemainingPercent),
+    const codeReviewLimit = toRecord(dashboard?.codeReviewLimit);
+    sections.push({
+      kind: "supplementalUsage",
+      title: "Code review",
+      remainingPercent: clampPercent(codeReviewRemainingPercent),
+      resetsIn: codeReviewLimit ? buildWindowReset(codeReviewLimit, undefined, now) : undefined,
     });
   }
 
-  const bonusCredits = toFiniteNumber(payload.bonusCreditsRemaining);
-  if (bonusCredits !== undefined) {
-    items.push({ label: "Bonus Credits", value: formatNumber(bonusCredits) });
-  }
-
-  return items.length > 0 ? { title: "Credits", items } : undefined;
+  return sections;
 }
 
-function buildUpdatedSection(updatedAt?: string): ProviderSection | undefined {
+function buildCreditsSection(payload: RawProviderPayload): ProviderSection | undefined {
+  const credits = toRecord(payload.credits);
+  const remaining = toFiniteNumber(credits?.remaining);
+  if (remaining === undefined) {
+    return undefined;
+  }
+
+  const fullScaleCredits = 1000;
+  return {
+    kind: "credits",
+    title: "Credits",
+    remaining: formatNumber(remaining),
+    remainingPercent: clampPercent((remaining / fullScaleCredits) * 100),
+    scaleLabel: "1K tokens",
+  };
+}
+
+function buildProviderCostSection(payload: RawProviderPayload): ProviderSection | undefined {
+  const usage = toRecord(payload.usage);
+  const providerCost = toRecord(usage?.providerCost);
+  const used = toFiniteNumber(providerCost?.used);
+  const limit = toFiniteNumber(providerCost?.limit);
+  const currencyCode = toString(providerCost?.currencyCode);
+
+  if (used === undefined || limit === undefined || limit <= 0 || !currencyCode) {
+    return undefined;
+  }
+
+  if (currencyCode === "Quota") {
+    return {
+      kind: "providerCost",
+      title: "Quota usage",
+      usedPercent: clampPercent((used / limit) * 100),
+      spendLine: `${toString(providerCost?.period) ?? "This month"}: ${formatNumber(used)} / ${formatNumber(limit)}`,
+    };
+  }
+
+  return {
+    kind: "providerCost",
+    title: "Extra usage",
+    usedPercent: clampPercent((used / limit) * 100),
+    spendLine: `${toString(providerCost?.period) ?? "This month"}: ${formatCurrency(used, currencyCode)} / ${formatCurrency(limit, currencyCode)}`,
+  };
+}
+
+function buildUpdatedSection(updatedAt?: string): ProviderInfoSection | undefined {
   const formattedDate = formatLocalDateTime(updatedAt);
   if (!formattedDate) {
     return undefined;
   }
 
   return {
+    kind: "info",
     title: "General",
     items: [{ label: "Last Updated", value: formattedDate }],
   };
@@ -276,12 +313,17 @@ function normalizePayload(providerId: string, payload: RawProviderPayload, now =
   const metadata = getProviderMetadata(providerId);
   const updatedAt = extractUpdatedAt(payload);
   const fetchedAt = new Date(now).toISOString();
-  const sections = [...buildUsageSections(metadata.id, payload, now)];
+  const sections = [...buildUsageSections(metadata.id, payload, now), ...buildSupplementalUsageSections(payload, now)];
   const creditsSection = buildCreditsSection(payload);
+  const providerCostSection = buildProviderCostSection(payload);
   const updatedSection = buildUpdatedSection(updatedAt);
 
   if (creditsSection) {
     sections.push(creditsSection);
+  }
+
+  if (providerCostSection) {
+    sections.push(providerCostSection);
   }
 
   if (updatedSection) {
