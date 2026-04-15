@@ -6,6 +6,7 @@ describe("provider registry", () => {
   it("covers the documented provider IDs without including selector aliases", () => {
     expect(PROVIDER_IDS).toContain("codex");
     expect(PROVIDER_IDS).toContain("claude");
+    expect(PROVIDER_IDS).toContain("opencodego");
     expect(PROVIDER_IDS).toContain("alibaba");
     expect(PROVIDER_IDS).toContain("openrouter");
     expect(PROVIDER_IDS).toContain("perplexity");
@@ -49,6 +50,23 @@ describe("provider registry", () => {
       progressPalette: {
         lightFill: "#FF6A00",
         darkFill: "#FF8833",
+      },
+    });
+  });
+
+  it("includes OpenCode Go with its upstream provider id", () => {
+    expect(getProviderMetadata("opencodego")).toEqual({
+      id: "opencodego",
+      name: "OpenCode Go",
+      icon: {
+        source: "providers/ProviderIcon-opencodego.svg",
+        fallback: Icon.Code,
+        tintColor: Color.PrimaryText,
+      },
+      brandColor: "#3B82F6",
+      progressPalette: {
+        lightFill: "#3B82F6",
+        darkFill: "#629BF8",
       },
     });
   });

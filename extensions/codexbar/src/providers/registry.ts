@@ -33,6 +33,7 @@ const PROVIDER_DEFINITIONS = {
   claude: { name: "Claude", icon: providerIcon("claude", Icon.Bubble), brandColor: "#CC7C5E" },
   cursor: { name: "Cursor", icon: providerIcon("cursor", Icon.ArrowRightCircle), brandColor: "#00BFA5" },
   opencode: { name: "OpenCode", icon: providerIcon("opencode", Icon.Code), brandColor: "#3B82F6" },
+  opencodego: { name: "OpenCode Go", icon: providerIcon("opencodego", Icon.Code), brandColor: "#3B82F6" },
   alibaba: { name: "Alibaba", icon: providerIcon("alibaba"), brandColor: "#FF6A00" },
   factory: { name: "Factory", icon: providerIcon("factory"), brandColor: "#FF6B35" },
   gemini: { name: "Gemini", icon: providerIcon("gemini", Icon.Bolt), brandColor: "#AB87EA" },
