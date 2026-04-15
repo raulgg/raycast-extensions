@@ -136,7 +136,7 @@ describe("codexbar runtime helpers", () => {
       fetchProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "codex"),
     ).resolves.toMatchObject({
       id: "codex",
-      sections: [{ title: "Primary", progressPercent: 80 }],
+      sections: [{ title: "Primary", displayTitle: "Session", progressPercent: 80 }],
       markdown: expect.stringContaining("![Codex detail]"),
     });
 

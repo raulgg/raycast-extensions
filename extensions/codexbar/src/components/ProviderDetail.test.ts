@@ -50,6 +50,7 @@ function makeDetail(): ProviderDetailData {
     sections: [
       {
         title: "Primary",
+        displayTitle: "Session",
         progressPercent: 53,
         items: [
           { label: "Remaining", value: "53%" },

@@ -36,6 +36,7 @@ describe("provider normalization", () => {
     expect(detail.name).toBe("Codex");
     expect(detail.updatedAt).toBe("2026-03-23T09:00:00Z");
     expect(detail.sections.map((section) => section.title)).toEqual(["Primary", "Secondary", "Credits", "General"]);
+    expect(detail.sections.map((section) => section.displayTitle)).toEqual(["Session", "Weekly", undefined, undefined]);
     expect(detail.sections[0].progressPercent).toBe(53);
     expect(detail.sections[0].items).toEqual([
       { label: "Remaining", value: "53%" },
@@ -79,14 +80,15 @@ describe("provider normalization", () => {
     const [detailSvg] = extractSvgMarkup(detail.markdown);
 
     expect(detail.sections.map((section) => section.title)).toEqual(["Primary", "Secondary"]);
+    expect(detail.sections.map((section) => section.displayTitle)).toEqual(["Session", "Weekly"]);
     expect(detail.sections[0].progressPercent).toBe(80);
     expect(detail.sections[1].progressPercent).toBe(55);
     expect(detail.sections[0].items[0]).toMatchObject({ label: "Remaining", value: "80%" });
     expect(detail.sections[1].items[0]).toMatchObject({ label: "Remaining", value: "55%" });
     expect(detail.sections[1].items[1]).toMatchObject({ label: "Resets In", value: "1d 1h" });
     expect(detail.markdown).toContain("data:image/svg+xml;base64,");
-    expect(detailSvg).toContain(">Primary<");
-    expect(detailSvg).toContain(">Secondary<");
+    expect(detailSvg).toContain(">Session<");
+    expect(detailSvg).toContain(">Weekly<");
     expect(detailSvg).toContain(">80% left<");
     expect(detailSvg).toContain(">55% left<");
     expect(detailSvg).toContain(">Resets in 1d 1h<");

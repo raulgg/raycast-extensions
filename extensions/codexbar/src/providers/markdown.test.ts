@@ -44,6 +44,7 @@ describe("provider markdown", () => {
         sections: [
           {
             title: "Primary",
+            displayTitle: "Session",
             items: [
               { label: "Remaining", value: "53%" },
               { label: "Resets In", value: "1h 30m" },
@@ -52,6 +53,7 @@ describe("provider markdown", () => {
           },
           {
             title: "Secondary",
+            displayTitle: "Weekly",
             items: [
               { label: "Remaining", value: "88%" },
               { label: "Resets In", value: "7d" },
@@ -98,6 +100,7 @@ describe("provider markdown", () => {
         sections: [
           {
             title: "Primary",
+            displayTitle: "Session",
             items: [
               { label: "Remaining", value: "53%" },
               { label: "Resets In", value: "1h 30m" },
@@ -115,6 +118,7 @@ describe("provider markdown", () => {
         sections: [
           {
             title: "Primary",
+            displayTitle: "Session",
             items: [
               { label: "Remaining", value: "53%" },
               { label: "Resets In", value: "1h 30m" },
@@ -142,7 +146,7 @@ describe("provider markdown", () => {
     expect(lightMarkdown).not.toBe(darkMarkdown);
   });
 
-  it("keeps generic titles for non-codex providers", () => {
+  it("uses explicit display titles for usage sections", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "claude",
@@ -150,6 +154,7 @@ describe("provider markdown", () => {
         sections: [
           {
             title: "Primary",
+            displayTitle: "Session",
             items: [
               { label: "Remaining", value: "80%" },
               { label: "Resets In", value: "30m" },
@@ -164,6 +169,28 @@ describe("provider markdown", () => {
     const [svg] = extractSvgMarkup(markdown);
 
     expect(svg).toContain(">Claude<");
+    expect(svg).toContain(">Session<");
+    expect(svg).not.toContain(">Primary<");
+  });
+
+  it("falls back to semantic titles when display titles are absent", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "claude",
+        name: "Claude",
+        sections: [
+          {
+            title: "Primary",
+            items: [{ label: "Remaining", value: "80%" }],
+            progressPercent: 80,
+          },
+        ],
+      },
+      "dark",
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+
     expect(svg).toContain(">Primary<");
     expect(svg).not.toContain(">Session<");
   });
@@ -186,6 +213,7 @@ describe("provider markdown", () => {
         sections: [
           {
             title: "Primary",
+            displayTitle: "Session",
             items: [
               { label: "Remaining", value: "53%" },
               { label: "Resets In", value: "1h 30m" },
@@ -194,6 +222,7 @@ describe("provider markdown", () => {
           },
           {
             title: "Secondary",
+            displayTitle: "Weekly",
             items: [
               { label: "Remaining", value: "88%" },
               { label: "Resets In", value: "7d" },

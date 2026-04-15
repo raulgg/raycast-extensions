@@ -1,4 +1,4 @@
-import { getProviderMetadata } from "./registry";
+import { getProviderMetadata, getProviderUsageSectionDisplayTitle } from "./registry";
 import type { ProviderDetailData, ProviderSection, ProviderSectionItem, RawProviderPayload } from "./types";
 import { formatLocalDateTime } from "../lib/presentation";
 import { buildProviderDetailMarkdown } from "./markdown";
@@ -128,7 +128,7 @@ function buildWindowItems(
   return items;
 }
 
-function buildUsageSections(payload: RawProviderPayload, now = Date.now()): ProviderSection[] {
+function buildUsageSections(providerId: string, payload: RawProviderPayload, now = Date.now()): ProviderSection[] {
   const usage = toRecord(payload.usage);
   const sections: ProviderSection[] = [];
   const slotFallbacks = [
@@ -162,7 +162,12 @@ function buildUsageSections(payload: RawProviderPayload, now = Date.now()): Prov
       slot.remainingPercent ?? (usedPercent !== undefined ? Math.max(0, Math.round(100 - usedPercent)) : undefined);
     const items = buildWindowItems(record, slot.remainingPercent, slot.resetTimestamp, now);
     if (items.length > 0) {
-      sections.push({ title: slot.title, items, progressPercent });
+      sections.push({
+        title: slot.title,
+        displayTitle: getProviderUsageSectionDisplayTitle(providerId, slot.title),
+        items,
+        progressPercent,
+      });
     }
   }
 
@@ -271,7 +276,7 @@ function normalizePayload(providerId: string, payload: RawProviderPayload, now =
   const metadata = getProviderMetadata(providerId);
   const updatedAt = extractUpdatedAt(payload);
   const fetchedAt = new Date(now).toISOString();
-  const sections = [...buildUsageSections(payload, now)];
+  const sections = [...buildUsageSections(metadata.id, payload, now)];
   const creditsSection = buildCreditsSection(payload);
   const updatedSection = buildUpdatedSection(updatedAt);
 

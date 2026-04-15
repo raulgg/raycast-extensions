@@ -16,6 +16,7 @@ export type ProviderSectionItem = {
 
 export type ProviderSection = {
   title: string;
+  displayTitle?: string;
   items: ProviderSectionItem[];
   progressPercent?: number;
 };

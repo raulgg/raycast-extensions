@@ -5,12 +5,19 @@ export type ProviderProgressPalette = {
   darkFill: string;
 };
 
+export type ProviderUsageSectionLabels = {
+  primary: string;
+  secondary: string;
+  tertiary?: string;
+};
+
 export type ProviderRegistryEntry = {
   id: string;
   name: string;
   icon: ImageLike;
   brandColor: string;
   progressPalette: ProviderProgressPalette;
+  usageSectionLabels: ProviderUsageSectionLabels;
 };
 
 type ProviderDefinition = Omit<ProviderRegistryEntry, "id" | "progressPalette">;
@@ -29,31 +36,156 @@ function providerIcon(slug: string, fallback: Icon = Icon.Circle): ImageLike {
 }
 
 const PROVIDER_DEFINITIONS = {
-  codex: { name: "Codex", icon: providerIcon("codex", Icon.Terminal), brandColor: "#49A3B0" },
-  claude: { name: "Claude", icon: providerIcon("claude", Icon.Bubble), brandColor: "#CC7C5E" },
-  cursor: { name: "Cursor", icon: providerIcon("cursor", Icon.ArrowRightCircle), brandColor: "#00BFA5" },
-  opencode: { name: "OpenCode", icon: providerIcon("opencode", Icon.Code), brandColor: "#3B82F6" },
-  opencodego: { name: "OpenCode Go", icon: providerIcon("opencodego", Icon.Code), brandColor: "#3B82F6" },
-  alibaba: { name: "Alibaba", icon: providerIcon("alibaba"), brandColor: "#FF6A00" },
-  factory: { name: "Factory", icon: providerIcon("factory"), brandColor: "#FF6B35" },
-  gemini: { name: "Gemini", icon: providerIcon("gemini", Icon.Bolt), brandColor: "#AB87EA" },
-  antigravity: { name: "Antigravity", icon: providerIcon("antigravity"), brandColor: "#60BA7E" },
-  copilot: { name: "GitHub Copilot", icon: providerIcon("copilot", Icon.Person), brandColor: "#A855F7" },
-  zai: { name: "Z.ai", icon: providerIcon("zai", Icon.Globe), brandColor: "#E85A6A" },
-  minimax: { name: "MiniMax", icon: providerIcon("minimax"), brandColor: "#FE603C" },
-  kimi: { name: "Kimi", icon: providerIcon("kimi"), brandColor: "#FE603C" },
-  kilo: { name: "Kilo", icon: providerIcon("kilo", Icon.BarChart), brandColor: "#F27027" },
-  kiro: { name: "Kiro", icon: providerIcon("kiro"), brandColor: "#FF9900" },
-  vertexai: { name: "Vertex AI", icon: providerIcon("vertexai", Icon.Globe), brandColor: "#4285F4" },
-  augment: { name: "Augment", icon: providerIcon("augment", Icon.Bolt), brandColor: "#6366F1" },
-  jetbrains: { name: "JetBrains", icon: providerIcon("jetbrains", Icon.AppWindow), brandColor: "#FF3399" },
-  kimik2: { name: "Kimi K2", icon: Icon.Circle, brandColor: "#4C00FF" },
-  amp: { name: "Amp", icon: providerIcon("amp", Icon.Bolt), brandColor: "#DC2626" },
-  ollama: { name: "Ollama", icon: providerIcon("ollama", Icon.Box), brandColor: "#888888" },
-  synthetic: { name: "Synthetic", icon: providerIcon("synthetic"), brandColor: "#141414" },
-  warp: { name: "Warp", icon: providerIcon("warp", Icon.ArrowRightCircle), brandColor: "#938BB4" },
-  openrouter: { name: "OpenRouter", icon: providerIcon("openrouter", Icon.TwoPeople), brandColor: "#6467F2" },
-  perplexity: { name: "Perplexity", icon: providerIcon("perplexity", Icon.Globe), brandColor: "#20B2AA" },
+  codex: {
+    name: "Codex",
+    icon: providerIcon("codex", Icon.Terminal),
+    brandColor: "#49A3B0",
+    usageSectionLabels: { primary: "Session", secondary: "Weekly" },
+  },
+  claude: {
+    name: "Claude",
+    icon: providerIcon("claude", Icon.Bubble),
+    brandColor: "#CC7C5E",
+    usageSectionLabels: { primary: "Session", secondary: "Weekly", tertiary: "Sonnet" },
+  },
+  cursor: {
+    name: "Cursor",
+    icon: providerIcon("cursor", Icon.ArrowRightCircle),
+    brandColor: "#00BFA5",
+    usageSectionLabels: { primary: "Total", secondary: "Auto", tertiary: "API" },
+  },
+  opencode: {
+    name: "OpenCode",
+    icon: providerIcon("opencode", Icon.Code),
+    brandColor: "#3B82F6",
+    usageSectionLabels: { primary: "5-hour", secondary: "Weekly" },
+  },
+  opencodego: {
+    name: "OpenCode Go",
+    icon: providerIcon("opencodego", Icon.Code),
+    brandColor: "#3B82F6",
+    usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
+  },
+  alibaba: {
+    name: "Alibaba",
+    icon: providerIcon("alibaba"),
+    brandColor: "#FF6A00",
+    usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
+  },
+  factory: {
+    name: "Factory",
+    icon: providerIcon("factory"),
+    brandColor: "#FF6B35",
+    usageSectionLabels: { primary: "Standard", secondary: "Premium" },
+  },
+  gemini: {
+    name: "Gemini",
+    icon: providerIcon("gemini", Icon.Bolt),
+    brandColor: "#AB87EA",
+    usageSectionLabels: { primary: "Pro", secondary: "Flash", tertiary: "Flash Lite" },
+  },
+  antigravity: {
+    name: "Antigravity",
+    icon: providerIcon("antigravity"),
+    brandColor: "#60BA7E",
+    usageSectionLabels: { primary: "Claude", secondary: "Gemini Pro", tertiary: "Gemini Flash" },
+  },
+  copilot: {
+    name: "GitHub Copilot",
+    icon: providerIcon("copilot", Icon.Person),
+    brandColor: "#A855F7",
+    usageSectionLabels: { primary: "Premium", secondary: "Chat" },
+  },
+  zai: {
+    name: "Z.ai",
+    icon: providerIcon("zai", Icon.Globe),
+    brandColor: "#E85A6A",
+    usageSectionLabels: { primary: "Tokens", secondary: "MCP", tertiary: "5-hour" },
+  },
+  minimax: {
+    name: "MiniMax",
+    icon: providerIcon("minimax"),
+    brandColor: "#FE603C",
+    usageSectionLabels: { primary: "Prompts", secondary: "Window" },
+  },
+  kimi: {
+    name: "Kimi",
+    icon: providerIcon("kimi"),
+    brandColor: "#FE603C",
+    usageSectionLabels: { primary: "Weekly", secondary: "Rate Limit" },
+  },
+  kilo: {
+    name: "Kilo",
+    icon: providerIcon("kilo", Icon.BarChart),
+    brandColor: "#F27027",
+    usageSectionLabels: { primary: "Credits", secondary: "Kilo Pass" },
+  },
+  kiro: {
+    name: "Kiro",
+    icon: providerIcon("kiro"),
+    brandColor: "#FF9900",
+    usageSectionLabels: { primary: "Credits", secondary: "Bonus" },
+  },
+  vertexai: {
+    name: "Vertex AI",
+    icon: providerIcon("vertexai", Icon.Globe),
+    brandColor: "#4285F4",
+    usageSectionLabels: { primary: "Requests", secondary: "Tokens" },
+  },
+  augment: {
+    name: "Augment",
+    icon: providerIcon("augment", Icon.Bolt),
+    brandColor: "#6366F1",
+    usageSectionLabels: { primary: "Credits", secondary: "Usage" },
+  },
+  jetbrains: {
+    name: "JetBrains",
+    icon: providerIcon("jetbrains", Icon.AppWindow),
+    brandColor: "#FF3399",
+    usageSectionLabels: { primary: "Current", secondary: "Refill" },
+  },
+  kimik2: {
+    name: "Kimi K2",
+    icon: Icon.Circle,
+    brandColor: "#4C00FF",
+    usageSectionLabels: { primary: "Credits", secondary: "Credits" },
+  },
+  amp: {
+    name: "Amp",
+    icon: providerIcon("amp", Icon.Bolt),
+    brandColor: "#DC2626",
+    usageSectionLabels: { primary: "Amp Free", secondary: "Balance" },
+  },
+  ollama: {
+    name: "Ollama",
+    icon: providerIcon("ollama", Icon.Box),
+    brandColor: "#888888",
+    usageSectionLabels: { primary: "Session", secondary: "Weekly" },
+  },
+  synthetic: {
+    name: "Synthetic",
+    icon: providerIcon("synthetic"),
+    brandColor: "#141414",
+    usageSectionLabels: { primary: "Quota", secondary: "Usage" },
+  },
+  warp: {
+    name: "Warp",
+    icon: providerIcon("warp", Icon.ArrowRightCircle),
+    brandColor: "#938BB4",
+    usageSectionLabels: { primary: "Credits", secondary: "Add-on credits" },
+  },
+  openrouter: {
+    name: "OpenRouter",
+    icon: providerIcon("openrouter", Icon.TwoPeople),
+    brandColor: "#6467F2",
+    usageSectionLabels: { primary: "Credits", secondary: "Usage" },
+  },
+  perplexity: {
+    name: "Perplexity",
+    icon: providerIcon("perplexity", Icon.Globe),
+    brandColor: "#20B2AA",
+    usageSectionLabels: { primary: "Credits", secondary: "Bonus credits", tertiary: "Purchased" },
+  },
 } satisfies Record<string, ProviderDefinition>;
 
 export const PROVIDER_IDS = Object.keys(PROVIDER_DEFINITIONS);
@@ -148,9 +280,28 @@ export function getProviderMetadata(id: string): ProviderRegistryEntry {
     icon: Icon.Circle,
     brandColor: DEFAULT_PROGRESS_PALETTE.lightFill,
     progressPalette: DEFAULT_PROGRESS_PALETTE,
+    usageSectionLabels: { primary: "Primary", secondary: "Secondary", tertiary: "Tertiary" },
   };
 }
 
 export function getProviderProgressPalette(id: string): ProviderProgressPalette {
   return getProviderMetadata(id).progressPalette;
+}
+
+export function getProviderUsageSectionDisplayTitle(providerId: string, sectionTitle: string): string {
+  const labels = getProviderMetadata(providerId).usageSectionLabels;
+
+  if (sectionTitle === "Primary") {
+    return labels.primary;
+  }
+
+  if (sectionTitle === "Secondary") {
+    return labels.secondary;
+  }
+
+  if (sectionTitle === "Tertiary") {
+    return labels.tertiary ?? sectionTitle;
+  }
+
+  return sectionTitle;
 }

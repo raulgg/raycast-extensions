@@ -1,6 +1,12 @@
 import { Color, Icon } from "@raycast/api";
 import { describe, expect, it } from "vitest";
-import { getProviderMetadata, isKnownProviderId, PROVIDER_IDS, PROVIDER_SELECTOR_IDS } from "./registry";
+import {
+  getProviderMetadata,
+  getProviderUsageSectionDisplayTitle,
+  isKnownProviderId,
+  PROVIDER_IDS,
+  PROVIDER_SELECTOR_IDS,
+} from "./registry";
 
 describe("provider registry", () => {
   it("covers the documented provider IDs without including selector aliases", () => {
@@ -34,6 +40,7 @@ describe("provider registry", () => {
         lightFill: "#6467F2",
         darkFill: "#8385F5",
       },
+      usageSectionLabels: { primary: "Credits", secondary: "Usage" },
     });
   });
 
@@ -51,6 +58,7 @@ describe("provider registry", () => {
         lightFill: "#FF6A00",
         darkFill: "#FF8833",
       },
+      usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
     });
   });
 
@@ -68,6 +76,7 @@ describe("provider registry", () => {
         lightFill: "#3B82F6",
         darkFill: "#629BF8",
       },
+      usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
     });
   });
 
@@ -81,6 +90,15 @@ describe("provider registry", () => {
         lightFill: "#22B8CF",
         darkFill: "#4EC8DD",
       },
+      usageSectionLabels: { primary: "Primary", secondary: "Secondary", tertiary: "Tertiary" },
     });
+  });
+
+  it("returns upstream usage section labels for semantic slots", () => {
+    expect(getProviderUsageSectionDisplayTitle("cursor", "Primary")).toBe("Total");
+    expect(getProviderUsageSectionDisplayTitle("cursor", "Secondary")).toBe("Auto");
+    expect(getProviderUsageSectionDisplayTitle("cursor", "Tertiary")).toBe("API");
+    expect(getProviderUsageSectionDisplayTitle("amp", "Tertiary")).toBe("Tertiary");
+    expect(getProviderUsageSectionDisplayTitle("codex", "Credits")).toBe("Credits");
   });
 });

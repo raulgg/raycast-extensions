@@ -52,20 +52,8 @@ function findSectionItem(section: ProviderSection, label: string): ProviderSecti
   return section.items.find((item) => item.label.toLowerCase() === label);
 }
 
-function getSectionDisplayTitle(providerName: string, title: string): string {
-  if (providerName.toLowerCase() !== "codex") {
-    return title;
-  }
-
-  if (title === "Primary") {
-    return "Session";
-  }
-
-  if (title === "Secondary") {
-    return "Weekly";
-  }
-
-  return title;
+function getSectionDisplayTitle(section: ProviderSection): string {
+  return section.displayTitle ?? section.title;
 }
 
 function getHeaderSubtitle(updatedAt?: string): string | undefined {
@@ -140,14 +128,13 @@ function buildProgressBarSvg(
 function renderUsageSection(
   section: ProviderSection,
   providerId: string,
-  providerName: string,
   appearance: ProviderDetailAppearance,
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
   const palette = PANEL_PALETTES[appearance];
   const remainingValue = findSectionItem(section, "remaining")?.value ?? formatPercent(section.progressPercent ?? 0);
   const resetsIn = findSectionItem(section, "resets in")?.value;
-  const title = getSectionDisplayTitle(providerName, section.title);
+  const title = getSectionDisplayTitle(section);
   const progressY = getUsageProgressY(startY);
   const footerY = getUsageFooterY(progressY);
   const markup = [
@@ -194,7 +181,6 @@ function renderUsageSection(
 function renderUsageSections(
   sections: ProviderSection[],
   providerId: string,
-  providerName: string,
   appearance: ProviderDetailAppearance,
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
@@ -203,7 +189,7 @@ function renderUsageSections(
   let contentBottomY = startY;
 
   for (const [index, section] of sections.entries()) {
-    const rendered = renderUsageSection(section, providerId, providerName, appearance, currentY);
+    const rendered = renderUsageSection(section, providerId, appearance, currentY);
     markup.push(...rendered.markup);
     contentBottomY = rendered.contentBottomY;
     currentY = rendered.contentBottomY + USAGE_LAYOUT.bottomSpacing;
@@ -303,7 +289,7 @@ export function buildProviderDetailMarkdown(
     markup.push(buildSectionDivider(getSectionDividerY(currentY), palette.dividerStroke));
     currentY = getSectionTitleY(currentY);
 
-    const rendered = renderUsageSections(usageSections, detail.id, detail.name, appearance, currentY);
+    const rendered = renderUsageSections(usageSections, detail.id, appearance, currentY);
     markup.push(...rendered.markup);
     currentY = rendered.contentBottomY;
   }
