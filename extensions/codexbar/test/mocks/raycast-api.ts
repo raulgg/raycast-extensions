@@ -8,3 +8,8 @@ export const Icon = new Proxy(
 export const Color = {
   PrimaryText: "raycast-primary-text",
 } as const;
+
+export const environment = {
+  appearance: "light",
+  isDevelopment: false,
+} as const;
