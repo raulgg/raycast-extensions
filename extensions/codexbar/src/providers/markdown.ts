@@ -140,15 +140,44 @@ function buildProgressBarSvg(
   const progressFill = appearance === "dark" ? progressPalette.darkFill : progressPalette.lightFill;
 
   return [
-    `<rect x="${x}" y="${y}" width="${width}" height="${PROGRESS_BAR.height}" rx="${PROGRESS_BAR.radius}" fill="${palette.progressTrackFill}"/>`,
+    buildRectSvg(
+      x,
+      y,
+      width,
+      PROGRESS_BAR.height,
+      PROGRESS_BAR.radius,
+      palette.progressTrackFill,
+      palette.progressTrackOpacity,
+    ),
     fillWidth > 0
       ? `<rect x="${x}" y="${y}" width="${fillWidth}" height="${PROGRESS_BAR.height}" rx="${PROGRESS_BAR.radius}" fill="${progressFill}"/>`
       : "",
   ].join("");
 }
 
-function buildSkeletonRect(x: number, y: number, width: number, height: number, fill: string, radius: number): string {
-  return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${fill}"/>`;
+function buildRectSvg(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  fill: string,
+  fillOpacity?: number,
+): string {
+  const opacityAttribute = typeof fillOpacity === "number" ? ` fill-opacity="${fillOpacity}"` : "";
+  return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${fill}"${opacityAttribute}/>`;
+}
+
+function buildSkeletonRect(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  fill: string,
+  radius: number,
+  fillOpacity?: number,
+): string {
+  return buildRectSvg(x, y, width, height, radius, fill, fillOpacity);
 }
 
 function renderProgressSection(
@@ -239,6 +268,7 @@ function renderLoadingSkeletonSection(
       LOADING_SKELETON_LAYOUT.titleHeight,
       palette.progressTrackFill,
       LOADING_SKELETON_LAYOUT.titleRadius,
+      palette.progressTrackOpacity,
     ),
     buildSkeletonRect(
       getLeftContentX(),
@@ -247,6 +277,7 @@ function renderLoadingSkeletonSection(
       PROGRESS_BAR.height,
       palette.progressTrackFill,
       PROGRESS_BAR.radius,
+      palette.progressTrackOpacity,
     ),
     buildSkeletonRect(
       getLeftContentX(),
@@ -255,6 +286,7 @@ function renderLoadingSkeletonSection(
       LOADING_SKELETON_LAYOUT.footerHeight,
       palette.progressTrackFill,
       LOADING_SKELETON_LAYOUT.footerRadius,
+      palette.progressTrackOpacity,
     ),
     buildSkeletonRect(
       footerRightX,
@@ -263,6 +295,7 @@ function renderLoadingSkeletonSection(
       LOADING_SKELETON_LAYOUT.footerHeight,
       palette.progressTrackFill,
       LOADING_SKELETON_LAYOUT.footerRadius,
+      palette.progressTrackOpacity,
     ),
   ];
 

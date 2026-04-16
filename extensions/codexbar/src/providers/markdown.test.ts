@@ -151,9 +151,13 @@ describe("provider markdown", () => {
     expect(darkMarkdown).not.toContain("prefers-color-scheme");
     expect(lightSvg).toContain('fill="#111827"');
     expect(lightSvg).toContain('stroke="#E5E7EB"');
+    expect(lightSvg).toContain('fill="#000000"');
+    expect(lightSvg).toContain('fill-opacity="0.057"');
     expect(lightSvg).toContain('fill="#49A3B0"');
     expect(darkSvg).toContain('fill="#F3F4F6"');
     expect(darkSvg).toContain('stroke="#374151"');
+    expect(darkSvg).toContain('fill="#FFFFFF"');
+    expect(darkSvg).toContain('fill-opacity="0.054"');
     expect(darkSvg).toContain('fill="#6DB5C0"');
     expect(lightSvg).toContain(">Session<");
     expect(darkSvg).toContain(">Session<");

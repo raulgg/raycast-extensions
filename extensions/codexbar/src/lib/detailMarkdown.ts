@@ -70,6 +70,7 @@ export const DETAIL_PALETTES: Record<
     valueFill: string;
     dividerStroke: string;
     progressTrackFill: string;
+    progressTrackOpacity: number;
     progressFill: string;
   }
 > = {
@@ -80,7 +81,8 @@ export const DETAIL_PALETTES: Record<
     labelFill: "#6B7280",
     valueFill: "#111827",
     dividerStroke: "#E5E7EB",
-    progressTrackFill: "#E5E7EB",
+    progressTrackFill: "#000000",
+    progressTrackOpacity: 0.057,
     progressFill: "#22B8CF",
   },
   dark: {
@@ -90,7 +92,8 @@ export const DETAIL_PALETTES: Record<
     labelFill: "#9CA3AF",
     valueFill: "#E5E7EB",
     dividerStroke: "#374151",
-    progressTrackFill: "#253040",
+    progressTrackFill: "#FFFFFF",
+    progressTrackOpacity: 0.054,
     progressFill: "#4EC8DD",
   },
 };
