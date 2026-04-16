@@ -34,6 +34,13 @@ const PROGRESS_BAR = {
   radius: 4,
 } as const;
 
+const PROGRESS_MARKER = {
+  width: 3,
+  height: 12,
+  radius: 1.5,
+  edgeInset: 1,
+} as const;
+
 const LOADING_SKELETON_LAYOUT = {
   sectionCount: 2,
   titleWidth: 88,
@@ -134,6 +141,7 @@ function buildProgressBarSvg(
   width: number,
   appearance: ProviderDetailAppearance,
   providerId: string,
+  markerPercent?: number,
 ): string {
   const normalized = Math.max(0, Math.min(100, percent));
   const fillWidth = Math.round((normalized / 100) * width);
@@ -154,7 +162,34 @@ function buildProgressBarSvg(
     fillWidth > 0
       ? `<rect x="${x}" y="${y}" width="${fillWidth}" height="${PROGRESS_BAR.height}" rx="${PROGRESS_BAR.radius}" fill="${progressFill}"/>`
       : "",
+    typeof markerPercent === "number" ? buildProgressMarkerSvg(markerPercent, x, y, width, appearance) : "",
   ].join("");
+}
+
+function buildProgressMarkerSvg(
+  markerPercent: number,
+  x: number,
+  y: number,
+  width: number,
+  appearance: ProviderDetailAppearance,
+): string {
+  const palette = PANEL_PALETTES[appearance];
+  const normalizedPercent = Math.max(0, Math.min(100, markerPercent));
+  const markerCenterX = x + (normalizedPercent / 100) * width;
+  const minLeft = x + PROGRESS_MARKER.edgeInset;
+  const maxLeft = x + width - PROGRESS_MARKER.width - PROGRESS_MARKER.edgeInset;
+  const markerX = Math.max(minLeft, Math.min(maxLeft, markerCenterX - PROGRESS_MARKER.width / 2));
+  const markerY = y - (PROGRESS_MARKER.height - PROGRESS_BAR.height) / 2;
+
+  return buildRectSvg(
+    markerX,
+    markerY,
+    PROGRESS_MARKER.width,
+    PROGRESS_MARKER.height,
+    PROGRESS_MARKER.radius,
+    palette.progressMarkerFill,
+    palette.progressMarkerOpacity,
+  );
 }
 
 function buildRectSvg(
@@ -189,6 +224,7 @@ function renderProgressSection(
   providerId: string,
   appearance: ProviderDetailAppearance,
   startY: number,
+  markerPercent?: number,
 ): { markup: string[]; contentBottomY: number } {
   const palette = PANEL_PALETTES[appearance];
   const progressY = getUsageProgressY(startY);
@@ -202,7 +238,15 @@ function renderProgressSection(
       TYPOGRAPHY.sectionTitleSize,
       FONT_WEIGHT.bold,
     ),
-    buildProgressBarSvg(percent, getLeftContentX(), progressY, getContentWidth(), appearance, providerId),
+    buildProgressBarSvg(
+      percent,
+      getLeftContentX(),
+      progressY,
+      getContentWidth(),
+      appearance,
+      providerId,
+      markerPercent,
+    ),
   ];
   let footerY = initialFooterY;
 
@@ -248,6 +292,11 @@ function renderMetricSection(
 ): { markup: string[]; contentBottomY: number } {
   if (section.kind === "usage") {
     const paceFooter = section.pace ? formatUsagePaceLabels(section.pace) : undefined;
+    const markerPercent =
+      section.pace && section.pace.stage !== "onTrack"
+        ? Math.max(0, 100 - section.pace.expectedUsedPercent)
+        : undefined;
+
     return renderProgressSection(
       section.displayTitle,
       section.remainingPercent,
@@ -261,11 +310,16 @@ function renderMetricSection(
       providerId,
       appearance,
       startY,
+      markerPercent,
     );
   }
 
   if (section.kind === "supplementalUsage") {
     const paceFooter = section.pace ? formatUsagePaceLabels(section.pace) : undefined;
+    const markerPercent =
+      section.pace && section.pace.stage !== "onTrack"
+        ? Math.max(0, 100 - section.pace.expectedUsedPercent)
+        : undefined;
     return renderProgressSection(
       section.title,
       section.remainingPercent,
@@ -279,6 +333,7 @@ function renderMetricSection(
       providerId,
       appearance,
       startY,
+      markerPercent,
     );
   }
 
@@ -459,6 +514,7 @@ function renderStandaloneSection(
       providerId,
       appearance,
       startY,
+      undefined,
     );
   }
 
@@ -470,6 +526,7 @@ function renderStandaloneSection(
       providerId,
       appearance,
       startY,
+      undefined,
     );
   }
 

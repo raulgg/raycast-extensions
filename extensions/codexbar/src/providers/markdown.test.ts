@@ -32,6 +32,12 @@ function getRectYs(svg: string, width: number, height: number): number[] {
   );
 }
 
+function getRectXs(svg: string, width: number, height: number): number[] {
+  return [...svg.matchAll(new RegExp(`<rect[^>]* x="([^"]+)"[^>]* width="${width}" height="${height}"`, "g"))].map(
+    (match) => Number(match[1]),
+  );
+}
+
 function getTextTopY(baselineY: number, fontSize: number): number {
   return baselineY - Math.ceil(fontSize * TEXT_TOP_INSET_RATIO);
 }
@@ -247,6 +253,40 @@ describe("provider markdown", () => {
     expect(svg).toContain(">Lasts until reset<");
     expect(getTextY(svg, "40% below pace")).toBeGreaterThan(getTextY(svg, "47% left"));
     expect(getTextY(svg, "Lasts until reset")).toBeGreaterThan(getTextY(svg, "Resets in 11h 47m"));
+    expect(getRectXs(svg, 3, 12)).toHaveLength(1);
+    expect(getRectXs(svg, 3, 12)[0]).toBeGreaterThan(28);
+    expect(getRectXs(svg, 3, 12)[0]).toBeLessThan(31);
+  });
+
+  it("does not render a pace marker when pace is on track", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        sections: [
+          {
+            kind: "usage",
+            title: "Secondary",
+            displayTitle: "Weekly",
+            remainingPercent: 47,
+            resetsIn: "11h 47m",
+            pace: {
+              stage: "onTrack",
+              deltaPercent: 1.2,
+              expectedUsedPercent: 53,
+              actualUsedPercent: 54.2,
+              willLastToReset: true,
+              computedAt: "2026-04-16T12:30:00.000Z",
+            },
+          },
+        ],
+      },
+      "light",
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+
+    expect(getRectXs(svg, 3, 12)).toEqual([]);
   });
 
   it("supports overriding header subtitle while keeping sections", () => {
