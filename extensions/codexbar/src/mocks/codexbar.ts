@@ -4,7 +4,8 @@ import type { ConfiguredProvider, RawProviderPayload } from "../providers/types"
 
 // TODO: add CODEXBAR_MOCK_ERROR fixtures later.
 
-const DEV_MOCK = true;
+// update const to true when want to use mock data in development
+const DEV_MOCK = false;
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;

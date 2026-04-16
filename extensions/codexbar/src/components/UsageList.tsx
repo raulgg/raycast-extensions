@@ -1,10 +1,10 @@
 import { Icon, List } from "@raycast/api";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CommandErrorDetail } from "./CommandErrorDetail";
 import { InstallHelpDetail } from "./InstallHelpDetail";
 import { ProviderListItem } from "./ProviderListItem";
 import { useCodexBarAvailability } from "../hooks/useCodexBarAvailability";
-import { useProviderDetail } from "../hooks/useProviderDetail";
+import { useProviderDetails } from "../hooks/useProviderDetails";
 import { useProviderDetailErrorToast } from "../hooks/useProviderDetailErrorToast";
 import { useUsageOverview } from "../hooks/useUsageOverview";
 
@@ -37,13 +37,20 @@ export function UsageList() {
     [configuredProviders.providers, selectedProviderId],
   );
 
-  const providerDetail = useProviderDetail(binary, selectedProviderId);
+  const providerDetails = useProviderDetails(binary, configuredProviders.providers, selectedProviderId);
+  const { isLoading: isProviderDetailLoading, refreshProvider, results: providerDetailResults } = providerDetails;
+  const selectedProviderDetail = selectedProviderId ? providerDetailResults[selectedProviderId] : undefined;
+  const refreshSelectedProvider = useCallback(() => {
+    if (selectedProviderId) {
+      refreshProvider(selectedProviderId);
+    }
+  }, [refreshProvider, selectedProviderId]);
 
   useProviderDetailErrorToast({
-    error: providerDetail.error,
+    error: selectedProviderDetail?.error,
     providerId: selectedProviderId,
     providerName: selectedProvider?.name,
-    onRetry: providerDetail.revalidate,
+    onRetry: refreshSelectedProvider,
   });
 
   if (availability.error) {
@@ -82,7 +89,7 @@ export function UsageList() {
 
   return (
     <List
-      isLoading={availability.isLoading || configuredProviders.isLoading}
+      isLoading={availability.isLoading || configuredProviders.isLoading || isProviderDetailLoading}
       isShowingDetail
       searchBarPlaceholder="Filter providers"
       onSelectionChange={(newValue) => setSelectedProviderId(newValue ?? undefined)}
@@ -94,17 +101,21 @@ export function UsageList() {
           icon={Icon.Circle}
         />
       ) : null}
-      {configuredProviders.providers.map((provider) => (
-        <ProviderListItem
-          key={provider.id}
-          provider={provider}
-          detail={provider.id === selectedProviderId ? providerDetail.detail : undefined}
-          detailError={provider.id === selectedProviderId ? providerDetail.error : undefined}
-          isDetailLoading={provider.id === selectedProviderId ? providerDetail.isLoading : false}
-          isSelected={provider.id === selectedProviderId}
-          onRefresh={providerDetail.revalidate}
-        />
-      ))}
+      {configuredProviders.providers.map((provider) => {
+        const providerDetail = providerDetailResults[provider.id];
+
+        return (
+          <ProviderListItem
+            key={provider.id}
+            provider={provider}
+            detail={providerDetail?.detail}
+            detailError={providerDetail?.error}
+            isDetailLoading={providerDetail?.isLoading ?? false}
+            isSelected={provider.id === selectedProviderId}
+            onRefresh={() => refreshProvider(provider.id)}
+          />
+        );
+      })}
     </List>
   );
 }

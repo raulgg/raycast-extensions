@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatLocalDateTime } from "../lib/presentation";
 import { extractSvgMarkup } from "../../test/svg-markdown";
-import { buildProviderDetailMarkdown } from "./markdown";
+import { buildProviderDetailMarkdown, buildProviderLoadingMarkdown } from "./markdown";
 
 const TEXT_TOP_INSET_RATIO = 0.8;
 const TEXT_BOTTOM_INSET_RATIO = 0.25;
@@ -197,6 +197,51 @@ describe("provider markdown", () => {
     expect(svg).toContain(">Sonnet<");
     expect(svg).toContain(">80% left<");
     expect(svg).toContain(">Resets in 30m<");
+  });
+
+  it("supports overriding header subtitle while keeping sections", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        updatedAt: "2026-03-23T09:00:00Z",
+        sections: [
+          {
+            kind: "usage",
+            title: "Primary",
+            displayTitle: "Session",
+            remainingPercent: 53,
+            resetsIn: "1h 30m",
+          },
+        ],
+      },
+      "light",
+      { subtitle: "Updating..." },
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+
+    expect(svg).toContain(">Codex<");
+    expect(svg).toContain(">Updating...<");
+    expect(svg).not.toContain(">Updated ");
+    expect(svg).toContain(">Session<");
+  });
+
+  it("renders header-only loading markdown", () => {
+    const markdown = buildProviderLoadingMarkdown(
+      {
+        name: "Codex",
+      },
+      "dark",
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+
+    expect(svg).toContain("<title>Codex detail</title>");
+    expect(svg).toContain(">Codex<");
+    expect(svg).toContain(">Updating...<");
+    expect(svg).not.toContain(">Session<");
+    expect(svg).not.toContain("<line ");
   });
 
   it("falls back to plain text for empty details", () => {

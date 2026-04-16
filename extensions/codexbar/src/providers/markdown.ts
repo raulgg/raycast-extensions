@@ -21,6 +21,9 @@ import {
 import type { ProviderDetailData, ProviderInfoSection, ProviderSection } from "./types";
 
 export type ProviderDetailAppearance = DetailAppearance;
+type ProviderDetailMarkdownOptions = {
+  subtitle?: string;
+};
 
 const TYPOGRAPHY = DETAIL_TYPOGRAPHY;
 const FONT_WEIGHT = DETAIL_FONT_WEIGHT;
@@ -317,6 +320,7 @@ function renderStandaloneSection(
 export function buildProviderDetailMarkdown(
   detail: Pick<ProviderDetailData, "id" | "name" | "sections" | "updatedAt">,
   appearance: ProviderDetailAppearance = "light",
+  options?: ProviderDetailMarkdownOptions,
 ): string {
   const sections = detail.sections.filter((section) => section.kind !== "info" || section.items.length > 0);
 
@@ -325,7 +329,7 @@ export function buildProviderDetailMarkdown(
   }
 
   const palette = PANEL_PALETTES[appearance];
-  const subtitle = getHeaderSubtitle(detail.updatedAt);
+  const subtitle = options?.subtitle ?? getHeaderSubtitle(detail.updatedAt);
   const { metricSections, otherSections } = splitRenderableSections(sections);
   const header = buildHeaderMarkup(detail.name, appearance, subtitle, `${detail.name} detail`);
   const markup = [...header.markup];
@@ -351,6 +355,17 @@ export function buildProviderDetailMarkdown(
 
   const height = getPanelHeight(currentY);
   const svg = buildSvgDocument(markup, height);
+
+  return buildSvgImageMarkdown(`${detail.name} detail`, svg, height);
+}
+
+export function buildProviderLoadingMarkdown(
+  detail: Pick<ProviderDetailData, "name">,
+  appearance: ProviderDetailAppearance = "light",
+): string {
+  const header = buildHeaderMarkup(detail.name, appearance, "Updating...", `${detail.name} detail`);
+  const height = getPanelHeight(header.contentBottomY);
+  const svg = buildSvgDocument(header.markup, height);
 
   return buildSvgImageMarkdown(`${detail.name} detail`, svg, height);
 }

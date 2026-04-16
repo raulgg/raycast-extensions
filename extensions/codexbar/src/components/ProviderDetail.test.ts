@@ -139,8 +139,30 @@ describe("ProviderDetail", () => {
     });
 
     expect(element.props.isLoading).toBe(true);
-    expect(element.props.markdown).toContain("Loading");
+    expect(element.props.markdown).toContain("data:image/svg+xml;base64,");
+    const svg = decodeFirstSvg(element.props.markdown);
+    expect(svg).toContain(">Codex<");
+    expect(svg).toContain(">Updating...<");
+    expect(svg).not.toContain(">Session<");
     expect(element.props.metadata).toBeUndefined();
+  });
+
+  it("keeps cached detail visible while loading and swaps subtitle to updating", () => {
+    appearanceMock.value = "light";
+    const detail = makeDetail();
+
+    const element = ProviderDetail({
+      provider,
+      detail,
+      isLoading: true,
+    });
+
+    expect(element.props.isLoading).toBe(true);
+    const svg = decodeFirstSvg(element.props.markdown);
+    expect(svg).toContain(">Codex<");
+    expect(svg).toContain(">Updating...<");
+    expect(svg).not.toContain(">Updated ");
+    expect(svg).toContain(">Session<");
   });
 
   it("renders a no-data markdown state when no detail is available", () => {

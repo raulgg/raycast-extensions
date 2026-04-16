@@ -1,6 +1,6 @@
 import { environment, List } from "@raycast/api";
 import { buildProviderErrorMarkdown } from "../lib/presentation";
-import { buildProviderDetailMarkdown } from "../providers/markdown";
+import { buildProviderDetailMarkdown, buildProviderLoadingMarkdown } from "../providers/markdown";
 import type { ConfiguredProvider, ProviderDetailData } from "../providers/types";
 
 type ProviderDetailProps = {
@@ -11,21 +11,23 @@ type ProviderDetailProps = {
 };
 
 export function ProviderDetail({ provider, detail, error, isLoading }: ProviderDetailProps) {
-  const detailMarkdown = detail ? buildSafeProviderDetailMarkdown(detail) : undefined;
+  const detailMarkdown = detail ? buildSafeProviderDetailMarkdown(detail, isLoading) : undefined;
   const markdown = error
     ? buildProviderErrorMarkdown(provider.name, error, environment.appearance)
     : detailMarkdown
       ? detailMarkdown
       : isLoading
-        ? "Loading..."
+        ? buildProviderLoadingMarkdown(provider, environment.appearance)
         : "No data available";
 
   return <List.Item.Detail isLoading={isLoading} markdown={markdown} />;
 }
 
-function buildSafeProviderDetailMarkdown(detail: ProviderDetailData): string | undefined {
+function buildSafeProviderDetailMarkdown(detail: ProviderDetailData, isLoading: boolean): string | undefined {
   try {
-    return buildProviderDetailMarkdown(detail, environment.appearance).trim();
+    return buildProviderDetailMarkdown(detail, environment.appearance, {
+      subtitle: isLoading ? "Updating..." : undefined,
+    }).trim();
   } catch (error) {
     if (isLegacySectionShapeError(error)) {
       return detail.markdown.trim() || undefined;

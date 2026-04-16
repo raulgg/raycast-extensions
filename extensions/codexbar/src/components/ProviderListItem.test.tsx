@@ -31,7 +31,30 @@ vi.mock("./ProviderDetail", () => ({
   ProviderDetail: vi.fn(() => null),
 }));
 
-import { ProviderListItem } from "./ProviderListItem";
+import {
+  buildProviderListItemAccessories,
+  formatProviderDetailErrorTooltip,
+  ProviderListItem,
+} from "./ProviderListItem";
+import type { ProviderDetailData } from "../providers/types";
+
+function makeDetail(remainingPercent: number): ProviderDetailData {
+  return {
+    id: "codex",
+    name: "Codex",
+    raw: {},
+    fetchedAt: "2026-04-15T12:00:00Z",
+    sections: [
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Session",
+        remainingPercent,
+      },
+    ],
+    markdown: "# Codex",
+  };
+}
 
 describe("ProviderListItem", () => {
   it("adds a copy action for the selected provider fetch command", () => {
@@ -61,5 +84,67 @@ describe("ProviderListItem", () => {
     expect(actions).toHaveLength(2);
     expect(actions[1].props.title).toBe("Copy CLI Command");
     expect(actions[1].props.content).toBe("codexbar usage --provider codex");
+  });
+
+  it("shows the primary usage remaining percent as a gauge accessory", () => {
+    expect(buildProviderListItemAccessories(makeDetail(82), undefined, false)).toEqual([
+      {
+        icon: "Gauge",
+        text: "82%",
+        tooltip: "Session remaining: 82%",
+      },
+    ]);
+  });
+
+  it("shows a warning accessory when provider detail failed", () => {
+    expect(buildProviderListItemAccessories(undefined, new Error("Timed out while fetching usage"), false)).toEqual([
+      {
+        icon: "Warning",
+        tooltip: "Failed to load usage: Timed out while fetching usage",
+      },
+    ]);
+  });
+
+  it("keeps the stale primary usage accessory visible while provider detail refreshes", () => {
+    expect(buildProviderListItemAccessories(makeDetail(82), undefined, true)).toEqual([
+      {
+        icon: "Gauge",
+        text: "82%",
+        tooltip: "Session remaining: 82%",
+      },
+    ]);
+  });
+
+  it("shows a loading accessory while provider detail is loading without cached data", () => {
+    expect(buildProviderListItemAccessories(undefined, undefined, true)).toEqual([
+      {
+        icon: "Hourglass",
+        tooltip: "Loading usage",
+      },
+    ]);
+  });
+
+  it("hides accessories when loaded provider detail has no primary usage", () => {
+    expect(
+      buildProviderListItemAccessories(
+        {
+          ...makeDetail(82),
+          sections: [],
+        },
+        undefined,
+        false,
+      ),
+    ).toBeUndefined();
+  });
+
+  it("shortens noisy error tooltips", () => {
+    const tooltip = formatProviderDetailErrorTooltip(
+      new Error(
+        "This provider returned a very long nested CLI error message that includes details users do not need in a compact accessory tooltip",
+      ),
+    );
+
+    expect(tooltip).toHaveLength(90);
+    expect(tooltip.endsWith("...")).toBe(true);
   });
 });
