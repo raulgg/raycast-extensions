@@ -8,6 +8,7 @@ import {
   buildText,
   DETAIL_FONT_WEIGHT,
   DETAIL_PALETTES,
+  DETAIL_TEXT_LAYOUT,
   DETAIL_TYPOGRAPHY,
   getContentWidth,
   getLeftContentX,
@@ -30,6 +31,15 @@ const FONT_WEIGHT = DETAIL_FONT_WEIGHT;
 const PROGRESS_BAR = {
   height: 8,
   radius: 4,
+} as const;
+
+const LOADING_SKELETON_LAYOUT = {
+  sectionCount: 2,
+  titleWidth: 88,
+  footerLeftWidth: 76,
+  footerRightWidth: 92,
+  titleRadius: 4,
+  footerRadius: 4,
 } as const;
 
 const USAGE_LAYOUT = {
@@ -70,6 +80,14 @@ function getGenericSectionRowsStartY(titleY: number): number {
 
 function getGenericSectionEmptyNextY(emptyStateY: number): number {
   return emptyStateY + GENERIC_SECTION_LAYOUT.emptyStateHeight;
+}
+
+function getTextTopY(baselineY: number, fontSize: number): number {
+  return baselineY - Math.ceil(fontSize * DETAIL_TEXT_LAYOUT.topInsetRatio);
+}
+
+function getTextPlaceholderHeight(baselineY: number, fontSize: number): number {
+  return getTextBottomY(baselineY, fontSize) - getTextTopY(baselineY, fontSize);
 }
 
 function splitRenderableSections(sections: ProviderSection[]): {
@@ -118,6 +136,17 @@ function buildProgressBarSvg(
       ? `<rect x="${x}" y="${y}" width="${fillWidth}" height="${PROGRESS_BAR.height}" rx="${PROGRESS_BAR.radius}" fill="${progressFill}"/>`
       : "",
   ].join("");
+}
+
+function buildSkeletonRect(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  fill: string,
+  radius: number,
+): string {
+  return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${fill}"/>`;
 }
 
 function renderProgressSection(
@@ -192,6 +221,54 @@ function renderMetricSection(
   throw new Error(`Unsupported metric section kind: ${section.kind}`);
 }
 
+function renderLoadingSkeletonSection(
+  appearance: ProviderDetailAppearance,
+  startY: number,
+): { markup: string[]; contentBottomY: number } {
+  const palette = PANEL_PALETTES[appearance];
+  const progressY = getUsageProgressY(startY);
+  const footerY = getUsageFooterY(progressY);
+  const titleHeight = getTextPlaceholderHeight(startY, TYPOGRAPHY.sectionTitleSize);
+  const footerHeight = getTextPlaceholderHeight(footerY, TYPOGRAPHY.rowValueSize);
+  const footerRightX = getRightContentX() - LOADING_SKELETON_LAYOUT.footerRightWidth;
+  const markup = [
+    buildSkeletonRect(
+      getLeftContentX(),
+      getTextTopY(startY, TYPOGRAPHY.sectionTitleSize),
+      LOADING_SKELETON_LAYOUT.titleWidth,
+      titleHeight,
+      palette.progressTrackFill,
+      LOADING_SKELETON_LAYOUT.titleRadius,
+    ),
+    buildSkeletonRect(
+      getLeftContentX(),
+      progressY,
+      getContentWidth(),
+      PROGRESS_BAR.height,
+      palette.progressTrackFill,
+      PROGRESS_BAR.radius,
+    ),
+    buildSkeletonRect(
+      getLeftContentX(),
+      getTextTopY(footerY, TYPOGRAPHY.rowValueSize),
+      LOADING_SKELETON_LAYOUT.footerLeftWidth,
+      footerHeight,
+      palette.progressTrackFill,
+      LOADING_SKELETON_LAYOUT.footerRadius,
+    ),
+    buildSkeletonRect(
+      footerRightX,
+      getTextTopY(footerY, TYPOGRAPHY.rowLabelSize),
+      LOADING_SKELETON_LAYOUT.footerRightWidth,
+      getTextPlaceholderHeight(footerY, TYPOGRAPHY.rowLabelSize),
+      palette.progressTrackFill,
+      LOADING_SKELETON_LAYOUT.footerRadius,
+    ),
+  ];
+
+  return { markup, contentBottomY: getTextBottomY(footerY, TYPOGRAPHY.rowValueSize) };
+}
+
 function renderMetricSections(
   sections: ProviderSection[],
   providerId: string,
@@ -209,6 +286,28 @@ function renderMetricSections(
     currentY = rendered.contentBottomY + USAGE_LAYOUT.bottomSpacing;
 
     if (index < sections.length - 1) {
+      currentY += USAGE_LAYOUT.sectionGap;
+    }
+  }
+
+  return { markup, contentBottomY };
+}
+
+function renderLoadingSkeletonSections(
+  appearance: ProviderDetailAppearance,
+  startY: number,
+): { markup: string[]; contentBottomY: number } {
+  const markup: string[] = [];
+  let currentY = startY;
+  let contentBottomY = startY;
+
+  for (let index = 0; index < LOADING_SKELETON_LAYOUT.sectionCount; index += 1) {
+    const rendered = renderLoadingSkeletonSection(appearance, currentY);
+    markup.push(...rendered.markup);
+    contentBottomY = rendered.contentBottomY;
+    currentY = rendered.contentBottomY + USAGE_LAYOUT.bottomSpacing;
+
+    if (index < LOADING_SKELETON_LAYOUT.sectionCount - 1) {
       currentY += USAGE_LAYOUT.sectionGap;
     }
   }
@@ -363,9 +462,14 @@ export function buildProviderLoadingMarkdown(
   detail: Pick<ProviderDetailData, "name">,
   appearance: ProviderDetailAppearance = "light",
 ): string {
+  const palette = PANEL_PALETTES[appearance];
   const header = buildHeaderMarkup(detail.name, appearance, "Updating...", `${detail.name} detail`);
-  const height = getPanelHeight(header.contentBottomY);
-  const svg = buildSvgDocument(header.markup, height);
+  const markup = [...header.markup, buildSectionDivider(getSectionDividerY(header.contentBottomY), palette.dividerStroke)];
+  const contentStartY = getSectionTitleY(header.contentBottomY);
+  const rendered = renderLoadingSkeletonSections(appearance, contentStartY);
+  markup.push(...rendered.markup);
+  const height = getPanelHeight(rendered.contentBottomY);
+  const svg = buildSvgDocument(markup, height);
 
   return buildSvgImageMarkdown(`${detail.name} detail`, svg, height);
 }

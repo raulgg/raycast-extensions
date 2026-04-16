@@ -26,6 +26,12 @@ function getLineYAfterText(svg: string, text: string): number {
   return Number(match[2]);
 }
 
+function getRectYs(svg: string, width: number, height: number): number[] {
+  return [...svg.matchAll(new RegExp(`<rect[^>]* y="([^"]+)"[^>]* width="${width}" height="${height}"`, "g"))].map(
+    (match) => Number(match[1]),
+  );
+}
+
 function getTextTopY(baselineY: number, fontSize: number): number {
   return baselineY - Math.ceil(fontSize * TEXT_TOP_INSET_RATIO);
 }
@@ -241,7 +247,16 @@ describe("provider markdown", () => {
     expect(svg).toContain(">Codex<");
     expect(svg).toContain(">Updating...<");
     expect(svg).not.toContain(">Session<");
-    expect(svg).not.toContain("<line ");
+    expect(svg).toContain("<line ");
+    expect(svg).not.toContain('fill="#6DB5C0"');
+    expect(getRectYs(svg, 88, 16)).toHaveLength(2);
+    expect(getRectYs(svg, 440, 8)).toHaveLength(2);
+    expect(getRectYs(svg, 76, 13)).toHaveLength(2);
+    expect(getRectYs(svg, 92, 13)).toHaveLength(2);
+
+    const progressTrackYs = getRectYs(svg, 440, 8);
+    expect(progressTrackYs[1]).toBeGreaterThan(progressTrackYs[0]);
+    expect(progressTrackYs[1] - progressTrackYs[0]).toBe(75);
   });
 
   it("falls back to plain text for empty details", () => {
