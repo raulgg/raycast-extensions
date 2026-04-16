@@ -1,4 +1,5 @@
-import { getProviderMetadata, getProviderUsageSectionDisplayTitle } from "./registry";
+import { calculateWeeklyUsagePace } from "./pace";
+import { getProviderMetadata, getProviderUsageSectionDisplayTitle, type ProviderPaceWindow } from "./registry";
 import type { ProviderDetailData, ProviderInfoSection, ProviderSection, RawProviderPayload } from "./types";
 import { formatLocalDateTime } from "../lib/presentation";
 import { buildProviderDetailMarkdown } from "./markdown";
@@ -142,7 +143,12 @@ function buildWindowReset(
   return undefined;
 }
 
+function matchesPaceWindow(title: "Primary" | "Secondary" | "Tertiary", paceWindow?: ProviderPaceWindow): boolean {
+  return title.toLowerCase() === paceWindow;
+}
+
 function buildUsageSections(providerId: string, payload: RawProviderPayload, now = Date.now()): ProviderSection[] {
+  const metadata = getProviderMetadata(providerId);
   const usage = toRecord(payload.usage);
   const sections: ProviderSection[] = [];
   const slotFallbacks = [
@@ -175,12 +181,27 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
     const progressPercent =
       slot.remainingPercent ?? (usedPercent !== undefined ? Math.max(0, Math.round(100 - usedPercent)) : undefined);
     if (progressPercent !== undefined) {
+      const resolvedUsedPercent = usedPercent ?? Math.max(0, 100 - progressPercent);
+      const resolvedResetsAt = toString(record.resetsAt) ?? slot.resetTimestamp;
+      const pace =
+        matchesPaceWindow(slot.title, metadata.paceWindow) && resolvedResetsAt
+          ? calculateWeeklyUsagePace(
+              {
+                usedPercent: resolvedUsedPercent,
+                remainingPercent: progressPercent,
+                resetsAt: resolvedResetsAt,
+                windowMinutes: toFiniteNumber(record.windowMinutes),
+              },
+              now,
+            )
+          : undefined;
       sections.push({
         kind: "usage",
         title: slot.title,
         displayTitle: getProviderUsageSectionDisplayTitle(providerId, slot.title),
         remainingPercent: clampPercent(progressPercent),
         resetsIn: buildWindowReset(record, slot.resetTimestamp, now),
+        pace,
       });
     }
   }

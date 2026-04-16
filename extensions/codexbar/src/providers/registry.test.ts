@@ -80,6 +80,13 @@ describe("provider registry", () => {
     });
   });
 
+  it("declares pace-capable providers explicitly", () => {
+    expect(getProviderMetadata("codex").paceWindow).toBe("secondary");
+    expect(getProviderMetadata("claude").paceWindow).toBe("secondary");
+    expect(getProviderMetadata("opencode").paceWindow).toBe("secondary");
+    expect(getProviderMetadata("opencodego").paceWindow).toBeUndefined();
+  });
+
   it("falls back to a title-cased label for unknown providers", () => {
     expect(getProviderMetadata("my-provider_name")).toEqual({
       id: "my-provider_name",

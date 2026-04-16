@@ -134,6 +134,44 @@ describe("provider normalization", () => {
     expect(detailSvg).toContain(">Resets in 1d 1h<");
   });
 
+  it("attaches raw pace to supported weekly sections and renders GUI-style footers", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "codex",
+        usage: {
+          secondary: {
+            windowMinutes: 10_080,
+            usedPercent: 53,
+            resetsAt: "2026-04-17T00:17:00Z",
+          },
+        },
+      },
+      "codex",
+      Date.parse("2026-04-16T12:30:00Z"),
+    );
+    const [detailSvg] = extractSvgMarkup(detail.markdown);
+
+    expect(detail.sections).toMatchObject([
+      {
+        kind: "usage",
+        title: "Secondary",
+        displayTitle: "Weekly",
+        remainingPercent: 47,
+        resetsIn: "11h 47m",
+        pace: {
+          stage: "farBehind",
+          actualUsedPercent: 53,
+          willLastToReset: true,
+          computedAt: "2026-04-16T12:30:00.000Z",
+        },
+      },
+    ]);
+    expect(detailSvg).toContain(">47% left<");
+    expect(detailSvg).toContain(">Resets in 11h 47m<");
+    expect(detailSvg).toContain(">40% below pace<");
+    expect(detailSvg).toContain(">Lasts until reset<");
+  });
+
   it("omits zero-value countdown units", () => {
     const detail = normalizeProviderDetailPayload(
       {

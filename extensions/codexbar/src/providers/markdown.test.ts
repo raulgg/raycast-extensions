@@ -213,6 +213,42 @@ describe("provider markdown", () => {
     expect(svg).toContain(">Resets in 30m<");
   });
 
+  it("renders pace as a second footer row on metric sections", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        sections: [
+          {
+            kind: "usage",
+            title: "Secondary",
+            displayTitle: "Weekly",
+            remainingPercent: 47,
+            resetsIn: "11h 47m",
+            pace: {
+              stage: "farBehind",
+              deltaPercent: -39.98,
+              expectedUsedPercent: 92.98,
+              actualUsedPercent: 53,
+              willLastToReset: true,
+              computedAt: "2026-04-16T12:30:00.000Z",
+            },
+          },
+        ],
+      },
+      "light",
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+
+    expect(svg).toContain(">47% left<");
+    expect(svg).toContain(">Resets in 11h 47m<");
+    expect(svg).toContain(">40% below pace<");
+    expect(svg).toContain(">Lasts until reset<");
+    expect(getTextY(svg, "40% below pace")).toBeGreaterThan(getTextY(svg, "47% left"));
+    expect(getTextY(svg, "Lasts until reset")).toBeGreaterThan(getTextY(svg, "Resets in 11h 47m"));
+  });
+
   it("supports overriding header subtitle while keeping sections", () => {
     const markdown = buildProviderDetailMarkdown(
       {

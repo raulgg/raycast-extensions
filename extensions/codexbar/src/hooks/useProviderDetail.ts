@@ -4,7 +4,7 @@ import type { ProviderDetailData } from "../providers/types";
 
 /** Provider detail newer than this is still considered valid while a refetch errors. */
 const PROVIDER_DETAIL_FRESHNESS_WINDOW_MS = 5 * 60 * 1000;
-const PROVIDER_DETAIL_SCHEMA_VERSION = "provider-sections-v2";
+const PROVIDER_DETAIL_SCHEMA_VERSION = "provider-sections-v3";
 
 /**
  * Non-enumerable key on thrown `Error` instances so callers can tell which provider

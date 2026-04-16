@@ -1,4 +1,5 @@
 import { formatLocalDateTime } from "../lib/presentation";
+import { formatUsagePaceLabels } from "./pace";
 import { getProviderProgressPalette } from "./registry";
 import {
   buildHeaderMarkup,
@@ -47,6 +48,7 @@ const LOADING_SKELETON_LAYOUT = {
 const USAGE_LAYOUT = {
   titleToProgressOffset: 12,
   progressToFooterOffset: 22,
+  footerRowGap: 20,
   bottomSpacing: 22,
   sectionGap: 8,
 } as const;
@@ -183,15 +185,14 @@ function buildSkeletonRect(
 function renderProgressSection(
   title: string,
   percent: number,
-  footerLeft: string,
-  footerRight: string | undefined,
+  footerRows: Array<{ left: string; right?: string }>,
   providerId: string,
   appearance: ProviderDetailAppearance,
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
   const palette = PANEL_PALETTES[appearance];
   const progressY = getUsageProgressY(startY);
-  const footerY = getUsageFooterY(progressY);
+  const initialFooterY = getUsageFooterY(progressY);
   const markup = [
     buildText(
       title,
@@ -202,19 +203,39 @@ function renderProgressSection(
       FONT_WEIGHT.bold,
     ),
     buildProgressBarSvg(percent, getLeftContentX(), progressY, getContentWidth(), appearance, providerId),
-    buildText(footerLeft, getLeftContentX(), footerY, palette.valueFill, TYPOGRAPHY.rowValueSize, FONT_WEIGHT.semibold),
-    footerRight
-      ? buildText(
-          footerRight,
+  ];
+  let footerY = initialFooterY;
+
+  for (const [index, footerRow] of footerRows.entries()) {
+    markup.push(
+      buildText(
+        footerRow.left,
+        getLeftContentX(),
+        footerY,
+        palette.valueFill,
+        TYPOGRAPHY.rowValueSize,
+        FONT_WEIGHT.semibold,
+      ),
+    );
+
+    if (footerRow.right) {
+      markup.push(
+        buildText(
+          footerRow.right,
           getRightContentX(),
           footerY,
           palette.labelFill,
           TYPOGRAPHY.rowLabelSize,
           FONT_WEIGHT.medium,
           "end",
-        )
-      : "",
-  ].filter(Boolean);
+        ),
+      );
+    }
+
+    if (index < footerRows.length - 1) {
+      footerY += USAGE_LAYOUT.footerRowGap;
+    }
+  }
 
   return { markup, contentBottomY: getTextBottomY(footerY, TYPOGRAPHY.rowValueSize) };
 }
@@ -226,11 +247,17 @@ function renderMetricSection(
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
   if (section.kind === "usage") {
+    const paceFooter = section.pace ? formatUsagePaceLabels(section.pace) : undefined;
     return renderProgressSection(
       section.displayTitle,
       section.remainingPercent,
-      `${formatPercent(section.remainingPercent)} left`,
-      section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
+      [
+        {
+          left: `${formatPercent(section.remainingPercent)} left`,
+          right: section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
+        },
+        ...(paceFooter ? [{ left: paceFooter.leftLabel, right: paceFooter.rightLabel }] : []),
+      ],
       providerId,
       appearance,
       startY,
@@ -238,11 +265,17 @@ function renderMetricSection(
   }
 
   if (section.kind === "supplementalUsage") {
+    const paceFooter = section.pace ? formatUsagePaceLabels(section.pace) : undefined;
     return renderProgressSection(
       section.title,
       section.remainingPercent,
-      `${formatPercent(section.remainingPercent)} left`,
-      section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
+      [
+        {
+          left: `${formatPercent(section.remainingPercent)} left`,
+          right: section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
+        },
+        ...(paceFooter ? [{ left: paceFooter.leftLabel, right: paceFooter.rightLabel }] : []),
+      ],
       providerId,
       appearance,
       startY,
@@ -422,8 +455,7 @@ function renderStandaloneSection(
     return renderProgressSection(
       section.title,
       section.remainingPercent,
-      section.remaining,
-      section.scaleLabel,
+      [{ left: section.remaining, right: section.scaleLabel }],
       providerId,
       appearance,
       startY,
@@ -434,8 +466,7 @@ function renderStandaloneSection(
     return renderProgressSection(
       section.title,
       section.usedPercent,
-      section.spendLine,
-      `${formatPercent(section.usedPercent)} used`,
+      [{ left: section.spendLine, right: `${formatPercent(section.usedPercent)} used` }],
       providerId,
       appearance,
       startY,

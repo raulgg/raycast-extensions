@@ -14,6 +14,26 @@ export type ProviderSectionItem = {
   value: string;
 };
 
+export type ProviderUsagePaceStage =
+  | "onTrack"
+  | "slightlyAhead"
+  | "ahead"
+  | "farAhead"
+  | "slightlyBehind"
+  | "behind"
+  | "farBehind";
+
+export type ProviderUsagePace = {
+  stage: ProviderUsagePaceStage;
+  deltaPercent: number;
+  expectedUsedPercent: number;
+  actualUsedPercent: number;
+  etaSeconds?: number;
+  willLastToReset: boolean;
+  runOutProbability?: number;
+  computedAt: string;
+};
+
 export type ProviderUsageSectionTitle = "Primary" | "Secondary" | "Tertiary";
 
 export type ProviderUsageSection = {
@@ -22,6 +42,7 @@ export type ProviderUsageSection = {
   displayTitle: string;
   remainingPercent: number;
   resetsIn?: string;
+  pace?: ProviderUsagePace;
 };
 
 export type ProviderSupplementalUsageSection = {
@@ -29,6 +50,7 @@ export type ProviderSupplementalUsageSection = {
   title: string;
   remainingPercent: number;
   resetsIn?: string;
+  pace?: ProviderUsagePace;
 };
 
 export type ProviderCreditsSection = {
