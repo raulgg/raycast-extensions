@@ -18,6 +18,7 @@ export function useProviderDetailErrorToast({
 
   useEffect(() => {
     if (!error || !providerId) {
+      lastToastKeyRef.current = undefined;
       return;
     }
 
@@ -30,7 +31,7 @@ export function useProviderDetailErrorToast({
 
     void showToast({
       style: Toast.Style.Failure,
-      title: `Failed to load ${providerName ?? providerId}`,
+      title: `Failed to load ${providerName ?? providerId} usage`,
       message: error.message,
       primaryAction: {
         title: "Retry",

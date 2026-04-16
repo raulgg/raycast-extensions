@@ -50,7 +50,7 @@ export function buildProviderListItemAccessories(
     return [
       {
         icon: Icon.Warning,
-        tooltip: formatProviderDetailErrorTooltip(error),
+        tooltip: formatProviderDetailErrorTooltip(),
       },
     ];
   }
@@ -71,15 +71,8 @@ export function buildProviderListItemAccessories(
   ];
 }
 
-export function formatProviderDetailErrorTooltip(error: Error): string {
-  const firstLine = error.message.split(/\r?\n/, 1)[0]?.trim();
-  const message = firstLine ? `Failed to load usage: ${firstLine}` : "Failed to load usage";
-
-  if (message.length <= 90) {
-    return message;
-  }
-
-  return `${message.slice(0, 87)}...`;
+export function formatProviderDetailErrorTooltip(): string {
+  return "Failed to load usage";
 }
 
 function getPrimaryUsageSection(detail: ProviderDetailData | undefined): ProviderUsageSection | undefined {
