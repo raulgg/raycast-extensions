@@ -21,6 +21,17 @@
       "mode": "view"
     }
   ],
+  "preferences": [
+    {
+      "name": "hidePersonalInfo",
+      "type": "checkbox",
+      "required": false,
+      "title": "Advanced",
+      "label": "Hide Personal Information",
+      "description": "Hide provider account emails in headers.",
+      "default": false
+    }
+  ],
   "dependencies": {
     "@raycast/api": "^1.104.10",
     "@raycast/utils": "^1.17.0"

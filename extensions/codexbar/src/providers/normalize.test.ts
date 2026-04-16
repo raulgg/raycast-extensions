@@ -16,6 +16,8 @@ const codexPayload = {
       usedPercent: 12,
       resetsAt: "2026-03-30T08:00:00Z",
     },
+    accountEmail: "dev@example.com",
+    loginMethod: "pro",
   },
   credits: {
     remaining: 112.4,
@@ -35,6 +37,8 @@ describe("provider normalization", () => {
     expect(detail.id).toBe("codex");
     expect(detail.name).toBe("Codex");
     expect(detail.updatedAt).toBe("2026-03-23T09:00:00Z");
+    expect(detail.accountEmail).toBe("dev@example.com");
+    expect(detail.planText).toBe("Pro");
     expect(detail.sections).toMatchObject([
       {
         kind: "usage",
@@ -75,6 +79,8 @@ describe("provider normalization", () => {
     expect(detail.markdown).not.toContain("- **Remaining:**");
     expect(detailSvg).toContain("<title>Codex detail</title>");
     expect(detailSvg).toContain(">Codex<");
+    expect(detailSvg).toContain(">dev@example.com<");
+    expect(detailSvg).toContain(">Pro<");
     expect(detailSvg).toContain(`>Updated ${expectedUpdated}<`);
     expect(detailSvg).toContain(">Session<");
     expect(detailSvg).toContain(">Weekly<");
@@ -224,6 +230,28 @@ describe("provider normalization", () => {
     expect(detail.id).toBe("warp");
     expect(detail.sections).toEqual([]);
     expect(detail.markdown).toBe("No data available");
+  });
+
+  it("renders header-only details when account metadata exists without usage sections", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "vertexai",
+        usage: {
+          accountEmail: "dev@example.com",
+          loginMethod: "gcloud",
+        },
+      },
+      "vertexai",
+    );
+    const [detailSvg] = extractSvgMarkup(detail.markdown);
+
+    expect(detail.sections).toEqual([]);
+    expect(detail.accountEmail).toBe("dev@example.com");
+    expect(detail.planText).toBe("Gcloud");
+    expect(detail.markdown).toContain("data:image/svg+xml;base64,");
+    expect(detailSvg).toContain(">Vertex AI<");
+    expect(detailSvg).toContain(">dev@example.com<");
+    expect(detailSvg).toContain(">Gcloud<");
   });
 
   it("extracts provider-specific errors from CLI payload arrays", () => {

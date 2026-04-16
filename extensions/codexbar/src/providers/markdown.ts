@@ -36,8 +36,10 @@ const PROGRESS_BAR = {
 const LOADING_SKELETON_LAYOUT = {
   sectionCount: 2,
   titleWidth: 88,
+  titleHeight: 10,
   footerLeftWidth: 76,
   footerRightWidth: 92,
+  footerHeight: 8,
   titleRadius: 4,
   footerRadius: 4,
 } as const;
@@ -90,6 +92,13 @@ function getTextPlaceholderHeight(baselineY: number, fontSize: number): number {
   return getTextBottomY(baselineY, fontSize) - getTextTopY(baselineY, fontSize);
 }
 
+function getCenteredPlaceholderY(baselineY: number, fontSize: number, placeholderHeight: number): number {
+  const textTopY = getTextTopY(baselineY, fontSize);
+  const textHeight = getTextPlaceholderHeight(baselineY, fontSize);
+
+  return textTopY + Math.floor((textHeight - placeholderHeight) / 2);
+}
+
 function splitRenderableSections(sections: ProviderSection[]): {
   metricSections: ProviderSection[];
   otherSections: ProviderSection[];
@@ -138,14 +147,7 @@ function buildProgressBarSvg(
   ].join("");
 }
 
-function buildSkeletonRect(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  fill: string,
-  radius: number,
-): string {
+function buildSkeletonRect(x: number, y: number, width: number, height: number, fill: string, radius: number): string {
   return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${fill}"/>`;
 }
 
@@ -228,15 +230,13 @@ function renderLoadingSkeletonSection(
   const palette = PANEL_PALETTES[appearance];
   const progressY = getUsageProgressY(startY);
   const footerY = getUsageFooterY(progressY);
-  const titleHeight = getTextPlaceholderHeight(startY, TYPOGRAPHY.sectionTitleSize);
-  const footerHeight = getTextPlaceholderHeight(footerY, TYPOGRAPHY.rowValueSize);
   const footerRightX = getRightContentX() - LOADING_SKELETON_LAYOUT.footerRightWidth;
   const markup = [
     buildSkeletonRect(
       getLeftContentX(),
-      getTextTopY(startY, TYPOGRAPHY.sectionTitleSize),
+      getCenteredPlaceholderY(startY, TYPOGRAPHY.sectionTitleSize, LOADING_SKELETON_LAYOUT.titleHeight),
       LOADING_SKELETON_LAYOUT.titleWidth,
-      titleHeight,
+      LOADING_SKELETON_LAYOUT.titleHeight,
       palette.progressTrackFill,
       LOADING_SKELETON_LAYOUT.titleRadius,
     ),
@@ -250,17 +250,17 @@ function renderLoadingSkeletonSection(
     ),
     buildSkeletonRect(
       getLeftContentX(),
-      getTextTopY(footerY, TYPOGRAPHY.rowValueSize),
+      getCenteredPlaceholderY(footerY, TYPOGRAPHY.rowValueSize, LOADING_SKELETON_LAYOUT.footerHeight),
       LOADING_SKELETON_LAYOUT.footerLeftWidth,
-      footerHeight,
+      LOADING_SKELETON_LAYOUT.footerHeight,
       palette.progressTrackFill,
       LOADING_SKELETON_LAYOUT.footerRadius,
     ),
     buildSkeletonRect(
       footerRightX,
-      getTextTopY(footerY, TYPOGRAPHY.rowLabelSize),
+      getCenteredPlaceholderY(footerY, TYPOGRAPHY.rowLabelSize, LOADING_SKELETON_LAYOUT.footerHeight),
       LOADING_SKELETON_LAYOUT.footerRightWidth,
-      getTextPlaceholderHeight(footerY, TYPOGRAPHY.rowLabelSize),
+      LOADING_SKELETON_LAYOUT.footerHeight,
       palette.progressTrackFill,
       LOADING_SKELETON_LAYOUT.footerRadius,
     ),
@@ -417,20 +417,30 @@ function renderStandaloneSection(
 }
 
 export function buildProviderDetailMarkdown(
-  detail: Pick<ProviderDetailData, "id" | "name" | "sections" | "updatedAt">,
+  detail: Pick<ProviderDetailData, "id" | "name" | "sections" | "updatedAt" | "accountEmail" | "planText">,
   appearance: ProviderDetailAppearance = "light",
   options?: ProviderDetailMarkdownOptions,
 ): string {
   const sections = detail.sections.filter((section) => section.kind !== "info" || section.items.length > 0);
+  const subtitle = options?.subtitle ?? getHeaderSubtitle(detail.updatedAt);
+  const hasHeaderContent = Boolean(subtitle || detail.accountEmail || detail.planText);
 
-  if (sections.length === 0) {
+  if (sections.length === 0 && !hasHeaderContent) {
     return "No data available";
   }
 
   const palette = PANEL_PALETTES[appearance];
-  const subtitle = options?.subtitle ?? getHeaderSubtitle(detail.updatedAt);
   const { metricSections, otherSections } = splitRenderableSections(sections);
-  const header = buildHeaderMarkup(detail.name, appearance, subtitle, `${detail.name} detail`);
+  const header = buildHeaderMarkup(
+    detail.name,
+    appearance,
+    {
+      subtitle,
+      trailingTitle: detail.accountEmail,
+      trailingSubtitle: detail.planText,
+    },
+    `${detail.name} detail`,
+  );
   const markup = [...header.markup];
   let currentY = header.contentBottomY;
 
@@ -463,8 +473,11 @@ export function buildProviderLoadingMarkdown(
   appearance: ProviderDetailAppearance = "light",
 ): string {
   const palette = PANEL_PALETTES[appearance];
-  const header = buildHeaderMarkup(detail.name, appearance, "Updating...", `${detail.name} detail`);
-  const markup = [...header.markup, buildSectionDivider(getSectionDividerY(header.contentBottomY), palette.dividerStroke)];
+  const header = buildHeaderMarkup(detail.name, appearance, { subtitle: "Updating..." }, `${detail.name} detail`);
+  const markup = [
+    ...header.markup,
+    buildSectionDivider(getSectionDividerY(header.contentBottomY), palette.dividerStroke),
+  ];
   const contentStartY = getSectionTitleY(header.contentBottomY);
   const rendered = renderLoadingSkeletonSections(appearance, contentStartY);
   markup.push(...rendered.markup);

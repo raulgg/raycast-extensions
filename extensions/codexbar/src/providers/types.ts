@@ -65,6 +65,8 @@ export type ProviderDetailData = {
   raw: RawProviderPayload;
   fetchedAt: string;
   updatedAt?: string;
+  accountEmail?: string;
+  planText?: string;
   sections: ProviderSection[];
   markdown: string;
 };

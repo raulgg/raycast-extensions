@@ -47,6 +47,8 @@ describe("provider markdown", () => {
         id: "codex",
         name: "Codex",
         updatedAt: "2026-03-23T09:00:00Z",
+        accountEmail: "dev@example.com",
+        planText: "Pro",
         sections: [
           {
             kind: "usage",
@@ -93,6 +95,8 @@ describe("provider markdown", () => {
     expect(markdown).not.toContain("- **Remaining:**");
     expect(svg).toContain("<title>Codex detail</title>");
     expect(svg).toContain(">Codex<");
+    expect(svg).toContain(">dev@example.com<");
+    expect(svg).toContain(">Pro<");
     expect(svg).toContain(`>Updated ${expectedUpdated}<`);
     expect(svg).toContain(">Session<");
     expect(svg).toContain(">Weekly<");
@@ -211,6 +215,8 @@ describe("provider markdown", () => {
         id: "codex",
         name: "Codex",
         updatedAt: "2026-03-23T09:00:00Z",
+        accountEmail: "dev@example.com",
+        planText: "Pro",
         sections: [
           {
             kind: "usage",
@@ -228,9 +234,32 @@ describe("provider markdown", () => {
     const [svg] = extractSvgMarkup(markdown);
 
     expect(svg).toContain(">Codex<");
+    expect(svg).toContain(">dev@example.com<");
+    expect(svg).toContain(">Pro<");
     expect(svg).toContain(">Updating...<");
     expect(svg).not.toContain(">Updated ");
     expect(svg).toContain(">Session<");
+  });
+
+  it("renders header-only cards when only account metadata exists", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "vertexai",
+        name: "Vertex AI",
+        accountEmail: "dev@example.com",
+        planText: "Gcloud",
+        sections: [],
+      },
+      "light",
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+
+    expect(markdown).toContain("data:image/svg+xml;base64,");
+    expect(svg).toContain(">Vertex AI<");
+    expect(svg).toContain(">dev@example.com<");
+    expect(svg).toContain(">Gcloud<");
+    expect(svg).not.toContain("<line ");
   });
 
   it("renders header-only loading markdown", () => {
@@ -249,10 +278,10 @@ describe("provider markdown", () => {
     expect(svg).not.toContain(">Session<");
     expect(svg).toContain("<line ");
     expect(svg).not.toContain('fill="#6DB5C0"');
-    expect(getRectYs(svg, 88, 16)).toHaveLength(2);
+    expect(getRectYs(svg, 88, 10)).toHaveLength(2);
     expect(getRectYs(svg, 440, 8)).toHaveLength(2);
-    expect(getRectYs(svg, 76, 13)).toHaveLength(2);
-    expect(getRectYs(svg, 92, 13)).toHaveLength(2);
+    expect(getRectYs(svg, 76, 8)).toHaveLength(2);
+    expect(getRectYs(svg, 92, 8)).toHaveLength(2);
 
     const progressTrackYs = getRectYs(svg, 440, 8);
     expect(progressTrackYs[1]).toBeGreaterThan(progressTrackYs[0]);

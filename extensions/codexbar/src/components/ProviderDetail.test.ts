@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderDetailData } from "../providers/types";
 
-const { Detail, appearanceMock } = vi.hoisted(() => {
+const { Detail, appearanceMock, hidePersonalInfoMock } = vi.hoisted(() => {
   return {
     Detail: vi.fn((props: unknown) => ({ props })),
     appearanceMock: { value: "light" as "light" | "dark" },
+    hidePersonalInfoMock: { value: false },
   };
 });
 
@@ -14,6 +15,9 @@ vi.mock("@raycast/api", () => ({
       return appearanceMock.value;
     },
   },
+  getPreferenceValues: () => ({
+    hidePersonalInfo: hidePersonalInfoMock.value,
+  }),
   Color: {
     PrimaryText: "raycast-primary-text",
   },
@@ -46,6 +50,8 @@ function makeDetail(): ProviderDetailData {
     name: "Codex",
     raw: {},
     fetchedAt: "2026-04-05T17:11:00Z",
+    accountEmail: "dev@example.com",
+    planText: "Pro",
     markdown: "stale cached markdown",
     sections: [
       {
@@ -73,6 +79,10 @@ function decodeFirstSvg(markdown: string): string {
 describe("ProviderDetail", () => {
   const provider = { id: "codex", name: "Codex", icon: "providers/ProviderIcon-codex.svg" };
 
+  beforeEach(() => {
+    hidePersonalInfoMock.value = false;
+  });
+
   it("renders themed markdown from the current appearance", () => {
     appearanceMock.value = "light";
     const detail = makeDetail();
@@ -88,6 +98,8 @@ describe("ProviderDetail", () => {
     const svg = decodeFirstSvg(element.props.markdown);
     expect(svg).toContain('fill="#111827"');
     expect(svg).toContain('fill="#49A3B0"');
+    expect(svg).toContain(">dev@example.com<");
+    expect(svg).toContain(">Pro<");
     expect(svg).toContain(">Session<");
     expect(element.props.metadata).toBeUndefined();
   });
@@ -161,8 +173,28 @@ describe("ProviderDetail", () => {
     const svg = decodeFirstSvg(element.props.markdown);
     expect(svg).toContain(">Codex<");
     expect(svg).toContain(">Updating...<");
+    expect(svg).toContain(">dev@example.com<");
+    expect(svg).toContain(">Pro<");
     expect(svg).not.toContain(">Updated ");
     expect(svg).toContain(">Session<");
+  });
+
+  it("hides account email when personal info preference is enabled", () => {
+    appearanceMock.value = "light";
+    hidePersonalInfoMock.value = true;
+    const detail = makeDetail();
+
+    const element = ProviderDetail({
+      provider,
+      detail,
+      isLoading: false,
+    });
+
+    const svg = decodeFirstSvg(element.props.markdown);
+    expect(svg).toContain(">Codex<");
+    expect(svg).not.toContain(">dev@example.com<");
+    expect(svg).not.toContain(">Hidden<");
+    expect(svg).toContain(">Pro<");
   });
 
   it("renders a no-data markdown state when no detail is available", () => {

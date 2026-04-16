@@ -184,7 +184,11 @@ export function buildSvgDocument(markup: string[], height: number): string {
 export function buildHeaderMarkup(
   title: string,
   appearance: DetailAppearance,
-  subtitle?: string,
+  options?: {
+    subtitle?: string;
+    trailingTitle?: string;
+    trailingSubtitle?: string;
+  },
   documentTitle?: string,
 ): { markup: string[]; contentBottomY: number } {
   const palette = DETAIL_PALETTES[appearance];
@@ -203,20 +207,53 @@ export function buildHeaderMarkup(
   ];
 
   let contentBottomY = getTextBottomY(titleY, DETAIL_TYPOGRAPHY.headerTitleSize);
-
-  if (subtitle) {
-    const subtitleY = getHeaderSubtitleY(titleY);
+  const trailingTitle = options?.trailingTitle;
+  if (trailingTitle) {
     markup.push(
       buildText(
-        subtitle,
-        getLeftContentX(),
-        subtitleY,
+        trailingTitle,
+        getRightContentX(),
+        titleY,
         palette.subtitleFill,
         DETAIL_TYPOGRAPHY.headerSubtitleSize,
         DETAIL_FONT_WEIGHT.medium,
+        "end",
       ),
     );
-    contentBottomY = getTextBottomY(subtitleY, DETAIL_TYPOGRAPHY.headerSubtitleSize);
+    contentBottomY = Math.max(contentBottomY, getTextBottomY(titleY, DETAIL_TYPOGRAPHY.headerSubtitleSize));
+  }
+
+  const subtitle = options?.subtitle;
+  const trailingSubtitle = options?.trailingSubtitle;
+  if (subtitle || trailingSubtitle) {
+    const subtitleY = getHeaderSubtitleY(titleY);
+    if (subtitle) {
+      markup.push(
+        buildText(
+          subtitle,
+          getLeftContentX(),
+          subtitleY,
+          palette.subtitleFill,
+          DETAIL_TYPOGRAPHY.headerSubtitleSize,
+          DETAIL_FONT_WEIGHT.medium,
+        ),
+      );
+      contentBottomY = Math.max(contentBottomY, getTextBottomY(subtitleY, DETAIL_TYPOGRAPHY.headerSubtitleSize));
+    }
+    if (trailingSubtitle) {
+      markup.push(
+        buildText(
+          trailingSubtitle,
+          getRightContentX(),
+          subtitleY,
+          palette.subtitleFill,
+          DETAIL_TYPOGRAPHY.headerSubtitleSize,
+          DETAIL_FONT_WEIGHT.medium,
+          "end",
+        ),
+      );
+      contentBottomY = Math.max(contentBottomY, getTextBottomY(subtitleY, DETAIL_TYPOGRAPHY.headerSubtitleSize));
+    }
   }
 
   return { markup, contentBottomY };

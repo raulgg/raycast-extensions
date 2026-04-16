@@ -20,8 +20,23 @@ function toString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+function toTrimmedString(value: unknown): string | undefined {
+  return toString(value)?.trim();
+}
+
 function toFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    const stringValue = toTrimmedString(value);
+    if (stringValue) {
+      return stringValue;
+    }
+  }
+
+  return undefined;
 }
 
 function formatNumber(value: number): string {
@@ -249,6 +264,98 @@ function buildUpdatedSection(updatedAt?: string): ProviderInfoSection | undefine
   };
 }
 
+function extractAccountEmail(payload: RawProviderPayload): string | undefined {
+  const usage = toRecord(payload.usage);
+  const usageIdentity = toRecord(usage?.identity);
+  const identity = toRecord(payload.identity);
+  const account = toRecord(payload.account);
+
+  return firstString(
+    payload.accountEmail,
+    identity?.accountEmail,
+    usage?.accountEmail,
+    usageIdentity?.accountEmail,
+    account?.accountEmail,
+    account?.email,
+  );
+}
+
+function extractRawPlanText(payload: RawProviderPayload): string | undefined {
+  const usage = toRecord(payload.usage);
+  const usageIdentity = toRecord(usage?.identity);
+  const identity = toRecord(payload.identity);
+  const account = toRecord(payload.account);
+  const dashboard = toRecord(payload.openaiDashboard);
+
+  return firstString(
+    payload.loginMethod,
+    identity?.loginMethod,
+    usage?.loginMethod,
+    usageIdentity?.loginMethod,
+    account?.loginMethod,
+    account?.plan,
+    dashboard?.accountPlan,
+  );
+}
+
+function formatSlugLabel(raw: string): string {
+  const acronymMap = new Map<string, string>([
+    ["api", "API"],
+    ["cli", "CLI"],
+    ["oauth", "OAuth"],
+    ["sso", "SSO"],
+    ["usd", "USD"],
+  ]);
+
+  return raw
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => {
+      const normalized = part.toLowerCase();
+      const acronym = acronymMap.get(normalized);
+      if (acronym) {
+        return acronym;
+      }
+
+      return `${normalized[0]?.toUpperCase() ?? ""}${normalized.slice(1)}`;
+    })
+    .join(" ");
+}
+
+function extractKiloPass(rawPlanText: string): string | undefined {
+  const parts = rawPlanText
+    .split("·")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) {
+    return undefined;
+  }
+
+  const firstPart = parts[0];
+  if (firstPart.toLowerCase().startsWith("auto top-up:")) {
+    return undefined;
+  }
+
+  return firstPart;
+}
+
+function formatPlanText(providerId: string, payload: RawProviderPayload): string | undefined {
+  const rawPlanText = extractRawPlanText(payload);
+  if (!rawPlanText) {
+    return undefined;
+  }
+
+  const providerScopedPlanText = providerId === "kilo" ? (extractKiloPass(rawPlanText) ?? rawPlanText) : rawPlanText;
+  if (
+    /^[a-z0-9_-]+$/i.test(providerScopedPlanText) &&
+    providerScopedPlanText === providerScopedPlanText.toLowerCase()
+  ) {
+    return formatSlugLabel(providerScopedPlanText);
+  }
+
+  return providerScopedPlanText;
+}
+
 function collectFromArray(payload: unknown[]): ProviderCandidate[] {
   const candidates: ProviderCandidate[] = [];
 
@@ -313,6 +420,8 @@ function normalizePayload(providerId: string, payload: RawProviderPayload, now =
   const metadata = getProviderMetadata(providerId);
   const updatedAt = extractUpdatedAt(payload);
   const fetchedAt = new Date(now).toISOString();
+  const accountEmail = extractAccountEmail(payload);
+  const planText = formatPlanText(metadata.id, payload);
   const sections = [...buildUsageSections(metadata.id, payload, now), ...buildSupplementalUsageSections(payload, now)];
   const creditsSection = buildCreditsSection(payload);
   const providerCostSection = buildProviderCostSection(payload);
@@ -336,6 +445,8 @@ function normalizePayload(providerId: string, payload: RawProviderPayload, now =
     raw: payload,
     fetchedAt,
     updatedAt,
+    accountEmail,
+    planText,
     sections,
   };
 

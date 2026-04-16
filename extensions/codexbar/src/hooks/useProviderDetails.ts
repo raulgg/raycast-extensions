@@ -6,7 +6,7 @@ import type { ConfiguredProvider, ProviderDetailData } from "../providers/types"
 const PROVIDER_DETAIL_CONCURRENCY = 4;
 const PROVIDER_DETAIL_FRESHNESS_WINDOW_MS = 5 * 60 * 1000;
 const SELECTED_PROVIDER_REFRESH_STALE_MS = 60 * 1000;
-const PROVIDER_DETAIL_SCHEMA_VERSION = "provider-details-v1";
+const PROVIDER_DETAIL_SCHEMA_VERSION = "provider-details-v2";
 const providerDetailCache = new Cache({ namespace: "provider-details" });
 
 export type ProviderDetailState = {
