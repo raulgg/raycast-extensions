@@ -155,8 +155,8 @@ export function formatUsagePaceLabels(pace: ProviderUsagePace, now = Date.now())
     pace.stage === "onTrack"
       ? "On pace"
       : pace.deltaPercent >= 0
-        ? `${roundedDeltaPercent}% above pace`
-        : `${roundedDeltaPercent}% below pace`;
+        ? `${roundedDeltaPercent}% ahead of pace`
+        : `${roundedDeltaPercent}% behind pace`;
 
   if (pace.willLastToReset) {
     return {

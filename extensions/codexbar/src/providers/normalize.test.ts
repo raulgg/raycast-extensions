@@ -169,7 +169,7 @@ describe("provider normalization", () => {
     ]);
     expect(detailSvg).toContain(">47% left<");
     expect(detailSvg).toContain(">Resets in 11h 47m<");
-    expect(detailSvg).toContain(">40% below pace<");
+    expect(detailSvg).toContain(">40% behind pace<");
     expect(detailSvg).toContain(">Lasts until reset<");
   });
 

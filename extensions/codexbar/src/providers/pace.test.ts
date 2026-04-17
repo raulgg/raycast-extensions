@@ -21,7 +21,7 @@ describe("provider pace", () => {
     expect(pace?.expectedUsedPercent).toBeCloseTo(92.98, 1);
     expect(pace?.deltaPercent).toBeCloseTo(-39.98, 1);
     expect(formatUsagePaceLabels(pace!)).toEqual({
-      leftLabel: "40% below pace",
+      leftLabel: "40% behind pace",
       rightLabel: "Lasts until reset",
     });
   });
@@ -52,7 +52,7 @@ describe("provider pace", () => {
     );
 
     expect(pace?.willLastToReset).toBe(false);
-    expect(formatUsagePaceLabels(pace!, Date.parse("2026-04-16T13:00:00Z")).leftLabel).toBe("23% above pace");
+    expect(formatUsagePaceLabels(pace!, Date.parse("2026-04-16T13:00:00Z")).leftLabel).toBe("23% ahead of pace");
     expect(formatUsagePaceLabels(pace!, Date.parse("2026-04-16T13:00:00Z")).rightLabel).toBe("Runs out in 11h 27m");
   });
 });
