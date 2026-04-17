@@ -292,10 +292,7 @@ function renderMetricSection(
 ): { markup: string[]; contentBottomY: number } {
   if (section.kind === "usage") {
     const paceFooter = section.pace ? formatUsagePaceLabels(section.pace) : undefined;
-    const markerPercent =
-      section.pace && section.pace.stage !== "onTrack"
-        ? Math.max(0, 100 - section.pace.expectedUsedPercent)
-        : undefined;
+    const markerPercent = section.pace ? Math.max(0, 100 - section.pace.expectedUsedPercent) : undefined;
 
     return renderProgressSection(
       section.displayTitle,
@@ -316,10 +313,7 @@ function renderMetricSection(
 
   if (section.kind === "supplementalUsage") {
     const paceFooter = section.pace ? formatUsagePaceLabels(section.pace) : undefined;
-    const markerPercent =
-      section.pace && section.pace.stage !== "onTrack"
-        ? Math.max(0, 100 - section.pace.expectedUsedPercent)
-        : undefined;
+    const markerPercent = section.pace ? Math.max(0, 100 - section.pace.expectedUsedPercent) : undefined;
     return renderProgressSection(
       section.title,
       section.remainingPercent,

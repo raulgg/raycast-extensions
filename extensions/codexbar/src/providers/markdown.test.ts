@@ -258,7 +258,7 @@ describe("provider markdown", () => {
     expect(getRectXs(svg, 3, 12)[0]).toBeLessThan(31);
   });
 
-  it("does not render a pace marker when pace is on track", () => {
+  it("renders a pace marker when pace is on track", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",
@@ -278,6 +278,29 @@ describe("provider markdown", () => {
               willLastToReset: true,
               computedAt: "2026-04-16T12:30:00.000Z",
             },
+          },
+        ],
+      },
+      "light",
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+
+    expect(getRectXs(svg, 3, 12)).toHaveLength(1);
+  });
+
+  it("does not render a pace marker when pace is absent", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        sections: [
+          {
+            kind: "usage",
+            title: "Secondary",
+            displayTitle: "Weekly",
+            remainingPercent: 47,
+            resetsIn: "11h 47m",
           },
         ],
       },
