@@ -9,9 +9,10 @@ type ProviderDetailProps = {
   detail?: ProviderDetailData;
   error?: Error;
   isLoading: boolean;
+  relativeTimeNow?: number;
 };
 
-export function ProviderDetail({ provider, detail, error, isLoading }: ProviderDetailProps) {
+export function ProviderDetail({ provider, detail, error, isLoading, relativeTimeNow }: ProviderDetailProps) {
   const hidePersonalInfo = getHidePersonalInfoPreference();
   const detailMarkdown = detail ? buildSafeProviderDetailMarkdown(detail, isLoading) : undefined;
   const markdown = error
@@ -29,6 +30,7 @@ export function ProviderDetail({ provider, detail, error, isLoading }: ProviderD
       const detailForRender = hidePersonalInfo ? { ...detail, accountEmail: undefined } : detail;
       return buildProviderDetailMarkdown(detailForRender, environment.appearance, {
         subtitle: isLoading ? "Updating..." : undefined,
+        now: relativeTimeNow,
       }).trim();
     } catch (error) {
       if (isLegacySectionShapeError(error)) {

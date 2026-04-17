@@ -6,6 +6,7 @@ import { ProviderListItem } from "./ProviderListItem";
 import { useCodexBarAvailability } from "../hooks/useCodexBarAvailability";
 import { useProviderDetails } from "../hooks/useProviderDetails";
 import { useProviderDetailErrorToast } from "../hooks/useProviderDetailErrorToast";
+import { useRelativeUpdateTime } from "../hooks/useRelativeUpdateTime";
 import { useUsageOverview } from "../hooks/useUsageOverview";
 
 export function UsageList() {
@@ -40,6 +41,15 @@ export function UsageList() {
   const providerDetails = useProviderDetails(binary, configuredProviders.providers, selectedProviderId);
   const { isLoading: isProviderDetailLoading, refreshProvider, results: providerDetailResults } = providerDetails;
   const selectedProviderDetail = selectedProviderId ? providerDetailResults[selectedProviderId] : undefined;
+  const relativeTimeNow = useRelativeUpdateTime(
+    selectedProviderDetail?.detail?.updatedAt,
+    Boolean(
+      selectedProviderId &&
+      selectedProviderDetail?.detail?.updatedAt &&
+      !selectedProviderDetail?.isLoading &&
+      !selectedProviderDetail?.error,
+    ),
+  );
   const refreshSelectedProvider = useCallback(() => {
     if (selectedProviderId) {
       refreshProvider(selectedProviderId);
@@ -112,6 +122,7 @@ export function UsageList() {
             detailError={providerDetail?.error}
             isDetailLoading={providerDetail?.isLoading ?? false}
             isSelected={provider.id === selectedProviderId}
+            relativeTimeNow={provider.id === selectedProviderId ? relativeTimeNow : undefined}
             onRefresh={() => refreshProvider(provider.id)}
           />
         );

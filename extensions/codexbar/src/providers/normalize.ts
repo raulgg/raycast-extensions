@@ -473,7 +473,7 @@ function normalizePayload(providerId: string, payload: RawProviderPayload, now =
 
   return {
     ...detail,
-    markdown: buildProviderDetailMarkdown(detail),
+    markdown: buildProviderDetailMarkdown(detail, undefined, { now }),
   };
 }
 

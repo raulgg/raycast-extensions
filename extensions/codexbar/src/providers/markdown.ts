@@ -1,4 +1,4 @@
-import { formatLocalDateTime } from "../lib/presentation";
+import { formatRelativeUpdateTime } from "../lib/presentation";
 import { formatUsagePaceLabels } from "./pace";
 import { getProviderProgressPalette } from "./registry";
 import {
@@ -25,6 +25,7 @@ import type { ProviderDetailData, ProviderInfoSection, ProviderSection } from ".
 export type ProviderDetailAppearance = DetailAppearance;
 type ProviderDetailMarkdownOptions = {
   subtitle?: string;
+  now?: number;
 };
 
 const TYPOGRAPHY = DETAIL_TYPOGRAPHY;
@@ -72,8 +73,8 @@ function formatPercent(value: number): string {
   return `${Math.max(0, Math.min(100, Math.round(value)))}%`;
 }
 
-function getHeaderSubtitle(updatedAt?: string): string | undefined {
-  const formatted = formatLocalDateTime(updatedAt);
+function getHeaderSubtitle(updatedAt?: string, now?: number): string | undefined {
+  const formatted = formatRelativeUpdateTime(updatedAt, { now });
   return formatted ? `Updated ${formatted}` : undefined;
 }
 
@@ -537,7 +538,7 @@ export function buildProviderDetailMarkdown(
   options?: ProviderDetailMarkdownOptions,
 ): string {
   const sections = detail.sections.filter((section) => section.kind !== "info" || section.items.length > 0);
-  const subtitle = options?.subtitle ?? getHeaderSubtitle(detail.updatedAt);
+  const subtitle = options?.subtitle ?? getHeaderSubtitle(detail.updatedAt, options?.now);
   const hasHeaderContent = Boolean(subtitle || detail.accountEmail || detail.planText);
 
   if (sections.length === 0 && !hasHeaderContent) {

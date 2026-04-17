@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { formatLocalDateTime } from "../lib/presentation";
 import { extractSvgMarkup } from "../../test/svg-markdown";
 import { buildProviderDetailMarkdown, buildProviderLoadingMarkdown } from "./markdown";
 
@@ -48,6 +47,7 @@ function getTextBottomY(baselineY: number, fontSize: number): number {
 
 describe("provider markdown", () => {
   it("renders codex usage and generic sections with semantic content", () => {
+    const now = Date.parse("2026-03-23T10:30:00Z");
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",
@@ -90,10 +90,11 @@ describe("provider markdown", () => {
         ],
       },
       "light",
+      { now },
     );
 
     const [svg] = extractSvgMarkup(markdown);
-    const expectedUpdated = formatLocalDateTime("2026-03-23T09:00:00Z");
+    const expectedUpdated = "1h ago";
 
     expect(markdown).toContain("data:image/svg+xml;base64,");
     expect(markdown).not.toContain("prefers-color-scheme");
@@ -342,6 +343,69 @@ describe("provider markdown", () => {
     expect(svg).toContain(">Updating...<");
     expect(svg).not.toContain(">Updated ");
     expect(svg).toContain(">Session<");
+  });
+
+  it("renders compact relative header timestamps within six hours", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        updatedAt: "2026-03-23T10:03:00Z",
+        sections: [],
+      },
+      "light",
+      { now: Date.parse("2026-03-23T10:30:00Z") },
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+
+    expect(svg).toContain(">Updated 27m ago<");
+  });
+
+  it("uses just now for fresh or future-skewed header timestamps", () => {
+    const freshMarkdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        updatedAt: "2026-03-23T10:29:45Z",
+        sections: [],
+      },
+      "light",
+      { now: Date.parse("2026-03-23T10:30:00Z") },
+    );
+    const futureMarkdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        updatedAt: "2026-03-23T10:35:00Z",
+        sections: [],
+      },
+      "light",
+      { now: Date.parse("2026-03-23T10:30:00Z") },
+    );
+
+    const [freshSvg] = extractSvgMarkup(freshMarkdown);
+    const [futureSvg] = extractSvgMarkup(futureMarkdown);
+
+    expect(freshSvg).toContain(">Updated just now<");
+    expect(futureSvg).toContain(">Updated just now<");
+  });
+
+  it("keeps older header timestamps relative without an absolute cutoff", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        updatedAt: "2026-03-23T10:00:00Z",
+        sections: [],
+      },
+      "light",
+      { now: Date.parse("2026-03-23T16:00:01Z") },
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+
+    expect(svg).toContain(">Updated 6h ago<");
   });
 
   it("renders header-only cards when only account metadata exists", () => {

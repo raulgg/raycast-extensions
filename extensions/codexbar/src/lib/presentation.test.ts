@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildProviderErrorMarkdown, formatLocalDateTime } from "./presentation";
+import {
+  buildProviderErrorMarkdown,
+  formatLocalDateTime,
+  formatRelativeUpdateTime,
+  getRelativeUpdateTimeRefreshDelay,
+} from "./presentation";
 import { extractSvgMarkup } from "../../test/svg-markdown";
 
 describe("presentation helpers", () => {
@@ -9,6 +14,26 @@ describe("presentation helpers", () => {
 
   it("returns the raw timestamp when parsing fails", () => {
     expect(formatLocalDateTime("not-a-date")).toBe("not-a-date");
+  });
+
+  it("formats relative update timestamps with compact units", () => {
+    const now = Date.parse("2026-04-05T15:11:00.000Z");
+
+    expect(formatRelativeUpdateTime("2026-04-05T15:10:45.000Z", { now })).toBe("just now");
+    expect(formatRelativeUpdateTime("2026-04-05T14:44:00.000Z", { now })).toBe("27m ago");
+    expect(formatRelativeUpdateTime("2026-04-05T13:11:00.000Z", { now })).toBe("2h ago");
+  });
+
+  it("computes the next relative timestamp refresh boundary", () => {
+    expect(getRelativeUpdateTimeRefreshDelay("2026-04-05T15:10:45.000Z", Date.parse("2026-04-05T15:11:00.000Z"))).toBe(
+      45_000,
+    );
+    expect(getRelativeUpdateTimeRefreshDelay("2026-04-05T14:43:45.000Z", Date.parse("2026-04-05T15:11:00.000Z"))).toBe(
+      45_000,
+    );
+    expect(getRelativeUpdateTimeRefreshDelay("2026-04-05T13:40:45.000Z", Date.parse("2026-04-05T15:11:00.000Z"))).toBe(
+      1_785_000,
+    );
   });
 
   it("builds markdown blocks for errors", () => {

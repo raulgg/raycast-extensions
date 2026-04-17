@@ -33,6 +33,7 @@ describe("provider normalization", () => {
     const detail = normalizeProviderDetailPayload(codexPayload, "codex", Date.parse("2026-03-23T10:30:00Z"));
     const [detailSvg] = extractSvgMarkup(detail.markdown);
     const expectedUpdated = formatLocalDateTime("2026-03-23T09:00:00Z");
+    const expectedHeaderUpdated = "1h ago";
 
     expect(detail.id).toBe("codex");
     expect(detail.name).toBe("Codex");
@@ -81,7 +82,7 @@ describe("provider normalization", () => {
     expect(detailSvg).toContain(">Codex<");
     expect(detailSvg).toContain(">dev@example.com<");
     expect(detailSvg).toContain(">Pro<");
-    expect(detailSvg).toContain(`>Updated ${expectedUpdated}<`);
+    expect(detailSvg).toContain(`>Updated ${expectedHeaderUpdated}<`);
     expect(detailSvg).toContain(">Session<");
     expect(detailSvg).toContain(">Weekly<");
     expect(detailSvg).toContain(">53% left<");

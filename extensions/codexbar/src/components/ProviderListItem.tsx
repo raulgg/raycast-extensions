@@ -8,10 +8,19 @@ type ProviderListItemProps = {
   detailError?: Error;
   isDetailLoading: boolean;
   isSelected: boolean;
+  relativeTimeNow?: number;
   onRefresh: () => void;
 };
 
-export function ProviderListItem({ provider, detail, detailError, isDetailLoading, onRefresh }: ProviderListItemProps) {
+export function ProviderListItem({
+  provider,
+  detail,
+  detailError,
+  isDetailLoading,
+  isSelected,
+  relativeTimeNow,
+  onRefresh,
+}: ProviderListItemProps) {
   const fetchCommand = `codexbar usage --provider ${provider.id}`;
 
   return (
@@ -21,7 +30,15 @@ export function ProviderListItem({ provider, detail, detailError, isDetailLoadin
       keywords={provider.keywords}
       icon={provider.icon}
       accessories={buildProviderListItemAccessories(detail, detailError, isDetailLoading)}
-      detail={<ProviderDetail provider={provider} detail={detail} error={detailError} isLoading={isDetailLoading} />}
+      detail={
+        <ProviderDetail
+          provider={provider}
+          detail={detail}
+          error={detailError}
+          isLoading={isDetailLoading}
+          relativeTimeNow={isSelected ? relativeTimeNow : undefined}
+        />
+      }
       actions={
         <ActionPanel>
           <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={onRefresh} />
