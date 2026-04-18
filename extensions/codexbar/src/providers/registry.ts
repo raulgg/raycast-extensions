@@ -1,4 +1,4 @@
-import { Color, Icon, type ImageLike } from "@raycast/api";
+import { Color, Icon, type Image } from "@raycast/api";
 
 export type ProviderProgressPalette = {
   lightFill: string;
@@ -11,16 +11,16 @@ export type ProviderUsageSectionLabels = {
   tertiary?: string;
 };
 
-export type ProviderPaceWindow = "primary" | "secondary" | "tertiary";
+export type ProviderUsagePacingSlot = "primary" | "secondary" | "tertiary";
 
 export type ProviderRegistryEntry = {
   id: string;
   name: string;
-  icon: ImageLike;
+  icon: Image.ImageLike;
   brandColor: string;
   progressPalette: ProviderProgressPalette;
   usageSectionLabels: ProviderUsageSectionLabels;
-  paceWindow?: ProviderPaceWindow;
+  usagePacingSlot?: ProviderUsagePacingSlot;
 };
 
 type ProviderDefinition = Omit<ProviderRegistryEntry, "id" | "progressPalette">;
@@ -30,7 +30,7 @@ const DEFAULT_PROGRESS_PALETTE: ProviderProgressPalette = {
   darkFill: "#4EC8DD",
 };
 
-function providerIcon(slug: string, fallback: Icon = Icon.Circle): ImageLike {
+function providerIcon(slug: string, fallback: Icon = Icon.Circle): Image.ImageLike {
   return {
     source: `providers/ProviderIcon-${slug}.svg`,
     fallback,
@@ -44,14 +44,14 @@ const PROVIDER_DEFINITIONS = {
     icon: providerIcon("codex", Icon.Terminal),
     brandColor: "#49A3B0",
     usageSectionLabels: { primary: "Session", secondary: "Weekly" },
-    paceWindow: "secondary",
+    usagePacingSlot: "secondary",
   },
   claude: {
     name: "Claude",
     icon: providerIcon("claude", Icon.Bubble),
     brandColor: "#CC7C5E",
     usageSectionLabels: { primary: "Session", secondary: "Weekly", tertiary: "Sonnet" },
-    paceWindow: "secondary",
+    usagePacingSlot: "secondary",
   },
   cursor: {
     name: "Cursor",
@@ -64,7 +64,7 @@ const PROVIDER_DEFINITIONS = {
     icon: providerIcon("opencode", Icon.Code),
     brandColor: "#3B82F6",
     usageSectionLabels: { primary: "5-hour", secondary: "Weekly" },
-    paceWindow: "secondary",
+    usagePacingSlot: "secondary",
   },
   opencodego: {
     name: "OpenCode Go",

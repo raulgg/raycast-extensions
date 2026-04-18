@@ -220,7 +220,7 @@ describe("provider markdown", () => {
     expect(svg).toContain(">Resets in 30m<");
   });
 
-  it("renders pace as a second footer row on metric sections", () => {
+  it("renders usage pacing as a second footer row on metric sections", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",
@@ -232,12 +232,12 @@ describe("provider markdown", () => {
             displayTitle: "Weekly",
             remainingPercent: 47,
             resetsIn: "11h 47m",
-            pace: {
-              stage: "farBehind",
-              deltaPercent: -39.98,
-              expectedUsedPercent: 92.98,
+            usagePacing: {
+              stage: "farUnder",
+              usedVsIdealDeltaPercent: -39.98,
+              idealUsedPercentByNow: 92.98,
               actualUsedPercent: 53,
-              willLastToReset: true,
+              lastsUntilReset: true,
               computedAt: "2026-04-16T12:30:00.000Z",
             },
           },
@@ -250,16 +250,16 @@ describe("provider markdown", () => {
 
     expect(svg).toContain(">47% left<");
     expect(svg).toContain(">Resets in 11h 47m<");
-    expect(svg).toContain(">40% behind pace<");
+    expect(svg).toContain(">40% behind<");
     expect(svg).toContain(">Lasts until reset<");
-    expect(getTextY(svg, "40% behind pace")).toBeGreaterThan(getTextY(svg, "47% left"));
+    expect(getTextY(svg, "40% behind")).toBeGreaterThan(getTextY(svg, "47% left"));
     expect(getTextY(svg, "Lasts until reset")).toBeGreaterThan(getTextY(svg, "Resets in 11h 47m"));
     expect(getRectXs(svg, 3, 12)).toHaveLength(1);
     expect(getRectXs(svg, 3, 12)[0]).toBeGreaterThan(28);
     expect(getRectXs(svg, 3, 12)[0]).toBeLessThan(31);
   });
 
-  it("renders a pace marker when pace is on track", () => {
+  it("renders a usage pacing marker when usage pacing is on track", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",
@@ -271,12 +271,12 @@ describe("provider markdown", () => {
             displayTitle: "Weekly",
             remainingPercent: 47,
             resetsIn: "11h 47m",
-            pace: {
+            usagePacing: {
               stage: "onTrack",
-              deltaPercent: 1.2,
-              expectedUsedPercent: 53,
+              usedVsIdealDeltaPercent: 1.2,
+              idealUsedPercentByNow: 53,
               actualUsedPercent: 54.2,
-              willLastToReset: true,
+              lastsUntilReset: true,
               computedAt: "2026-04-16T12:30:00.000Z",
             },
           },
@@ -290,7 +290,7 @@ describe("provider markdown", () => {
     expect(getRectXs(svg, 3, 12)).toHaveLength(1);
   });
 
-  it("does not render a pace marker when pace is absent", () => {
+  it("does not render a usage pacing marker when usage pacing is absent", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",

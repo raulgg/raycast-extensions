@@ -80,11 +80,11 @@ describe("provider registry", () => {
     });
   });
 
-  it("declares pace-capable providers explicitly", () => {
-    expect(getProviderMetadata("codex").paceWindow).toBe("secondary");
-    expect(getProviderMetadata("claude").paceWindow).toBe("secondary");
-    expect(getProviderMetadata("opencode").paceWindow).toBe("secondary");
-    expect(getProviderMetadata("opencodego").paceWindow).toBeUndefined();
+  it("declares usage-projection-capable providers explicitly", () => {
+    expect(getProviderMetadata("codex").usagePacingSlot).toBe("secondary");
+    expect(getProviderMetadata("claude").usagePacingSlot).toBe("secondary");
+    expect(getProviderMetadata("opencode").usagePacingSlot).toBe("secondary");
+    expect(getProviderMetadata("opencodego").usagePacingSlot).toBeUndefined();
   });
 
   it("falls back to a title-cased label for unknown providers", () => {

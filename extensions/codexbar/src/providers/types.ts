@@ -1,11 +1,11 @@
-import type { ImageLike } from "@raycast/api";
+import type { Image } from "@raycast/api";
 
 export type RawProviderPayload = Record<string, unknown>;
 
 export type ConfiguredProvider = {
   id: string;
   name: string;
-  icon: ImageLike;
+  icon: Image.ImageLike;
   keywords?: string[];
 };
 
@@ -14,23 +14,22 @@ export type ProviderSectionItem = {
   value: string;
 };
 
-export type ProviderUsagePaceStage =
+export type ProviderUsagePacingStage =
   | "onTrack"
-  | "slightlyAhead"
-  | "ahead"
-  | "farAhead"
-  | "slightlyBehind"
-  | "behind"
-  | "farBehind";
+  | "slightlyOver"
+  | "over"
+  | "farOver"
+  | "slightlyUnder"
+  | "under"
+  | "farUnder";
 
-export type ProviderUsagePace = {
-  stage: ProviderUsagePaceStage;
-  deltaPercent: number;
-  expectedUsedPercent: number;
+export type ProviderUsagePacing = {
+  stage: ProviderUsagePacingStage;
+  usedVsIdealDeltaPercent: number;
+  idealUsedPercentByNow: number;
   actualUsedPercent: number;
-  etaSeconds?: number;
-  willLastToReset: boolean;
-  runOutProbability?: number;
+  runOutEtaSeconds?: number;
+  lastsUntilReset: boolean;
   computedAt: string;
 };
 
@@ -42,7 +41,7 @@ export type ProviderUsageSection = {
   displayTitle: string;
   remainingPercent: number;
   resetsIn?: string;
-  pace?: ProviderUsagePace;
+  usagePacing?: ProviderUsagePacing;
 };
 
 export type ProviderSupplementalUsageSection = {
@@ -50,7 +49,7 @@ export type ProviderSupplementalUsageSection = {
   title: string;
   remainingPercent: number;
   resetsIn?: string;
-  pace?: ProviderUsagePace;
+  usagePacing?: ProviderUsagePacing;
 };
 
 export type ProviderCreditsSection = {

@@ -135,7 +135,7 @@ describe("provider normalization", () => {
     expect(detailSvg).toContain(">Resets in 1d 1h<");
   });
 
-  it("attaches raw pace to supported weekly sections and renders GUI-style footers", () => {
+  it("attaches raw usage pacing to supported weekly sections and renders GUI-style footers", () => {
     const detail = normalizeProviderDetailPayload(
       {
         provider: "codex",
@@ -159,17 +159,17 @@ describe("provider normalization", () => {
         displayTitle: "Weekly",
         remainingPercent: 47,
         resetsIn: "11h 47m",
-        pace: {
-          stage: "farBehind",
+        usagePacing: {
+          stage: "farUnder",
           actualUsedPercent: 53,
-          willLastToReset: true,
+          lastsUntilReset: true,
           computedAt: "2026-04-16T12:30:00.000Z",
         },
       },
     ]);
     expect(detailSvg).toContain(">47% left<");
     expect(detailSvg).toContain(">Resets in 11h 47m<");
-    expect(detailSvg).toContain(">40% behind pace<");
+    expect(detailSvg).toContain(">40% behind<");
     expect(detailSvg).toContain(">Lasts until reset<");
   });
 

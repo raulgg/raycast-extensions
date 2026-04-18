@@ -1,5 +1,5 @@
 import { formatRelativeUpdateTime } from "../lib/presentation";
-import { formatUsagePaceLabels } from "./pace";
+import { formatUsagePacingLabels } from "./usagePacing";
 import { getProviderProgressPalette } from "./registry";
 import {
   buildHeaderMarkup,
@@ -142,7 +142,7 @@ function buildProgressBarSvg(
   width: number,
   appearance: ProviderDetailAppearance,
   providerId: string,
-  markerPercent?: number,
+  targetRemainingPercent?: number,
 ): string {
   const normalized = Math.max(0, Math.min(100, percent));
   const fillWidth = Math.round((normalized / 100) * width);
@@ -163,19 +163,21 @@ function buildProgressBarSvg(
     fillWidth > 0
       ? `<rect x="${x}" y="${y}" width="${fillWidth}" height="${PROGRESS_BAR.height}" rx="${PROGRESS_BAR.radius}" fill="${progressFill}"/>`
       : "",
-    typeof markerPercent === "number" ? buildProgressMarkerSvg(markerPercent, x, y, width, appearance) : "",
+    typeof targetRemainingPercent === "number"
+      ? buildProgressMarkerSvg(targetRemainingPercent, x, y, width, appearance)
+      : "",
   ].join("");
 }
 
 function buildProgressMarkerSvg(
-  markerPercent: number,
+  targetRemainingPercent: number,
   x: number,
   y: number,
   width: number,
   appearance: ProviderDetailAppearance,
 ): string {
   const palette = PANEL_PALETTES[appearance];
-  const normalizedPercent = Math.max(0, Math.min(100, markerPercent));
+  const normalizedPercent = Math.max(0, Math.min(100, targetRemainingPercent));
   const markerCenterX = x + (normalizedPercent / 100) * width;
   const minLeft = x + PROGRESS_MARKER.edgeInset;
   const maxLeft = x + width - PROGRESS_MARKER.width - PROGRESS_MARKER.edgeInset;
@@ -225,7 +227,7 @@ function renderProgressSection(
   providerId: string,
   appearance: ProviderDetailAppearance,
   startY: number,
-  markerPercent?: number,
+  targetRemainingPercent?: number,
 ): { markup: string[]; contentBottomY: number } {
   const palette = PANEL_PALETTES[appearance];
   const progressY = getUsageProgressY(startY);
@@ -246,7 +248,7 @@ function renderProgressSection(
       getContentWidth(),
       appearance,
       providerId,
-      markerPercent,
+      targetRemainingPercent,
     ),
   ];
   let footerY = initialFooterY;
@@ -292,8 +294,12 @@ function renderMetricSection(
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
   if (section.kind === "usage") {
-    const paceFooter = section.pace ? formatUsagePaceLabels(section.pace) : undefined;
-    const markerPercent = section.pace ? Math.max(0, 100 - section.pace.expectedUsedPercent) : undefined;
+    const usagePacingFooter = section.usagePacing
+      ? formatUsagePacingLabels(section.usagePacing)
+      : undefined;
+    const targetRemainingPercent = section.usagePacing
+      ? Math.max(0, 100 - section.usagePacing.idealUsedPercentByNow)
+      : undefined;
 
     return renderProgressSection(
       section.displayTitle,
@@ -303,18 +309,24 @@ function renderMetricSection(
           left: `${formatPercent(section.remainingPercent)} left`,
           right: section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
         },
-        ...(paceFooter ? [{ left: paceFooter.leftLabel, right: paceFooter.rightLabel }] : []),
+        ...(usagePacingFooter
+          ? [{ left: usagePacingFooter.leftLabel, right: usagePacingFooter.rightLabel }]
+          : []),
       ],
       providerId,
       appearance,
       startY,
-      markerPercent,
+      targetRemainingPercent,
     );
   }
 
   if (section.kind === "supplementalUsage") {
-    const paceFooter = section.pace ? formatUsagePaceLabels(section.pace) : undefined;
-    const markerPercent = section.pace ? Math.max(0, 100 - section.pace.expectedUsedPercent) : undefined;
+    const usagePacingFooter = section.usagePacing
+      ? formatUsagePacingLabels(section.usagePacing)
+      : undefined;
+    const targetRemainingPercent = section.usagePacing
+      ? Math.max(0, 100 - section.usagePacing.idealUsedPercentByNow)
+      : undefined;
     return renderProgressSection(
       section.title,
       section.remainingPercent,
@@ -323,12 +335,14 @@ function renderMetricSection(
           left: `${formatPercent(section.remainingPercent)} left`,
           right: section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
         },
-        ...(paceFooter ? [{ left: paceFooter.leftLabel, right: paceFooter.rightLabel }] : []),
+        ...(usagePacingFooter
+          ? [{ left: usagePacingFooter.leftLabel, right: usagePacingFooter.rightLabel }]
+          : []),
       ],
       providerId,
       appearance,
       startY,
-      markerPercent,
+      targetRemainingPercent,
     );
   }
 

@@ -1,16 +1,16 @@
-import type { ProviderUsagePace, ProviderUsagePaceStage } from "./types";
+import type { ProviderUsagePacing, ProviderUsagePacingStage } from "./types";
 
 const DEFAULT_WEEKLY_WINDOW_MINUTES = 10_080;
-const MINIMUM_EXPECTED_USED_PERCENT = 3;
+const MINIMUM_WINDOW_ELAPSED_PERCENT = 3;
 
-type PaceWindowInput = {
+type UsagePacingWindowInput = {
   usedPercent: number;
   remainingPercent: number;
   resetsAt?: string;
   windowMinutes?: number;
 };
 
-type PaceLabelSet = {
+type UsagePacingLabelSet = {
   leftLabel: string;
   rightLabel?: string;
 };
@@ -19,29 +19,29 @@ function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-function stageForDelta(deltaPercent: number): ProviderUsagePaceStage {
-  const absoluteDelta = Math.abs(deltaPercent);
+function stageForUsedVsIdealDelta(usedVsIdealDeltaPercent: number): ProviderUsagePacingStage {
+  const absoluteDelta = Math.abs(usedVsIdealDeltaPercent);
 
   if (absoluteDelta <= 2) {
     return "onTrack";
   }
 
   if (absoluteDelta <= 6) {
-    return deltaPercent >= 0 ? "slightlyAhead" : "slightlyBehind";
+    return usedVsIdealDeltaPercent >= 0 ? "slightlyOver" : "slightlyUnder";
   }
 
   if (absoluteDelta <= 12) {
-    return deltaPercent >= 0 ? "ahead" : "behind";
+    return usedVsIdealDeltaPercent >= 0 ? "over" : "under";
   }
 
-  return deltaPercent >= 0 ? "farAhead" : "farBehind";
+  return usedVsIdealDeltaPercent >= 0 ? "farOver" : "farUnder";
 }
 
-export function calculateWeeklyUsagePace(
-  window: PaceWindowInput,
+export function calculateWeeklyUsagePacing(
+  window: UsagePacingWindowInput,
   computedAt = Date.now(),
   defaultWindowMinutes = DEFAULT_WEEKLY_WINDOW_MINUTES,
-): ProviderUsagePace | undefined {
+): ProviderUsagePacing | undefined {
   if (window.remainingPercent <= 0 || !window.resetsAt) {
     return undefined;
   }
@@ -70,14 +70,14 @@ export function calculateWeeklyUsagePace(
     return undefined;
   }
 
-  const expectedUsedPercent = clampPercent((elapsedSeconds / durationSeconds) * 100);
-  if (expectedUsedPercent < MINIMUM_EXPECTED_USED_PERCENT) {
+  const idealUsedPercentByNow = clampPercent((elapsedSeconds / durationSeconds) * 100);
+  if (idealUsedPercentByNow < MINIMUM_WINDOW_ELAPSED_PERCENT) {
     return undefined;
   }
 
-  const deltaPercent = actualUsedPercent - expectedUsedPercent;
-  let etaSeconds: number | undefined;
-  let willLastToReset = false;
+  const usedVsIdealDeltaPercent = actualUsedPercent - idealUsedPercentByNow;
+  let runOutEtaSeconds: number | undefined;
+  let lastsUntilReset = false;
 
   if (elapsedSeconds > 0 && actualUsedPercent > 0) {
     const burnRate = actualUsedPercent / elapsedSeconds;
@@ -85,22 +85,22 @@ export function calculateWeeklyUsagePace(
       const remainingPercent = Math.max(0, 100 - actualUsedPercent);
       const projectedSecondsRemaining = remainingPercent / burnRate;
       if (projectedSecondsRemaining >= timeUntilResetSeconds) {
-        willLastToReset = true;
+        lastsUntilReset = true;
       } else {
-        etaSeconds = projectedSecondsRemaining;
+        runOutEtaSeconds = projectedSecondsRemaining;
       }
     }
   } else if (elapsedSeconds > 0) {
-    willLastToReset = true;
+    lastsUntilReset = true;
   }
 
   return {
-    stage: stageForDelta(deltaPercent),
-    deltaPercent,
-    expectedUsedPercent,
+    stage: stageForUsedVsIdealDelta(usedVsIdealDeltaPercent),
+    usedVsIdealDeltaPercent,
+    idealUsedPercentByNow,
     actualUsedPercent,
-    etaSeconds,
-    willLastToReset,
+    runOutEtaSeconds,
+    lastsUntilReset,
     computedAt: computedAtDate.toISOString(),
   };
 }
@@ -136,41 +136,44 @@ function durationText(totalSeconds: number): string {
   return `${days}d ${hours}h`;
 }
 
-function liveEtaSeconds(pace: ProviderUsagePace, now = Date.now()): number | undefined {
-  if (pace.etaSeconds === undefined) {
+function liveRunOutEtaSeconds(usagePacing: ProviderUsagePacing, now = Date.now()): number | undefined {
+  if (usagePacing.runOutEtaSeconds === undefined) {
     return undefined;
   }
 
-  const computedAtMs = Date.parse(pace.computedAt);
+  const computedAtMs = Date.parse(usagePacing.computedAt);
   if (Number.isNaN(computedAtMs)) {
-    return pace.etaSeconds;
+    return usagePacing.runOutEtaSeconds;
   }
 
-  return Math.max(0, pace.etaSeconds - (now - computedAtMs) / 1000);
+  return Math.max(0, usagePacing.runOutEtaSeconds - (now - computedAtMs) / 1000);
 }
 
-export function formatUsagePaceLabels(pace: ProviderUsagePace, now = Date.now()): PaceLabelSet {
-  const roundedDeltaPercent = Math.round(Math.abs(pace.deltaPercent));
+export function formatUsagePacingLabels(
+  usagePacing: ProviderUsagePacing,
+  now = Date.now(),
+): UsagePacingLabelSet {
+  const roundedDeltaPercent = Math.round(Math.abs(usagePacing.usedVsIdealDeltaPercent));
   const leftLabel =
-    pace.stage === "onTrack"
-      ? "On pace"
-      : pace.deltaPercent >= 0
-        ? `${roundedDeltaPercent}% ahead of pace`
-        : `${roundedDeltaPercent}% behind pace`;
+    usagePacing.stage === "onTrack"
+      ? "On track"
+      : usagePacing.usedVsIdealDeltaPercent >= 0
+        ? `${roundedDeltaPercent}% ahead`
+        : `${roundedDeltaPercent}% behind`;
 
-  if (pace.willLastToReset) {
+  if (usagePacing.lastsUntilReset) {
     return {
       leftLabel,
       rightLabel: "Lasts until reset",
     };
   }
 
-  const etaSeconds = liveEtaSeconds(pace, now);
-  if (etaSeconds === undefined) {
+  const runOutEtaSeconds = liveRunOutEtaSeconds(usagePacing, now);
+  if (runOutEtaSeconds === undefined) {
     return { leftLabel };
   }
 
-  const etaText = durationText(etaSeconds);
+  const etaText = durationText(runOutEtaSeconds);
   return {
     leftLabel,
     rightLabel: etaText === "now" ? "Runs out now" : `Runs out in ${etaText}`,
