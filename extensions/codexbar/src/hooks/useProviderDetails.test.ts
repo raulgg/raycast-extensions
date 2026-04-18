@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { Cache } from "@raycast/api";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
-  buildFreshCachedProviderResults,
+  buildCachedProviderResults,
   cacheProviderDetail,
   runProviderDetailFetches,
   shouldRefreshSelectedProvider,
@@ -26,6 +27,10 @@ function makeDetail(providerId: string, fetchedAt: string): ProviderDetailData {
 }
 
 describe("runProviderDetailFetches", () => {
+  beforeEach(() => {
+    new Cache({ namespace: "provider-details" }).clear();
+  });
+
   it("caps concurrent provider fetches", async () => {
     let activeFetches = 0;
     let maxActiveFetches = 0;
@@ -67,19 +72,33 @@ describe("runProviderDetailFetches", () => {
     const now = Date.parse("2026-04-15T12:05:00Z");
     cacheProviderDetail(makeDetail("codex", "2026-04-15T12:00:00Z"));
 
-    expect(buildFreshCachedProviderResults(["codex"], now)).toMatchObject({
+    expect(buildCachedProviderResults(["codex"], now)).toMatchObject({
       codex: {
         detail: { id: "codex", sections: [{ kind: "usage", remainingPercent: 82 }] },
+        cacheStatus: "fresh",
         isLoading: false,
       },
     });
   });
 
-  it("ignores cached provider details older than five minutes", () => {
+  it("hydrates stale cached provider details up to one hour old", () => {
     const now = Date.parse("2026-04-15T12:05:01Z");
     cacheProviderDetail(makeDetail("claude", "2026-04-15T12:00:00Z"));
 
-    expect(buildFreshCachedProviderResults(["claude"], now)).toEqual({});
+    expect(buildCachedProviderResults(["claude"], now)).toMatchObject({
+      claude: {
+        detail: { id: "claude", sections: [{ kind: "usage", remainingPercent: 82 }] },
+        cacheStatus: "stale",
+        isLoading: false,
+      },
+    });
+  });
+
+  it("ignores cached provider details older than one hour", () => {
+    const now = Date.parse("2026-04-15T13:00:01Z");
+    cacheProviderDetail(makeDetail("cursor", "2026-04-15T12:00:00Z"));
+
+    expect(buildCachedProviderResults(["cursor"], now)).toEqual({});
   });
 
   it("refreshes selected providers when detail is older than one minute", () => {

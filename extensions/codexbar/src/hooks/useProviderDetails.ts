@@ -5,14 +5,18 @@ import type { ConfiguredProvider, ProviderDetailData } from "../providers/types"
 
 const PROVIDER_DETAIL_CONCURRENCY = 4;
 const PROVIDER_DETAIL_FRESHNESS_WINDOW_MS = 5 * 60 * 1000;
+const PROVIDER_DETAIL_STALE_WINDOW_MS = 60 * 60 * 1000;
 const SELECTED_PROVIDER_REFRESH_STALE_MS = 60 * 1000;
 const PROVIDER_DETAIL_SCHEMA_VERSION = "provider-details-v3";
 const providerDetailCache = new Cache({ namespace: "provider-details" });
+
+export type ProviderDetailCacheStatus = "fresh" | "stale";
 
 export type ProviderDetailState = {
   detail?: ProviderDetailData;
   error?: Error;
   isLoading: boolean;
+  cacheStatus?: ProviderDetailCacheStatus;
 };
 
 export type ProviderDetailResults = Record<string, ProviderDetailState | undefined>;
@@ -39,7 +43,7 @@ export function useProviderDetails(
 ): UseProviderDetailsResult {
   const providerIds = useMemo(() => providers.map((provider) => provider.id), [providers]);
   const providerIdsKey = providerIds.join("\0");
-  const optimisticResults = useMemo(() => buildFreshCachedProviderResults(providerIds), [providerIds, providerIdsKey]);
+  const optimisticResults = useMemo(() => buildCachedProviderResults(providerIds), [providerIds, providerIdsKey]);
   const [results, setResults] = useState<ProviderDetailResults>({});
   const [isBatchLoading, setIsBatchLoading] = useState(false);
   const displayedResults = useMemo(() => ({ ...optimisticResults, ...results }), [optimisticResults, results]);
@@ -81,7 +85,7 @@ export function useProviderDetails(
         cacheProviderDetail(detail);
         setResults((current) => ({
           ...current,
-          [providerId]: { detail, isLoading: false },
+          [providerId]: { detail, isLoading: false, cacheStatus: "fresh" },
         }));
       } catch (error) {
         if (generationRef.current !== generation) {
@@ -222,11 +226,13 @@ export function shouldRefreshSelectedProvider(
   return isProviderDetailOlderThan(result.detail, SELECTED_PROVIDER_REFRESH_STALE_MS, now);
 }
 
-export function buildFreshCachedProviderResults(providerIds: string[], now = Date.now()): ProviderDetailResults {
+export function buildCachedProviderResults(providerIds: string[], now = Date.now()): ProviderDetailResults {
   return Object.fromEntries(
     providerIds.flatMap((providerId) => {
-      const detail = readFreshCachedProviderDetail(providerId, now);
-      return detail ? [[providerId, { detail, isLoading: false } satisfies ProviderDetailState]] : [];
+      const cachedDetail = readCachedProviderDetail(providerId, now);
+      return cachedDetail
+        ? [[providerId, { ...cachedDetail, isLoading: false } satisfies ProviderDetailState]]
+        : [];
     }),
   );
 }
@@ -235,7 +241,10 @@ export function cacheProviderDetail(detail: ProviderDetailData): void {
   providerDetailCache.set(buildProviderDetailCacheKey(detail.id), JSON.stringify(detail));
 }
 
-function readFreshCachedProviderDetail(providerId: string, now = Date.now()): ProviderDetailData | undefined {
+function readCachedProviderDetail(
+  providerId: string,
+  now = Date.now(),
+): Pick<ProviderDetailState, "detail" | "cacheStatus"> | undefined {
   const serializedDetail = providerDetailCache.get(buildProviderDetailCacheKey(providerId));
   if (!serializedDetail) {
     return undefined;
@@ -243,23 +252,36 @@ function readFreshCachedProviderDetail(providerId: string, now = Date.now()): Pr
 
   try {
     const detail = JSON.parse(serializedDetail) as ProviderDetailData;
-    if (!isProviderDetailCacheFresh(detail, providerId, now)) {
+    const cacheStatus = getProviderDetailCacheStatus(detail, providerId, now);
+    if (!cacheStatus) {
       return undefined;
     }
 
-    return detail;
+    return { detail, cacheStatus };
   } catch {
     providerDetailCache.remove(buildProviderDetailCacheKey(providerId));
     return undefined;
   }
 }
 
-function isProviderDetailCacheFresh(detail: ProviderDetailData, providerId: string, now = Date.now()): boolean {
+function getProviderDetailCacheStatus(
+  detail: ProviderDetailData,
+  providerId: string,
+  now = Date.now(),
+): ProviderDetailCacheStatus | undefined {
   if (detail.id !== providerId || !isProviderDetailSchemaCurrent(detail)) {
-    return false;
+    return undefined;
   }
 
-  return !isProviderDetailOlderThan(detail, PROVIDER_DETAIL_FRESHNESS_WINDOW_MS, now);
+  if (!isProviderDetailOlderThan(detail, PROVIDER_DETAIL_FRESHNESS_WINDOW_MS, now)) {
+    return "fresh";
+  }
+
+  if (!isProviderDetailOlderThan(detail, PROVIDER_DETAIL_STALE_WINDOW_MS, now)) {
+    return "stale";
+  }
+
+  return undefined;
 }
 
 function isProviderDetailOlderThan(detail: ProviderDetailData, maxAgeMs: number, now = Date.now()): boolean {

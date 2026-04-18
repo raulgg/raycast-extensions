@@ -43,12 +43,7 @@ export function UsageList() {
   const selectedProviderDetail = selectedProviderId ? providerDetailResults[selectedProviderId] : undefined;
   const relativeTimeNow = useRelativeUpdateTime(
     selectedProviderDetail?.detail?.updatedAt,
-    Boolean(
-      selectedProviderId &&
-      selectedProviderDetail?.detail?.updatedAt &&
-      !selectedProviderDetail?.isLoading &&
-      !selectedProviderDetail?.error,
-    ),
+    Boolean(selectedProviderId && selectedProviderDetail?.detail?.updatedAt && !selectedProviderDetail?.isLoading),
   );
   const refreshSelectedProvider = useCallback(() => {
     if (selectedProviderId) {
@@ -121,6 +116,7 @@ export function UsageList() {
             detail={providerDetail?.detail}
             detailError={providerDetail?.error}
             isDetailLoading={providerDetail?.isLoading ?? false}
+            detailCacheStatus={providerDetail?.cacheStatus}
             isSelected={provider.id === selectedProviderId}
             relativeTimeNow={provider.id === selectedProviderId ? relativeTimeNow : undefined}
             onRefresh={() => refreshProvider(provider.id)}

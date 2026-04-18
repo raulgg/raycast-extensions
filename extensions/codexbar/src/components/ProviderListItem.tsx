@@ -1,4 +1,5 @@
 import { Action, ActionPanel, Icon, List } from "@raycast/api";
+import type { ProviderDetailCacheStatus } from "../hooks/useProviderDetails";
 import type { ConfiguredProvider, ProviderDetailData, ProviderUsageSection } from "../providers/types";
 import { ProviderDetail } from "./ProviderDetail";
 
@@ -7,6 +8,7 @@ type ProviderListItemProps = {
   detail?: ProviderDetailData;
   detailError?: Error;
   isDetailLoading: boolean;
+  detailCacheStatus?: ProviderDetailCacheStatus;
   isSelected: boolean;
   relativeTimeNow?: number;
   onRefresh: () => void;
@@ -17,6 +19,7 @@ export function ProviderListItem({
   detail,
   detailError,
   isDetailLoading,
+  detailCacheStatus,
   isSelected,
   relativeTimeNow,
   onRefresh,
@@ -36,6 +39,7 @@ export function ProviderListItem({
           detail={detail}
           error={detailError}
           isLoading={isDetailLoading}
+          cacheStatus={detailCacheStatus}
           relativeTimeNow={isSelected ? relativeTimeNow : undefined}
         />
       }
@@ -63,7 +67,7 @@ export function buildProviderListItemAccessories(
     ];
   }
 
-  if (error) {
+  if (error && !detail) {
     return [
       {
         icon: Icon.Warning,

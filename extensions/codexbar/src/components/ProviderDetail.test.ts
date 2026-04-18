@@ -50,6 +50,7 @@ function makeDetail(): ProviderDetailData {
     name: "Codex",
     raw: {},
     fetchedAt: "2026-04-05T17:11:00Z",
+    updatedAt: "2026-04-05T17:11:00Z",
     accountEmail: "dev@example.com",
     planText: "Pro",
     markdown: "stale cached markdown",
@@ -177,6 +178,42 @@ describe("ProviderDetail", () => {
     expect(svg).toContain(">Pro<");
     expect(svg).not.toContain(">Updated ");
     expect(svg).toContain(">Session<");
+  });
+
+  it("shows stale warning copy while refreshing stale cached detail", () => {
+    appearanceMock.value = "light";
+    const detail = makeDetail();
+
+    const element = ProviderDetail({
+      provider,
+      detail,
+      isLoading: true,
+      cacheStatus: "stale",
+      relativeTimeNow: Date.parse("2026-04-05T17:40:00Z"),
+    });
+
+    const svg = decodeFirstSvg(element.props.markdown);
+    expect(svg).toContain(">Updating... | ⚠︎ Stale data<");
+    expect(svg).toContain(">Session<");
+  });
+
+  it("keeps stale cached detail visible after refresh errors", () => {
+    appearanceMock.value = "light";
+    const detail = makeDetail();
+
+    const element = ProviderDetail({
+      provider,
+      detail,
+      error: new Error("Timed out"),
+      isLoading: false,
+      cacheStatus: "stale",
+      relativeTimeNow: Date.parse("2026-04-05T17:40:00Z"),
+    });
+
+    const svg = decodeFirstSvg(element.props.markdown);
+    expect(svg).toContain(">Updated 29m ago | ⚠︎ Stale data<");
+    expect(svg).toContain(">Session<");
+    expect(svg).not.toContain(">Timed out<");
   });
 
   it("hides account email when personal info preference is enabled", () => {
