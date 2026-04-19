@@ -1,9 +1,5 @@
 import { calculateWeeklyUsagePacing } from "./usagePacing";
-import {
-  getProviderMetadata,
-  getProviderUsageSectionDisplayTitle,
-  type ProviderUsagePacingSlot,
-} from "./registry";
+import { getProviderMetadata, getProviderUsageSectionDisplayTitle, type ProviderUsagePacingSlot } from "./registry";
 import type { ProviderDetailData, ProviderInfoSection, ProviderSection, RawProviderPayload } from "./types";
 import { formatLocalDateTime } from "../lib/presentation";
 import { buildProviderDetailMarkdown } from "./markdown";

@@ -230,9 +230,7 @@ export function buildCachedProviderResults(providerIds: string[], now = Date.now
   return Object.fromEntries(
     providerIds.flatMap((providerId) => {
       const cachedDetail = readCachedProviderDetail(providerId, now);
-      return cachedDetail
-        ? [[providerId, { ...cachedDetail, isLoading: false } satisfies ProviderDetailState]]
-        : [];
+      return cachedDetail ? [[providerId, { ...cachedDetail, isLoading: false } satisfies ProviderDetailState]] : [];
     }),
   );
 }

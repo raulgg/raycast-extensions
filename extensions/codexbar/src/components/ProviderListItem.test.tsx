@@ -116,15 +116,15 @@ describe("ProviderListItem", () => {
   });
 
   it("keeps the primary usage accessory visible when stale cached detail also has a refresh error", () => {
-    expect(buildProviderListItemAccessories(makeDetail(82), new Error("Timed out while fetching usage"), false)).toEqual(
-      [
-        {
-          icon: "Gauge",
-          text: "82%",
-          tooltip: "Session remaining: 82%",
-        },
-      ],
-    );
+    expect(
+      buildProviderListItemAccessories(makeDetail(82), new Error("Timed out while fetching usage"), false),
+    ).toEqual([
+      {
+        icon: "Gauge",
+        text: "82%",
+        tooltip: "Session remaining: 82%",
+      },
+    ]);
   });
 
   it("shows a loading accessory while provider detail is loading without cached data", () => {

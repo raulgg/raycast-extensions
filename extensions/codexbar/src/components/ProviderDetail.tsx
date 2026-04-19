@@ -15,9 +15,18 @@ type ProviderDetailProps = {
   relativeTimeNow?: number;
 };
 
-export function ProviderDetail({ provider, detail, error, isLoading, cacheStatus, relativeTimeNow }: ProviderDetailProps) {
+export function ProviderDetail({
+  provider,
+  detail,
+  error,
+  isLoading,
+  cacheStatus,
+  relativeTimeNow,
+}: ProviderDetailProps) {
   const hidePersonalInfo = getHidePersonalInfoPreference();
-  const detailMarkdown = detail ? buildSafeProviderDetailMarkdown(detail, isLoading, cacheStatus, relativeTimeNow) : undefined;
+  const detailMarkdown = detail
+    ? buildSafeProviderDetailMarkdown(detail, isLoading, cacheStatus, relativeTimeNow)
+    : undefined;
   const markdown = detailMarkdown
     ? detailMarkdown
     : error

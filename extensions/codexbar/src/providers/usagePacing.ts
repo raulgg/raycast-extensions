@@ -149,10 +149,7 @@ function liveRunOutEtaSeconds(usagePacing: ProviderUsagePacing, now = Date.now()
   return Math.max(0, usagePacing.runOutEtaSeconds - (now - computedAtMs) / 1000);
 }
 
-export function formatUsagePacingLabels(
-  usagePacing: ProviderUsagePacing,
-  now = Date.now(),
-): UsagePacingLabelSet {
+export function formatUsagePacingLabels(usagePacing: ProviderUsagePacing, now = Date.now()): UsagePacingLabelSet {
   const roundedDeltaPercent = Math.round(Math.abs(usagePacing.usedVsIdealDeltaPercent));
   const leftLabel =
     usagePacing.stage === "onTrack"

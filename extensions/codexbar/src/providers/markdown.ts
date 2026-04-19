@@ -294,9 +294,7 @@ function renderMetricSection(
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
   if (section.kind === "usage") {
-    const usagePacingFooter = section.usagePacing
-      ? formatUsagePacingLabels(section.usagePacing)
-      : undefined;
+    const usagePacingFooter = section.usagePacing ? formatUsagePacingLabels(section.usagePacing) : undefined;
     const targetRemainingPercent = section.usagePacing
       ? Math.max(0, 100 - section.usagePacing.idealUsedPercentByNow)
       : undefined;
@@ -309,9 +307,7 @@ function renderMetricSection(
           left: `${formatPercent(section.remainingPercent)} left`,
           right: section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
         },
-        ...(usagePacingFooter
-          ? [{ left: usagePacingFooter.leftLabel, right: usagePacingFooter.rightLabel }]
-          : []),
+        ...(usagePacingFooter ? [{ left: usagePacingFooter.leftLabel, right: usagePacingFooter.rightLabel }] : []),
       ],
       providerId,
       appearance,
@@ -321,9 +317,7 @@ function renderMetricSection(
   }
 
   if (section.kind === "supplementalUsage") {
-    const usagePacingFooter = section.usagePacing
-      ? formatUsagePacingLabels(section.usagePacing)
-      : undefined;
+    const usagePacingFooter = section.usagePacing ? formatUsagePacingLabels(section.usagePacing) : undefined;
     const targetRemainingPercent = section.usagePacing
       ? Math.max(0, 100 - section.usagePacing.idealUsedPercentByNow)
       : undefined;
@@ -335,9 +329,7 @@ function renderMetricSection(
           left: `${formatPercent(section.remainingPercent)} left`,
           right: section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
         },
-        ...(usagePacingFooter
-          ? [{ left: usagePacingFooter.leftLabel, right: usagePacingFooter.rightLabel }]
-          : []),
+        ...(usagePacingFooter ? [{ left: usagePacingFooter.leftLabel, right: usagePacingFooter.rightLabel }] : []),
       ],
       providerId,
       appearance,
