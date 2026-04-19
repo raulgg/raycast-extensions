@@ -43,6 +43,7 @@
     "eslint": "^9.22.0",
     "eslint-plugin-n": "^17.24.0",
     "prettier": "^3.5.3",
+    "svgo": "^4.0.1",
     "typescript": "^5.8.2",
     "vitest": "^4.1.0"
   },
@@ -51,6 +52,7 @@
     "dev": "ray develop",
     "fix-lint": "ray lint --fix",
     "lint": "ray lint",
+    "sync-icons": "node scripts/sync-provider-icons.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "echo \"\\n\\nIt seems like you are trying to publish the Raycast extension to npm.\\n\\nIf you did intend to publish it to npm, remove the \\`prepublishOnly\\` script and rerun \\`npm publish\\` again.\\nIf you wanted to publish it to the Raycast Store instead, use \\`npm run publish\\` instead.\\n\\n\" && exit 1",

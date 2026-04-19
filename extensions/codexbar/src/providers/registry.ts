@@ -32,7 +32,7 @@ const DEFAULT_PROGRESS_PALETTE: ProviderProgressPalette = {
 
 function providerIcon(slug: string, fallback: Icon = Icon.Circle): Image.ImageLike {
   return {
-    source: `providers/ProviderIcon-${slug}.svg`,
+    source: `provider-icons/${slug}.svg`,
     fallback,
     tintColor: Color.PrimaryText,
   };

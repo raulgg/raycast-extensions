@@ -174,7 +174,7 @@ describe("codexbar runtime helpers", () => {
         id: "codex",
         name: "Codex",
         icon: {
-          source: "providers/ProviderIcon-codex.svg",
+          source: "provider-icons/codex.svg",
           fallback: Icon.Terminal,
           tintColor: Color.PrimaryText,
         },
@@ -184,7 +184,7 @@ describe("codexbar runtime helpers", () => {
         id: "perplexity",
         name: "Perplexity",
         icon: {
-          source: "providers/ProviderIcon-perplexity.svg",
+          source: "provider-icons/perplexity.svg",
           fallback: Icon.Globe,
           tintColor: Color.PrimaryText,
         },

@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Color, Icon } from "@raycast/api";
 import { describe, expect, it } from "vitest";
 import {
@@ -31,7 +34,7 @@ describe("provider registry", () => {
       id: "openrouter",
       name: "OpenRouter",
       icon: {
-        source: "providers/ProviderIcon-openrouter.svg",
+        source: "provider-icons/openrouter.svg",
         fallback: Icon.TwoPeople,
         tintColor: Color.PrimaryText,
       },
@@ -49,7 +52,7 @@ describe("provider registry", () => {
       id: "alibaba",
       name: "Alibaba",
       icon: {
-        source: "providers/ProviderIcon-alibaba.svg",
+        source: "provider-icons/alibaba.svg",
         fallback: Icon.Circle,
         tintColor: Color.PrimaryText,
       },
@@ -67,7 +70,7 @@ describe("provider registry", () => {
       id: "opencodego",
       name: "OpenCode Go",
       icon: {
-        source: "providers/ProviderIcon-opencodego.svg",
+        source: "provider-icons/opencodego.svg",
         fallback: Icon.Code,
         tintColor: Color.PrimaryText,
       },
@@ -78,6 +81,18 @@ describe("provider registry", () => {
       },
       usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
     });
+  });
+
+  it("has a local svg asset for every providerIcon reference", () => {
+    const currentDir = path.dirname(fileURLToPath(import.meta.url));
+    const registrySource = readFileSync(path.join(currentDir, "registry.ts"), "utf8");
+    const providerIconSlugs = [...registrySource.matchAll(/providerIcon\("([^"]+)"/g)].map((match) => match[1]);
+
+    expect(providerIconSlugs.length).toBeGreaterThan(0);
+
+    for (const slug of providerIconSlugs) {
+      expect(existsSync(path.join(currentDir, `../../assets/provider-icons/${slug}.svg`))).toBe(true);
+    }
   });
 
   it("declares usage-projection-capable providers explicitly", () => {

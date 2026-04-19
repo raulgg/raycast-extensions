@@ -78,7 +78,7 @@ function decodeFirstSvg(markdown: string): string {
 }
 
 describe("ProviderDetail", () => {
-  const provider = { id: "codex", name: "Codex", icon: "providers/ProviderIcon-codex.svg" };
+  const provider = { id: "codex", name: "Codex", icon: "provider-icons/codex.svg" };
 
   beforeEach(() => {
     hidePersonalInfoMock.value = false;

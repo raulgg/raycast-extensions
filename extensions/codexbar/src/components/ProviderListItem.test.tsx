@@ -63,7 +63,7 @@ describe("ProviderListItem", () => {
         id: "codex",
         name: "Codex",
         icon: {
-          source: "providers/ProviderIcon-codex.svg",
+          source: "provider-icons/codex.svg",
           fallback: "Terminal",
           tintColor: "raycast-primary-text",
         },
@@ -74,7 +74,7 @@ describe("ProviderListItem", () => {
     });
 
     expect(element.props.icon).toEqual({
-      source: "providers/ProviderIcon-codex.svg",
+      source: "provider-icons/codex.svg",
       fallback: "Terminal",
       tintColor: "raycast-primary-text",
     });
