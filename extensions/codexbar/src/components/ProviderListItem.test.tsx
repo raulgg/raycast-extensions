@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-
 const { Action, ActionPanel, List } = vi.hoisted(() => {
   const action = vi.fn();
   Object.assign(action, {
@@ -14,10 +13,6 @@ const { Action, ActionPanel, List } = vi.hoisted(() => {
     },
   };
 });
-
-const { getProgressIcon } = vi.hoisted(() => ({
-  getProgressIcon: vi.fn((progress: number, color?: string) => `progress:${progress}:${color ?? "default"}`),
-}));
 
 vi.mock("@raycast/api", () => ({
   Action,
@@ -34,10 +29,6 @@ vi.mock("@raycast/api", () => ({
   List,
 }));
 
-vi.mock("@raycast/utils", () => ({
-  getProgressIcon,
-}));
-
 vi.mock("./ProviderDetail", () => ({
   ProviderDetail: vi.fn(() => null),
 }));
@@ -50,7 +41,7 @@ import {
 import { getProviderProgressPalette } from "../providers/registry";
 import type { ProviderDetailData } from "../providers/types";
 
-function makeDetail(remainingPercent: number): ProviderDetailData {
+function makeDetail(remainingPercent: number, secondaryRemainingPercent?: number): ProviderDetailData {
   return {
     id: "codex",
     name: "Codex",
@@ -63,6 +54,16 @@ function makeDetail(remainingPercent: number): ProviderDetailData {
         displayTitle: "Session",
         remainingPercent,
       },
+      ...(secondaryRemainingPercent === undefined
+        ? []
+        : [
+            {
+              kind: "usage" as const,
+              title: "Secondary" as const,
+              displayTitle: "Weekly",
+              remainingPercent: secondaryRemainingPercent,
+            },
+          ]),
     ],
     markdown: "# Codex",
   };
@@ -98,10 +99,15 @@ describe("ProviderListItem", () => {
     expect(actions[1].props.content).toBe("codexbar usage --provider codex");
   });
 
-  it("shows the primary usage remaining percent as a progress bar accessory", () => {
-    const [accessory] = buildProviderListItemAccessories("codex", makeDetail(82), undefined, false) ?? [];
+  it("shows both primary and secondary usage in text, tooltip, and icon", () => {
+    const [accessory] = buildProviderListItemAccessories("codex", makeDetail(82, 41), undefined, false) ?? [];
 
-    expectProgressAccessory(accessory, "codex", 82, "Session remaining: 82%");
+    expectProgressAccessory(accessory, "codex", {
+      primary: 82,
+      secondary: 41,
+      text: "82% • 41%",
+      tooltip: "Session: 82% remaining • Weekly: 41% remaining",
+    });
   });
 
   it("shows a warning accessory when provider detail failed", () => {
@@ -116,17 +122,31 @@ describe("ProviderListItem", () => {
   });
 
   it("keeps the stale primary usage accessory visible while provider detail refreshes", () => {
-    const [accessory] = buildProviderListItemAccessories("codex", makeDetail(82), undefined, true) ?? [];
+    const [accessory] = buildProviderListItemAccessories("codex", makeDetail(82, 41), undefined, true) ?? [];
 
-    expectProgressAccessory(accessory, "codex", 82, "Session remaining: 82%");
+    expectProgressAccessory(accessory, "codex", {
+      primary: 82,
+      secondary: 41,
+      text: "82% • 41%",
+      tooltip: "Session: 82% remaining • Weekly: 41% remaining",
+    });
   });
 
   it("keeps the primary usage accessory visible when stale cached detail also has a refresh error", () => {
     const [accessory] =
-      buildProviderListItemAccessories("codex", makeDetail(82), new Error("Timed out while fetching usage"), false) ??
-      [];
+      buildProviderListItemAccessories(
+        "codex",
+        makeDetail(82, 41),
+        new Error("Timed out while fetching usage"),
+        false,
+      ) ?? [];
 
-    expectProgressAccessory(accessory, "codex", 82, "Session remaining: 82%");
+    expectProgressAccessory(accessory, "codex", {
+      primary: 82,
+      secondary: 41,
+      text: "82% • 41%",
+      tooltip: "Session: 82% remaining • Weekly: 41% remaining",
+    });
   });
 
   it("shows a loading accessory while provider detail is loading without cached data", () => {
@@ -152,6 +172,28 @@ describe("ProviderListItem", () => {
     ).toBeUndefined();
   });
 
+  it("shows only primary text and tooltip while keeping an empty lower track when secondary is missing", () => {
+    const [accessory] = buildProviderListItemAccessories("codex", makeDetail(82), undefined, false) ?? [];
+
+    expectProgressAccessory(accessory, "codex", {
+      primary: 82,
+      text: "82%",
+      tooltip: "Session: 82% remaining",
+      secondaryMissing: true,
+    });
+  });
+
+  it("shows an empty lower track when secondary exists at zero", () => {
+    const [accessory] = buildProviderListItemAccessories("codex", makeDetail(82, 0), undefined, false) ?? [];
+
+    expectProgressAccessory(accessory, "codex", {
+      primary: 82,
+      secondary: 0,
+      text: "82% • 0%",
+      tooltip: "Session: 82% remaining • Weekly: 0% remaining",
+    });
+  });
+
   it("uses a generic error tooltip regardless of the underlying detail", () => {
     expect(
       formatProviderDetailErrorTooltip(
@@ -166,14 +208,49 @@ describe("ProviderListItem", () => {
 function expectProgressAccessory(
   accessory: { icon?: unknown; text?: string; tooltip?: string } | undefined,
   providerId: string,
-  expectedPercent: number,
-  expectedTooltip: string,
+  expected: {
+    primary: number;
+    secondary?: number;
+    secondaryMissing?: boolean;
+    text: string;
+    tooltip: string;
+  },
 ): void {
   expect(accessory).toBeDefined();
-  expect(accessory?.text).toBe(`${expectedPercent}%`);
-  expect(accessory?.tooltip).toBe(expectedTooltip);
+  expect(accessory?.text).toBe(expected.text);
+  expect(accessory?.tooltip).toBe(expected.tooltip);
 
+  const icon = accessory?.icon as { source?: { light?: string; dark?: string } } | undefined;
+  expect(icon?.source?.light).toContain("data:image/svg+xml;base64,");
+  expect(icon?.source?.dark).toContain("data:image/svg+xml;base64,");
+
+  const lightSvg = decodeSvgDataUri(icon?.source?.light);
+  const darkSvg = decodeSvgDataUri(icon?.source?.dark);
   const palette = getProviderProgressPalette(providerId);
-  expect(getProgressIcon).toHaveBeenCalledWith(expectedPercent / 100, palette.lightFill);
-  expect(accessory?.icon).toBe(`progress:${expectedPercent / 100}:${palette.lightFill}`);
+
+  expect(lightSvg).toContain('viewBox="0 0 36 36"');
+  expect(lightSvg).toContain(`fill="${palette.lightFill}"`);
+  expect(darkSvg).toContain(`fill="${palette.darkFill}"`);
+  expect(lightSvg).toContain('x="3" y="6" width="30" height="12"');
+  expect(lightSvg).toContain('x="3" y="24" width="30" height="8"');
+  expect(lightSvg).toContain('stroke="#000000"');
+  expect(darkSvg).toContain('stroke="#FFFFFF"');
+  expect(lightSvg).toContain(
+    `x="3" y="6" width="${Math.round((30 * expected.primary) / 100)}" height="12" rx="6" fill="${palette.lightFill}"`,
+  );
+
+  if (expected.secondaryMissing || expected.secondary === 0) {
+    expect(lightSvg).not.toContain(`height="8" rx="4" fill="${palette.lightFill}"`);
+  } else {
+    expect(lightSvg).toContain(
+      `x="3" y="24" width="${Math.round((30 * (expected.secondary ?? 0)) / 100)}" height="8" rx="4" fill="${palette.lightFill}"`,
+    );
+  }
+}
+
+function decodeSvgDataUri(source: string | undefined): string {
+  const prefix = "data:image/svg+xml;base64,";
+  expect(source).toContain(prefix);
+
+  return Buffer.from(source?.slice(prefix.length) ?? "", "base64").toString("utf8");
 }

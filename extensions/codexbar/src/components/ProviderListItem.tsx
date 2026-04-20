@@ -1,8 +1,7 @@
 import { Action, ActionPanel, Icon, List } from "@raycast/api";
-import { getProgressIcon } from "@raycast/utils";
 import type { ProviderDetailCacheStatus } from "../hooks/useProviderDetails";
-import { getProviderProgressPalette } from "../providers/registry";
 import type { ConfiguredProvider, ProviderDetailData, ProviderUsageSection } from "../providers/types";
+import { buildTwoBarAccessoryIcon } from "../lib/twoBarAccessoryIcon";
 import { ProviderDetail } from "./ProviderDetail";
 
 type ProviderListItemProps = {
@@ -84,13 +83,21 @@ export function buildProviderListItemAccessories(
     return undefined;
   }
 
-  const remainingPercent = Math.round(primaryUsage.remainingPercent);
+  const secondaryUsage = getUsageSection(detail, "Secondary");
+  const primaryRemainingPercent = Math.round(primaryUsage.remainingPercent);
+  const secondaryRemainingPercent = secondaryUsage ? Math.round(secondaryUsage.remainingPercent) : undefined;
 
   return [
     {
-      icon: getProgressIcon(remainingPercent / 100, getProviderProgressPalette(providerId).lightFill),
-      text: `${remainingPercent}%`,
-      tooltip: `${primaryUsage.displayTitle} remaining: ${remainingPercent}%`,
+      icon: buildTwoBarAccessoryIcon(providerId, primaryRemainingPercent, secondaryRemainingPercent),
+      text:
+        secondaryRemainingPercent === undefined
+          ? `${primaryRemainingPercent}%`
+          : `${primaryRemainingPercent}% • ${secondaryRemainingPercent}%`,
+      tooltip:
+        secondaryUsage === undefined
+          ? `${primaryUsage.displayTitle}: ${primaryRemainingPercent}% remaining`
+          : `${primaryUsage.displayTitle}: ${primaryRemainingPercent}% remaining • ${secondaryUsage.displayTitle}: ${secondaryRemainingPercent}% remaining`,
     },
   ];
 }
@@ -100,7 +107,14 @@ export function formatProviderDetailErrorTooltip(): string {
 }
 
 function getPrimaryUsageSection(detail: ProviderDetailData | undefined): ProviderUsageSection | undefined {
+  return getUsageSection(detail, "Primary");
+}
+
+function getUsageSection(
+  detail: ProviderDetailData | undefined,
+  title: ProviderUsageSection["title"],
+): ProviderUsageSection | undefined {
   return detail?.sections.find(
-    (section): section is ProviderUsageSection => section.kind === "usage" && section.title === "Primary",
+    (section): section is ProviderUsageSection => section.kind === "usage" && section.title === title,
   );
 }
