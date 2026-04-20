@@ -15,9 +15,16 @@ const { Action, ActionPanel, List } = vi.hoisted(() => {
   };
 });
 
+const { getProgressIcon } = vi.hoisted(() => ({
+  getProgressIcon: vi.fn((progress: number, color?: string) => `progress:${progress}:${color ?? "default"}`),
+}));
+
 vi.mock("@raycast/api", () => ({
   Action,
   ActionPanel,
+  Color: {
+    PrimaryText: "raycast-primary-text",
+  },
   Icon: new Proxy(
     {},
     {
@@ -25,6 +32,10 @@ vi.mock("@raycast/api", () => ({
     },
   ),
   List,
+}));
+
+vi.mock("@raycast/utils", () => ({
+  getProgressIcon,
 }));
 
 vi.mock("./ProviderDetail", () => ({
@@ -36,6 +47,7 @@ import {
   formatProviderDetailErrorTooltip,
   ProviderListItem,
 } from "./ProviderListItem";
+import { getProviderProgressPalette } from "../providers/registry";
 import type { ProviderDetailData } from "../providers/types";
 
 function makeDetail(remainingPercent: number): ProviderDetailData {
@@ -86,18 +98,16 @@ describe("ProviderListItem", () => {
     expect(actions[1].props.content).toBe("codexbar usage --provider codex");
   });
 
-  it("shows the primary usage remaining percent as a gauge accessory", () => {
-    expect(buildProviderListItemAccessories(makeDetail(82), undefined, false)).toEqual([
-      {
-        icon: "Gauge",
-        text: "82%",
-        tooltip: "Session remaining: 82%",
-      },
-    ]);
+  it("shows the primary usage remaining percent as a progress bar accessory", () => {
+    const [accessory] = buildProviderListItemAccessories("codex", makeDetail(82), undefined, false) ?? [];
+
+    expectProgressAccessory(accessory, "codex", 82, "Session remaining: 82%");
   });
 
   it("shows a warning accessory when provider detail failed", () => {
-    expect(buildProviderListItemAccessories(undefined, new Error("Timed out while fetching usage"), false)).toEqual([
+    expect(
+      buildProviderListItemAccessories("codex", undefined, new Error("Timed out while fetching usage"), false),
+    ).toEqual([
       {
         icon: "Warning",
         tooltip: "Failed to load usage",
@@ -106,29 +116,21 @@ describe("ProviderListItem", () => {
   });
 
   it("keeps the stale primary usage accessory visible while provider detail refreshes", () => {
-    expect(buildProviderListItemAccessories(makeDetail(82), undefined, true)).toEqual([
-      {
-        icon: "Gauge",
-        text: "82%",
-        tooltip: "Session remaining: 82%",
-      },
-    ]);
+    const [accessory] = buildProviderListItemAccessories("codex", makeDetail(82), undefined, true) ?? [];
+
+    expectProgressAccessory(accessory, "codex", 82, "Session remaining: 82%");
   });
 
   it("keeps the primary usage accessory visible when stale cached detail also has a refresh error", () => {
-    expect(
-      buildProviderListItemAccessories(makeDetail(82), new Error("Timed out while fetching usage"), false),
-    ).toEqual([
-      {
-        icon: "Gauge",
-        text: "82%",
-        tooltip: "Session remaining: 82%",
-      },
-    ]);
+    const [accessory] =
+      buildProviderListItemAccessories("codex", makeDetail(82), new Error("Timed out while fetching usage"), false) ??
+      [];
+
+    expectProgressAccessory(accessory, "codex", 82, "Session remaining: 82%");
   });
 
   it("shows a loading accessory while provider detail is loading without cached data", () => {
-    expect(buildProviderListItemAccessories(undefined, undefined, true)).toEqual([
+    expect(buildProviderListItemAccessories("codex", undefined, undefined, true)).toEqual([
       {
         icon: "Hourglass",
         tooltip: "Loading usage",
@@ -139,6 +141,7 @@ describe("ProviderListItem", () => {
   it("hides accessories when loaded provider detail has no primary usage", () => {
     expect(
       buildProviderListItemAccessories(
+        "codex",
         {
           ...makeDetail(82),
           sections: [],
@@ -159,3 +162,18 @@ describe("ProviderListItem", () => {
     ).toBe("Failed to load usage");
   });
 });
+
+function expectProgressAccessory(
+  accessory: { icon?: unknown; text?: string; tooltip?: string } | undefined,
+  providerId: string,
+  expectedPercent: number,
+  expectedTooltip: string,
+): void {
+  expect(accessory).toBeDefined();
+  expect(accessory?.text).toBe(`${expectedPercent}%`);
+  expect(accessory?.tooltip).toBe(expectedTooltip);
+
+  const palette = getProviderProgressPalette(providerId);
+  expect(getProgressIcon).toHaveBeenCalledWith(expectedPercent / 100, palette.lightFill);
+  expect(accessory?.icon).toBe(`progress:${expectedPercent / 100}:${palette.lightFill}`);
+}

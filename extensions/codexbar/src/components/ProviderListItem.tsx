@@ -1,5 +1,7 @@
 import { Action, ActionPanel, Icon, List } from "@raycast/api";
+import { getProgressIcon } from "@raycast/utils";
 import type { ProviderDetailCacheStatus } from "../hooks/useProviderDetails";
+import { getProviderProgressPalette } from "../providers/registry";
 import type { ConfiguredProvider, ProviderDetailData, ProviderUsageSection } from "../providers/types";
 import { ProviderDetail } from "./ProviderDetail";
 
@@ -32,7 +34,7 @@ export function ProviderListItem({
       title={provider.name}
       keywords={provider.keywords}
       icon={provider.icon}
-      accessories={buildProviderListItemAccessories(detail, detailError, isDetailLoading)}
+      accessories={buildProviderListItemAccessories(provider.id, detail, detailError, isDetailLoading)}
       detail={
         <ProviderDetail
           provider={provider}
@@ -54,6 +56,7 @@ export function ProviderListItem({
 }
 
 export function buildProviderListItemAccessories(
+  providerId: string,
   detail: ProviderDetailData | undefined,
   error: Error | undefined,
   isLoading: boolean,
@@ -85,7 +88,7 @@ export function buildProviderListItemAccessories(
 
   return [
     {
-      icon: Icon.Gauge,
+      icon: getProgressIcon(remainingPercent / 100, getProviderProgressPalette(providerId).lightFill),
       text: `${remainingPercent}%`,
       tooltip: `${primaryUsage.displayTitle} remaining: ${remainingPercent}%`,
     },
