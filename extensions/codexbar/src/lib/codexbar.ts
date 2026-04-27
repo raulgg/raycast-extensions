@@ -577,12 +577,7 @@ function findConfiguredProviderMoveIndexes(
   direction: ProviderMoveDirection,
 ): { from: number; to: number } | undefined {
   const visibleProviders = providers.flatMap(({ id, provider }, index) => {
-    if (
-      !id ||
-      provider?.enabled !== true ||
-      isProviderSelectorId(id) ||
-      !isKnownProviderId(id)
-    ) {
+    if (!id || provider?.enabled !== true || isProviderSelectorId(id) || !isKnownProviderId(id)) {
       return [];
     }
 

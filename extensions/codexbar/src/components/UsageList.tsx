@@ -144,7 +144,9 @@ export function UsageList() {
             onRefresh={() => refreshProvider(provider.id)}
             onMoveUp={index > 0 ? () => void moveProvider(provider.id, "up") : undefined}
             onMoveDown={
-              index < configuredProviders.providers.length - 1 ? () => void moveProvider(provider.id, "down") : undefined
+              index < configuredProviders.providers.length - 1
+                ? () => void moveProvider(provider.id, "down")
+                : undefined
             }
           />
         );

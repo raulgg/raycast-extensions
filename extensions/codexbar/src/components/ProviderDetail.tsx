@@ -25,7 +25,14 @@ export function ProviderDetail({
 }: ProviderDetailProps) {
   const hidePersonalInfo = getHidePersonalInfoPreference();
   const detailMarkdown = detail
-    ? buildSafeProviderDetailMarkdown(detail, isLoading, cacheStatus, relativeTimeNow)
+    ? buildProviderDetailMarkdown(
+        hidePersonalInfo ? { ...detail, accountEmail: undefined } : detail,
+        environment.appearance,
+        {
+          subtitle: getHeaderSubtitle(detail, isLoading, cacheStatus, relativeTimeNow),
+          now: relativeTimeNow,
+        },
+      ).trim()
     : undefined;
   const markdown = detailMarkdown
     ? detailMarkdown
@@ -36,27 +43,6 @@ export function ProviderDetail({
         : "No data available";
 
   return <List.Item.Detail isLoading={isLoading} markdown={markdown} />;
-
-  function buildSafeProviderDetailMarkdown(
-    detail: ProviderDetailData,
-    isLoading: boolean,
-    cacheStatus?: ProviderDetailCacheStatus,
-    now?: number,
-  ): string | undefined {
-    try {
-      const detailForRender = hidePersonalInfo ? { ...detail, accountEmail: undefined } : detail;
-      return buildProviderDetailMarkdown(detailForRender, environment.appearance, {
-        subtitle: getHeaderSubtitle(detail, isLoading, cacheStatus, now),
-        now,
-      }).trim();
-    } catch (error) {
-      if (isLegacySectionShapeError(error)) {
-        return detail.markdown.trim() || undefined;
-      }
-
-      throw error;
-    }
-  }
 }
 
 function getHeaderSubtitle(
@@ -75,8 +61,4 @@ function getHeaderSubtitle(
   }
 
   return isLoading ? "Updating..." : undefined;
-}
-
-function isLegacySectionShapeError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes("Unsupported metric section kind: undefined");
 }
