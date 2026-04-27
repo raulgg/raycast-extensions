@@ -225,13 +225,7 @@ describe("ProviderListItem", () => {
   });
 
   it("uses a generic error tooltip regardless of the underlying detail", () => {
-    expect(
-      formatProviderDetailErrorTooltip(
-        new Error(
-          "This provider returned a very long nested CLI error message that includes details users do not need in a compact accessory tooltip",
-        ),
-      ),
-    ).toBe("Failed to load usage");
+    expect(formatProviderDetailErrorTooltip()).toBe("Failed to load usage");
   });
 });
 

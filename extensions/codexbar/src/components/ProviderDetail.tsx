@@ -1,6 +1,5 @@
 import { environment, List } from "@raycast/api";
-import { formatRelativeUpdateTime } from "../lib/presentation";
-import { buildProviderErrorMarkdown } from "../lib/presentation";
+import { buildProviderErrorMarkdown, formatRelativeUpdateTime } from "../lib/presentation";
 import type { ProviderDetailCacheStatus } from "../hooks/useProviderDetails";
 import { getHidePersonalInfoPreference } from "../preferences";
 import { buildProviderDetailMarkdown, buildProviderLoadingMarkdown } from "../providers/markdown";
@@ -34,13 +33,13 @@ export function ProviderDetail({
         },
       ).trim()
     : undefined;
-  const markdown = detailMarkdown
-    ? detailMarkdown
-    : error
+  const markdown =
+    detailMarkdown ??
+    (error
       ? buildProviderErrorMarkdown(provider.name, error, environment.appearance)
       : isLoading
         ? buildProviderLoadingMarkdown(provider, environment.appearance)
-        : "No data available";
+        : "No data available");
 
   return <List.Item.Detail isLoading={isLoading} markdown={markdown} />;
 }

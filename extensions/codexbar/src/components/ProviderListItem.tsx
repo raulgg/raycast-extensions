@@ -53,6 +53,7 @@ export function ProviderListItem({
           <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={onRefresh} />
           {onMoveUp ? (
             <Action
+              // eslint-disable-next-line @raycast/prefer-title-case
               title="Move Up"
               icon={Icon.ArrowUp}
               shortcut={{ modifiers: ["cmd", "opt"], key: "arrowUp" }}

@@ -132,24 +132,13 @@ function execFileAsync(
   });
 }
 
-function getFailureStdout(error: unknown): string {
-  const stdout = (error as ExecFailure | undefined)?.stdout;
-  if (typeof stdout === "string") {
-    return stdout;
+function getFailureOutput(error: unknown, key: "stdout" | "stderr"): string {
+  const output = (error as ExecFailure | undefined)?.[key];
+  if (typeof output === "string") {
+    return output;
   }
-  if (Buffer.isBuffer(stdout)) {
-    return stdout.toString("utf8");
-  }
-  return "";
-}
-
-function getFailureStderr(error: unknown): string {
-  const stderr = (error as ExecFailure | undefined)?.stderr;
-  if (typeof stderr === "string") {
-    return stderr;
-  }
-  if (Buffer.isBuffer(stderr)) {
-    return stderr.toString("utf8");
+  if (Buffer.isBuffer(output)) {
+    return output.toString("utf8");
   }
   return "";
 }
@@ -283,8 +272,8 @@ function getJsonErrorMessage(payload: unknown): string | undefined {
 export function classifyExecFailure(error: unknown): CodexBarCliError {
   const failure = error as ExecFailure | undefined;
   const code = failure?.code === undefined ? "" : String(failure.code);
-  const stdout = getFailureStdout(error);
-  const stderr = getFailureStderr(error);
+  const stdout = getFailureOutput(error, "stdout");
+  const stderr = getFailureOutput(error, "stderr");
   const combinedDetail = [stdout, stderr].filter(Boolean).join("\n");
   const message = [failure?.message, stderr].filter(Boolean).join("\n");
   const normalized = message.toLowerCase();
@@ -323,7 +312,7 @@ async function executeCodexBarWithTimeout(
 
     return extractJsonPayload(stdout);
   } catch (error) {
-    const stdout = getFailureStdout(error);
+    const stdout = getFailureOutput(error, "stdout");
     if (stdout.trim()) {
       const payload = extractJsonPayload(stdout);
       const jsonErrorMessage = getJsonErrorMessage(payload);
@@ -331,7 +320,7 @@ async function executeCodexBarWithTimeout(
         return payload;
       }
 
-      throw new CodexBarCliError("execution", jsonErrorMessage, getFailureStderr(error));
+      throw new CodexBarCliError("execution", jsonErrorMessage, getFailureOutput(error, "stderr"));
     }
 
     throw classifyExecFailure(error);

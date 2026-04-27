@@ -310,11 +310,14 @@ describe("codexbar runtime helpers", () => {
   it("rejects invalid stdout as invalid-json", () => {
     expect(() => extractJsonPayload("not json at all")).toThrowError(CodexBarCliError);
 
+    let thrownError: unknown;
     try {
       extractJsonPayload("not json at all");
     } catch (error) {
-      expect(error).toBeInstanceOf(CodexBarCliError);
-      expect((error as CodexBarCliError).kind).toBe("invalid-json");
+      thrownError = error;
     }
+
+    expect(thrownError).toBeInstanceOf(CodexBarCliError);
+    expect(thrownError).toMatchObject({ kind: "invalid-json" });
   });
 });

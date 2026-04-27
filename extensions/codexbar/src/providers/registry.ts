@@ -196,6 +196,7 @@ const PROVIDER_DEFINITIONS = {
 
 export const PROVIDER_IDS = Object.keys(PROVIDER_DEFINITIONS);
 export const PROVIDER_SELECTOR_IDS = ["all", "both"] as const;
+const PROVIDER_SELECTOR_ID_SET = new Set<string>(PROVIDER_SELECTOR_IDS);
 
 function clampColorChannel(value: number): number {
   return Math.max(0, Math.min(255, Math.round(value)));
@@ -271,7 +272,7 @@ export function isKnownProviderId(id: string): boolean {
 }
 
 export function isProviderSelectorId(id: string): boolean {
-  return (PROVIDER_SELECTOR_IDS as readonly string[]).includes(id);
+  return PROVIDER_SELECTOR_ID_SET.has(id);
 }
 
 export function getProviderMetadata(id: string): ProviderRegistryEntry {

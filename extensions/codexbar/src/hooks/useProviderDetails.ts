@@ -288,16 +288,14 @@ function isProviderDetailOlderThan(detail: ProviderDetailData, maxAgeMs: number,
 }
 
 function isProviderDetailSchemaCurrent(detail: ProviderDetailData): boolean {
-  return detail.sections.every((section) => {
-    const kind = Reflect.get(section, "kind");
-    return (
+  return detail.sections.every(
+    ({ kind }) =>
       kind === "usage" ||
       kind === "supplementalUsage" ||
       kind === "credits" ||
       kind === "providerCost" ||
-      kind === "info"
-    );
-  });
+      kind === "info",
+  );
 }
 
 function buildProviderDetailCacheKey(providerId: string): string {

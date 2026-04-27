@@ -117,7 +117,7 @@ function buildIdentity(
   };
 }
 
-function buildPayload(provider: string, _now: Date, options: MockPayloadOptions): RawProviderPayload {
+function buildPayload(provider: string, options: MockPayloadOptions): RawProviderPayload {
   return {
     provider,
     account: null,
@@ -245,7 +245,7 @@ function buildOpenRouterUsage(now: Date): Record<string, unknown> {
 }
 
 function buildCodex(now: Date): RawProviderPayload {
-  return buildPayload("codex", now, {
+  return buildPayload("codex", {
     source: MOCK_SOURCES.codex,
     version: MOCK_VERSIONS.codex,
     status: buildStatus("OpenAI Codex operational", "https://status.openai.com", now),
@@ -263,7 +263,7 @@ function buildCodex(now: Date): RawProviderPayload {
 }
 
 function buildClaude(now: Date): RawProviderPayload {
-  return buildPayload("claude", now, {
+  return buildPayload("claude", {
     source: MOCK_SOURCES.claude,
     version: MOCK_VERSIONS.claude,
     status: buildStatus("Claude operational", "https://status.anthropic.com", now),
@@ -284,7 +284,7 @@ function buildClaude(now: Date): RawProviderPayload {
 }
 
 function buildCursor(now: Date): RawProviderPayload {
-  return buildPayload("cursor", now, {
+  return buildPayload("cursor", {
     source: MOCK_SOURCES.cursor,
     version: null,
     status: buildStatus("Cursor operational", "https://status.cursor.com", now),
@@ -305,7 +305,7 @@ function buildCursor(now: Date): RawProviderPayload {
 }
 
 function buildOpenCode(now: Date): RawProviderPayload {
-  return buildPayload("opencode", now, {
+  return buildPayload("opencode", {
     source: MOCK_SOURCES.opencode,
     version: null,
     status: null,
@@ -317,7 +317,7 @@ function buildOpenCode(now: Date): RawProviderPayload {
 }
 
 function buildOpenCodeGo(now: Date): RawProviderPayload {
-  return buildPayload("opencodego", now, {
+  return buildPayload("opencodego", {
     source: MOCK_SOURCES.opencodego,
     version: null,
     status: null,
@@ -334,7 +334,7 @@ function buildOpenCodeGo(now: Date): RawProviderPayload {
 }
 
 function buildAlibaba(now: Date): RawProviderPayload {
-  return buildPayload("alibaba", now, {
+  return buildPayload("alibaba", {
     source: MOCK_SOURCES.alibaba,
     version: null,
     status: null,
@@ -352,7 +352,7 @@ function buildAlibaba(now: Date): RawProviderPayload {
 }
 
 function buildFactory(now: Date): RawProviderPayload {
-  return buildPayload("factory", now, {
+  return buildPayload("factory", {
     source: MOCK_SOURCES.factory,
     version: null,
     status: buildStatus("Factory operational", "https://status.factory.ai", now),
@@ -370,7 +370,7 @@ function buildFactory(now: Date): RawProviderPayload {
 }
 
 function buildGemini(now: Date): RawProviderPayload {
-  return buildPayload("gemini", now, {
+  return buildPayload("gemini", {
     source: MOCK_SOURCES.gemini,
     version: MOCK_VERSIONS.gemini,
     status: null,
@@ -390,7 +390,7 @@ function buildGemini(now: Date): RawProviderPayload {
 }
 
 function buildAntigravity(now: Date): RawProviderPayload {
-  return buildPayload("antigravity", now, {
+  return buildPayload("antigravity", {
     source: MOCK_SOURCES.antigravity,
     version: null,
     status: null,
@@ -410,7 +410,7 @@ function buildAntigravity(now: Date): RawProviderPayload {
 }
 
 function buildCopilot(now: Date): RawProviderPayload {
-  return buildPayload("copilot", now, {
+  return buildPayload("copilot", {
     source: MOCK_SOURCES.copilot,
     version: null,
     status: buildStatus("GitHub Copilot operational", "https://www.githubstatus.com/", now),
@@ -428,7 +428,7 @@ function buildCopilot(now: Date): RawProviderPayload {
 }
 
 function buildZai(now: Date): RawProviderPayload {
-  return buildPayload("zai", now, {
+  return buildPayload("zai", {
     source: MOCK_SOURCES.zai,
     version: null,
     status: null,
@@ -446,7 +446,7 @@ function buildZai(now: Date): RawProviderPayload {
 }
 
 function buildMiniMax(now: Date): RawProviderPayload {
-  return buildPayload("minimax", now, {
+  return buildPayload("minimax", {
     source: MOCK_SOURCES.minimax,
     version: null,
     status: null,
@@ -464,7 +464,7 @@ function buildMiniMax(now: Date): RawProviderPayload {
 }
 
 function buildKimi(now: Date): RawProviderPayload {
-  return buildPayload("kimi", now, {
+  return buildPayload("kimi", {
     source: MOCK_SOURCES.kimi,
     version: null,
     status: null,
@@ -482,7 +482,7 @@ function buildKimi(now: Date): RawProviderPayload {
 }
 
 function buildKilo(now: Date): RawProviderPayload {
-  return buildPayload("kilo", now, {
+  return buildPayload("kilo", {
     source: MOCK_SOURCES.kilo,
     version: null,
     status: null,
@@ -500,7 +500,7 @@ function buildKilo(now: Date): RawProviderPayload {
 }
 
 function buildKiro(now: Date): RawProviderPayload {
-  return buildPayload("kiro", now, {
+  return buildPayload("kiro", {
     source: MOCK_SOURCES.kiro,
     version: MOCK_VERSIONS.kiro,
     status: null,
@@ -518,7 +518,7 @@ function buildKiro(now: Date): RawProviderPayload {
 }
 
 function buildVertexAI(now: Date): RawProviderPayload {
-  return buildPayload("vertexai", now, {
+  return buildPayload("vertexai", {
     source: MOCK_SOURCES.vertexai,
     version: null,
     status: null,
@@ -532,7 +532,7 @@ function buildVertexAI(now: Date): RawProviderPayload {
 }
 
 function buildAugment(now: Date): RawProviderPayload {
-  return buildPayload("augment", now, {
+  return buildPayload("augment", {
     source: MOCK_SOURCES.augment,
     version: null,
     status: null,
@@ -550,7 +550,7 @@ function buildAugment(now: Date): RawProviderPayload {
 }
 
 function buildJetBrains(now: Date): RawProviderPayload {
-  return buildPayload("jetbrains", now, {
+  return buildPayload("jetbrains", {
     source: MOCK_SOURCES.jetbrains,
     version: null,
     status: null,
@@ -568,7 +568,7 @@ function buildJetBrains(now: Date): RawProviderPayload {
 }
 
 function buildKimiK2(now: Date): RawProviderPayload {
-  return buildPayload("kimik2", now, {
+  return buildPayload("kimik2", {
     source: MOCK_SOURCES.kimik2,
     version: null,
     status: null,
@@ -586,7 +586,7 @@ function buildKimiK2(now: Date): RawProviderPayload {
 }
 
 function buildAmp(now: Date): RawProviderPayload {
-  return buildPayload("amp", now, {
+  return buildPayload("amp", {
     source: MOCK_SOURCES.amp,
     version: null,
     status: null,
@@ -604,7 +604,7 @@ function buildAmp(now: Date): RawProviderPayload {
 }
 
 function buildOllama(now: Date): RawProviderPayload {
-  return buildPayload("ollama", now, {
+  return buildPayload("ollama", {
     source: MOCK_SOURCES.ollama,
     version: null,
     status: null,
@@ -622,7 +622,7 @@ function buildOllama(now: Date): RawProviderPayload {
 }
 
 function buildSynthetic(now: Date): RawProviderPayload {
-  return buildPayload("synthetic", now, {
+  return buildPayload("synthetic", {
     source: MOCK_SOURCES.synthetic,
     version: null,
     status: null,
@@ -640,7 +640,7 @@ function buildSynthetic(now: Date): RawProviderPayload {
 }
 
 function buildWarp(now: Date): RawProviderPayload {
-  return buildPayload("warp", now, {
+  return buildPayload("warp", {
     source: MOCK_SOURCES.warp,
     version: null,
     status: null,
@@ -658,7 +658,7 @@ function buildWarp(now: Date): RawProviderPayload {
 }
 
 function buildOpenRouter(now: Date): RawProviderPayload {
-  return buildPayload("openrouter", now, {
+  return buildPayload("openrouter", {
     source: MOCK_SOURCES.openrouter,
     version: null,
     status: null,
@@ -673,7 +673,7 @@ function buildOpenRouter(now: Date): RawProviderPayload {
 }
 
 function buildPerplexity(now: Date): RawProviderPayload {
-  return buildPayload("perplexity", now, {
+  return buildPayload("perplexity", {
     source: MOCK_SOURCES.perplexity,
     version: null,
     status: null,

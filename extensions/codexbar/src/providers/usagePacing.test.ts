@@ -20,7 +20,11 @@ describe("provider usage pacing", () => {
     });
     expect(usagePacing?.idealUsedPercentByNow).toBeCloseTo(92.98, 1);
     expect(usagePacing?.usedVsIdealDeltaPercent).toBeCloseTo(-39.98, 1);
-    expect(formatUsagePacingLabels(usagePacing!)).toEqual({
+    if (!usagePacing) {
+      throw new Error("Expected usage pacing");
+    }
+
+    expect(formatUsagePacingLabels(usagePacing)).toEqual({
       leftLabel: "40% behind",
       rightLabel: "Lasts until reset",
     });
@@ -52,8 +56,12 @@ describe("provider usage pacing", () => {
     );
 
     expect(usagePacing?.lastsUntilReset).toBe(false);
-    expect(formatUsagePacingLabels(usagePacing!, Date.parse("2026-04-16T13:00:00Z")).leftLabel).toBe("23% ahead");
-    expect(formatUsagePacingLabels(usagePacing!, Date.parse("2026-04-16T13:00:00Z")).rightLabel).toBe(
+    if (!usagePacing) {
+      throw new Error("Expected usage pacing");
+    }
+
+    expect(formatUsagePacingLabels(usagePacing, Date.parse("2026-04-16T13:00:00Z")).leftLabel).toBe("23% ahead");
+    expect(formatUsagePacingLabels(usagePacing, Date.parse("2026-04-16T13:00:00Z")).rightLabel).toBe(
       "Runs out in 11h 27m",
     );
   });

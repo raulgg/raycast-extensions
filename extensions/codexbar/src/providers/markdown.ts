@@ -293,52 +293,31 @@ function renderMetricSection(
   appearance: ProviderDetailAppearance,
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
-  if (section.kind === "usage") {
-    const usagePacingFooter = section.usagePacing ? formatUsagePacingLabels(section.usagePacing) : undefined;
-    const targetRemainingPercent = section.usagePacing
-      ? Math.max(0, 100 - section.usagePacing.idealUsedPercentByNow)
-      : undefined;
-
-    return renderProgressSection(
-      section.displayTitle,
-      section.remainingPercent,
-      [
-        {
-          left: `${formatPercent(section.remainingPercent)} left`,
-          right: section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
-        },
-        ...(usagePacingFooter ? [{ left: usagePacingFooter.leftLabel, right: usagePacingFooter.rightLabel }] : []),
-      ],
-      providerId,
-      appearance,
-      startY,
-      targetRemainingPercent,
-    );
+  if (section.kind !== "usage" && section.kind !== "supplementalUsage") {
+    throw new Error(`Unsupported metric section kind: ${section.kind}`);
   }
 
-  if (section.kind === "supplementalUsage") {
-    const usagePacingFooter = section.usagePacing ? formatUsagePacingLabels(section.usagePacing) : undefined;
-    const targetRemainingPercent = section.usagePacing
-      ? Math.max(0, 100 - section.usagePacing.idealUsedPercentByNow)
-      : undefined;
-    return renderProgressSection(
-      section.title,
-      section.remainingPercent,
-      [
-        {
-          left: `${formatPercent(section.remainingPercent)} left`,
-          right: section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
-        },
-        ...(usagePacingFooter ? [{ left: usagePacingFooter.leftLabel, right: usagePacingFooter.rightLabel }] : []),
-      ],
-      providerId,
-      appearance,
-      startY,
-      targetRemainingPercent,
-    );
-  }
+  const title = section.kind === "usage" ? section.displayTitle : section.title;
+  const usagePacingFooter = section.usagePacing ? formatUsagePacingLabels(section.usagePacing) : undefined;
+  const targetRemainingPercent = section.usagePacing
+    ? Math.max(0, 100 - section.usagePacing.idealUsedPercentByNow)
+    : undefined;
 
-  throw new Error(`Unsupported metric section kind: ${section.kind}`);
+  return renderProgressSection(
+    title,
+    section.remainingPercent,
+    [
+      {
+        left: `${formatPercent(section.remainingPercent)} left`,
+        right: section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
+      },
+      ...(usagePacingFooter ? [{ left: usagePacingFooter.leftLabel, right: usagePacingFooter.rightLabel }] : []),
+    ],
+    providerId,
+    appearance,
+    startY,
+    targetRemainingPercent,
+  );
 }
 
 function renderLoadingSkeletonSection(
