@@ -1,4 +1,4 @@
-import { Icon, List } from "@raycast/api";
+import { Icon, List, showToast, Toast } from "@raycast/api";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CommandErrorDetail } from "./CommandErrorDetail";
 import { InstallHelpDetail } from "./InstallHelpDetail";
@@ -8,6 +8,7 @@ import { useProviderDetails } from "../hooks/useProviderDetails";
 import { useProviderDetailErrorToast } from "../hooks/useProviderDetailErrorToast";
 import { useRelativeUpdateTime } from "../hooks/useRelativeUpdateTime";
 import { useUsageOverview } from "../hooks/useUsageOverview";
+import { moveConfiguredProviderInConfig, type ProviderMoveDirection } from "../lib/codexbar";
 
 export function UsageList() {
   const [selectedProviderId, setSelectedProviderId] = useState<string>();
@@ -50,6 +51,27 @@ export function UsageList() {
       refreshProvider(selectedProviderId);
     }
   }, [refreshProvider, selectedProviderId]);
+
+  const moveProvider = useCallback(
+    async (providerId: string, direction: ProviderMoveDirection) => {
+      try {
+        const didMove = await moveConfiguredProviderInConfig(providerId, direction);
+        if (!didMove) {
+          return;
+        }
+
+        setSelectedProviderId(providerId);
+        configuredProviders.revalidate();
+      } catch (error) {
+        await showToast({
+          style: Toast.Style.Failure,
+          title: "Failed to Reorder Providers",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [configuredProviders],
+  );
 
   useProviderDetailErrorToast({
     error: selectedProviderDetail?.error,
@@ -106,7 +128,7 @@ export function UsageList() {
           icon={Icon.Circle}
         />
       ) : null}
-      {configuredProviders.providers.map((provider) => {
+      {configuredProviders.providers.map((provider, index) => {
         const providerDetail = providerDetailResults[provider.id];
 
         return (
@@ -120,6 +142,10 @@ export function UsageList() {
             isSelected={provider.id === selectedProviderId}
             relativeTimeNow={provider.id === selectedProviderId ? relativeTimeNow : undefined}
             onRefresh={() => refreshProvider(provider.id)}
+            onMoveUp={index > 0 ? () => void moveProvider(provider.id, "up") : undefined}
+            onMoveDown={
+              index < configuredProviders.providers.length - 1 ? () => void moveProvider(provider.id, "down") : undefined
+            }
           />
         );
       })}

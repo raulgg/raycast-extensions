@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 import { execFile } from "node:child_process";
@@ -80,6 +80,8 @@ type CodexBarConfigProvider = {
   id?: string;
   enabled?: boolean;
 };
+
+export type ProviderMoveDirection = "up" | "down";
 
 const INSTALL_HELP: InstallHelpState = {
   title: "Install CodexBar CLI",
@@ -439,6 +441,50 @@ export async function readConfiguredProvidersFromConfig(): Promise<ConfiguredPro
   }
 }
 
+export async function moveConfiguredProviderInConfig(
+  providerId: string,
+  direction: ProviderMoveDirection,
+): Promise<boolean> {
+  try {
+    const rawConfig = await readFile(CONFIG_PATH, "utf8");
+    const updatedConfig = moveConfiguredProviderInRawConfig(rawConfig, providerId, direction);
+    if (!updatedConfig) {
+      return false;
+    }
+
+    await writeFile(CONFIG_PATH, updatedConfig, "utf8");
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
+      throw new Error(`CodexBar config was not found at ${CONFIG_PATH}.`);
+    }
+
+    if (error instanceof SyntaxError) {
+      throw new Error(`Failed to parse CodexBar config at ${CONFIG_PATH}.`);
+    }
+
+    if (error instanceof Error) {
+      throw new Error(`Failed to update CodexBar config at ${CONFIG_PATH}: ${error.message}`);
+    }
+
+    throw new Error(`Failed to update CodexBar config at ${CONFIG_PATH}.`);
+  }
+}
+
+export function moveConfiguredProviderInRawConfig(
+  rawConfig: string,
+  providerId: string,
+  direction: ProviderMoveDirection,
+): string | undefined {
+  const parsedConfig = JSON.parse(rawConfig) as CodexBarConfig;
+  const movedConfig = moveConfiguredProviderInParsedConfig(parsedConfig, providerId, direction);
+  if (!movedConfig) {
+    return undefined;
+  }
+
+  return `${JSON.stringify(movedConfig, null, 2)}\n`;
+}
+
 function extractConfiguredProvidersFromConfig(rawConfig: string): ConfiguredProvider[] {
   const parsedConfig = JSON.parse(rawConfig) as CodexBarConfig;
   const providers = normalizeConfiguredProviders(parsedConfig);
@@ -474,4 +520,104 @@ function normalizeConfiguredProviders(config: CodexBarConfig): CodexBarConfigPro
     ...provider,
     id: typeof provider.id === "string" && provider.id.trim().length > 0 ? provider.id : providerId,
   }));
+}
+
+function moveConfiguredProviderInParsedConfig(
+  config: CodexBarConfig,
+  providerId: string,
+  direction: ProviderMoveDirection,
+): CodexBarConfig | undefined {
+  const normalizedProviderId = providerId.trim();
+  if (!normalizedProviderId) {
+    return undefined;
+  }
+
+  if (Array.isArray(config.providers)) {
+    const moveIndexes = findConfiguredProviderMoveIndexes(
+      config.providers.map((provider) => ({ id: normalizeArrayProviderId(provider), provider })),
+      normalizedProviderId,
+      direction,
+    );
+    if (!moveIndexes) {
+      return undefined;
+    }
+
+    return {
+      ...config,
+      providers: swapEntries(config.providers, moveIndexes.from, moveIndexes.to),
+    };
+  }
+
+  if (!config.providers || typeof config.providers !== "object") {
+    return undefined;
+  }
+
+  const providerEntries = Object.entries(config.providers);
+  const moveIndexes = findConfiguredProviderMoveIndexes(
+    providerEntries.map(([key, provider]) => ({
+      id: normalizeObjectProviderId(key, provider),
+      provider,
+    })),
+    normalizedProviderId,
+    direction,
+  );
+  if (!moveIndexes) {
+    return undefined;
+  }
+
+  return {
+    ...config,
+    providers: Object.fromEntries(swapEntries(providerEntries, moveIndexes.from, moveIndexes.to)),
+  };
+}
+
+function findConfiguredProviderMoveIndexes(
+  providers: Array<{ id?: string; provider?: CodexBarConfigProvider }>,
+  providerId: string,
+  direction: ProviderMoveDirection,
+): { from: number; to: number } | undefined {
+  const visibleProviders = providers.flatMap(({ id, provider }, index) => {
+    if (
+      !id ||
+      provider?.enabled !== true ||
+      isProviderSelectorId(id) ||
+      !isKnownProviderId(id)
+    ) {
+      return [];
+    }
+
+    return [{ id, index }];
+  });
+
+  const currentVisibleIndex = visibleProviders.findIndex((provider) => provider.id === providerId);
+  if (currentVisibleIndex < 0) {
+    return undefined;
+  }
+
+  const targetVisibleIndex = currentVisibleIndex + (direction === "up" ? -1 : 1);
+  const targetProvider = visibleProviders[targetVisibleIndex];
+  if (!targetProvider) {
+    return undefined;
+  }
+
+  return {
+    from: visibleProviders[currentVisibleIndex].index,
+    to: targetProvider.index,
+  };
+}
+
+function normalizeArrayProviderId(provider: CodexBarConfigProvider | undefined): string | undefined {
+  return typeof provider?.id === "string" && provider.id.trim().length > 0 ? provider.id.trim() : undefined;
+}
+
+function normalizeObjectProviderId(providerId: string, provider: CodexBarConfigProvider | undefined): string {
+  return typeof provider?.id === "string" && provider.id.trim().length > 0 ? provider.id.trim() : providerId;
+}
+
+function swapEntries<T>(entries: T[], from: number, to: number): T[] {
+  const nextEntries = [...entries];
+  const movedEntry = nextEntries[from];
+  nextEntries[from] = nextEntries[to];
+  nextEntries[to] = movedEntry;
+  return nextEntries;
 }

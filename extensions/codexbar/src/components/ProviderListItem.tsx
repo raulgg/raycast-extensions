@@ -13,6 +13,8 @@ type ProviderListItemProps = {
   isSelected: boolean;
   relativeTimeNow?: number;
   onRefresh: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 };
 
 export function ProviderListItem({
@@ -24,6 +26,8 @@ export function ProviderListItem({
   isSelected,
   relativeTimeNow,
   onRefresh,
+  onMoveUp,
+  onMoveDown,
 }: ProviderListItemProps) {
   const fetchCommand = `codexbar usage --provider ${provider.id}`;
 
@@ -47,7 +51,28 @@ export function ProviderListItem({
       actions={
         <ActionPanel>
           <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={onRefresh} />
-          <Action.CopyToClipboard title="Copy CLI Command" content={fetchCommand} icon={Icon.Clipboard} />
+          {onMoveUp ? (
+            <Action
+              title="Move Up"
+              icon={Icon.ArrowUp}
+              shortcut={{ modifiers: ["cmd", "opt"], key: "arrowUp" }}
+              onAction={onMoveUp}
+            />
+          ) : null}
+          {onMoveDown ? (
+            <Action
+              title="Move Down"
+              icon={Icon.ArrowDown}
+              shortcut={{ modifiers: ["cmd", "opt"], key: "arrowDown" }}
+              onAction={onMoveDown}
+            />
+          ) : null}
+          <Action.CopyToClipboard
+            title="Copy CLI Command"
+            content={fetchCommand}
+            icon={Icon.Clipboard}
+            shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+          />
         </ActionPanel>
       }
     />

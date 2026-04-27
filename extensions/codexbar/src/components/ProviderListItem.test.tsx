@@ -97,6 +97,36 @@ describe("ProviderListItem", () => {
     expect(actions).toHaveLength(2);
     expect(actions[1].props.title).toBe("Copy CLI Command");
     expect(actions[1].props.content).toBe("codexbar usage --provider codex");
+    expect(actions[1].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
+  });
+
+  it("adds move actions with keyboard shortcuts when reordering is available", () => {
+    const element = ProviderListItem({
+      provider: {
+        id: "codex",
+        name: "Codex",
+        icon: {
+          source: "provider-icons/codex.svg",
+          fallback: "Terminal",
+          tintColor: "raycast-primary-text",
+        },
+      },
+      isDetailLoading: false,
+      isSelected: true,
+      onRefresh: vi.fn(),
+      onMoveUp: vi.fn(),
+      onMoveDown: vi.fn(),
+    });
+
+    const actions = element.props.actions.props.children.flat().filter(Boolean);
+
+    expect(actions).toHaveLength(4);
+    expect(actions[1].props.title).toBe("Move Up");
+    expect(actions[1].props.shortcut).toEqual({ modifiers: ["cmd", "opt"], key: "arrowUp" });
+    expect(actions[2].props.title).toBe("Move Down");
+    expect(actions[2].props.shortcut).toEqual({ modifiers: ["cmd", "opt"], key: "arrowDown" });
+    expect(actions[3].props.title).toBe("Copy CLI Command");
+    expect(actions[3].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
   });
 
   it("shows both primary and secondary usage in text, tooltip, and icon", () => {

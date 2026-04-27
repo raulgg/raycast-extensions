@@ -1,10 +1,11 @@
 import { Color, Icon } from "@raycast/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { accessMock, readFileMock, execFileMock } = vi.hoisted(() => {
+const { accessMock, readFileMock, writeFileMock, execFileMock } = vi.hoisted(() => {
   return {
     accessMock: vi.fn(),
     readFileMock: vi.fn(),
+    writeFileMock: vi.fn(),
     execFileMock: vi.fn(),
   };
 });
@@ -12,6 +13,7 @@ const { accessMock, readFileMock, execFileMock } = vi.hoisted(() => {
 vi.mock("node:fs/promises", () => ({
   access: accessMock,
   readFile: readFileMock,
+  writeFile: writeFileMock,
 }));
 
 vi.mock("node:child_process", () => ({
@@ -24,6 +26,8 @@ import {
   extractJsonPayload,
   fetchProviderDetail,
   getCodexBarAvailability,
+  moveConfiguredProviderInConfig,
+  moveConfiguredProviderInRawConfig,
   readConfiguredProvidersFromConfig,
   resolveCodexBarBinary,
 } from "./codexbar";
@@ -56,8 +60,10 @@ describe("codexbar runtime helpers", () => {
   beforeEach(() => {
     accessMock.mockReset();
     readFileMock.mockReset();
+    writeFileMock.mockReset();
     execFileMock.mockReset();
     readFileMock.mockRejectedValue(new Error("missing"));
+    writeFileMock.mockResolvedValue(undefined);
   });
 
   it("resolves the CLI from PATH before fallback locations", async () => {
@@ -203,6 +209,92 @@ describe("codexbar runtime helpers", () => {
     readFileMock.mockResolvedValue("{");
 
     await expect(readConfiguredProvidersFromConfig()).rejects.toThrow(/Failed to parse CodexBar config/);
+  });
+
+  it("rewrites object-shaped configs when moving a provider down", () => {
+    expect(
+      moveConfiguredProviderInRawConfig(
+        JSON.stringify({
+          providers: {
+            codex: { enabled: true },
+            unknown: { enabled: true },
+            perplexity: { enabled: true },
+            warp: { enabled: false },
+          },
+        }),
+        "codex",
+        "down",
+      ),
+    ).toBe(
+      `${JSON.stringify(
+        {
+          providers: {
+            perplexity: { enabled: true },
+            unknown: { enabled: true },
+            codex: { enabled: true },
+            warp: { enabled: false },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  });
+
+  it("rewrites array-shaped configs when moving a provider up", () => {
+    expect(
+      moveConfiguredProviderInRawConfig(
+        JSON.stringify({
+          providers: [
+            { id: "codex", enabled: true },
+            { id: "cursor", enabled: true },
+            { id: "perplexity", enabled: true },
+          ],
+        }),
+        "perplexity",
+        "up",
+      ),
+    ).toBe(
+      `${JSON.stringify(
+        {
+          providers: [
+            { id: "codex", enabled: true },
+            { id: "perplexity", enabled: true },
+            { id: "cursor", enabled: true },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  });
+
+  it("persists reordered providers back to the CodexBar config file", async () => {
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        providers: {
+          codex: { enabled: true },
+          perplexity: { enabled: true },
+        },
+      }),
+    );
+
+    await expect(moveConfiguredProviderInConfig("codex", "down")).resolves.toBe(true);
+
+    expect(writeFileMock).toHaveBeenCalledWith(
+      expect.stringContaining(".codexbar/config.json"),
+      `${JSON.stringify(
+        {
+          providers: {
+            perplexity: { enabled: true },
+            codex: { enabled: true },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
   });
 
   it("extracts plain JSON payloads", () => {
