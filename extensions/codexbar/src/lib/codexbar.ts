@@ -8,11 +8,12 @@ import { extractProviderErrorMessage, normalizeProviderDetailPayload } from "../
 import type { ConfiguredProvider, ProviderDetailData } from "../providers/types";
 import { getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
 
-const CODEXBAR_TIMEOUT_MS = 15_000;
-const CODEXBAR_WEB_TIMEOUT_SECONDS = 5;
+const CODEXBAR_TIMEOUT_MS = 20_000;
+const CODEXBAR_WEB_TIMEOUT_MS = 5_000;
 const MAX_BUFFER_BYTES = 5 * 1024 * 1024;
 const FALLBACK_PATHS = ["/opt/homebrew/bin/codexbar", "/usr/local/bin/codexbar"] as const;
 const CONFIG_PATH = join(homedir(), ".codexbar", "config.json");
+const HOMEBREW_INSTALL_COMMAND = "brew install steipete/tap/codexbar";
 
 export type ResolvedCodexBarBinary = {
   command: string;
@@ -62,18 +63,7 @@ type ExecFileOptions = {
 };
 
 type CodexBarConfig = {
-  providers?:
-    | Array<{
-        id?: string;
-        enabled?: boolean;
-      }>
-    | Record<
-        string,
-        {
-          id?: string;
-          enabled?: boolean;
-        }
-      >;
+  providers?: CodexBarConfigProvider[] | Record<string, CodexBarConfigProvider>;
 };
 
 type CodexBarConfigProvider = {
@@ -88,7 +78,7 @@ const INSTALL_HELP: InstallHelpState = {
   docsUrl: "https://github.com/steipete/CodexBar/blob/main/docs/cli.md",
   releasesUrl: "https://github.com/steipete/CodexBar/releases",
   repositoryUrl: "https://github.com/steipete/CodexBar",
-  homebrewCommand: "brew install steipete/tap/codexbar",
+  homebrewCommand: HOMEBREW_INSTALL_COMMAND,
   markdown: [
     "# Install CodexBar CLI",
     "",
@@ -104,7 +94,7 @@ const INSTALL_HELP: InstallHelpState = {
     "",
     "## Linux",
     "",
-    `- Homebrew (Linux only): \`${"brew install steipete/tap/codexbar"}\``,
+    `- Homebrew (Linux only): \`${HOMEBREW_INSTALL_COMMAND}\``,
     "- GitHub Releases: download the CodexBarCLI tarball for your architecture.",
     "",
     "## Links",
@@ -295,18 +285,10 @@ export function classifyExecFailure(error: unknown): CodexBarCliError {
 }
 
 async function executeCodexBar(binary: ResolvedCodexBarBinary, args: string[]): Promise<unknown> {
-  return executeCodexBarWithTimeout(binary, args, CODEXBAR_TIMEOUT_MS);
-}
-
-async function executeCodexBarWithTimeout(
-  binary: ResolvedCodexBarBinary,
-  args: string[],
-  timeout: number,
-): Promise<unknown> {
   try {
     const { stdout } = await execFileAsync(binary.command, args, {
       encoding: "utf8",
-      timeout,
+      timeout: CODEXBAR_TIMEOUT_MS,
       maxBuffer: MAX_BUFFER_BYTES,
     });
 
@@ -387,7 +369,7 @@ export async function fetchProviderDetail(
     return normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId);
   }
 
-  const payload = await executeCodexBar(binary, buildUsageCommandArgs("--provider", normalizedProviderId));
+  const payload = await executeCodexBar(binary, buildProviderUsageCommandArgs(normalizedProviderId));
   const providerError = extractProviderErrorMessage(payload, normalizedProviderId);
   if (providerError) {
     throw new CodexBarCliError("execution", providerError);
@@ -396,7 +378,7 @@ export async function fetchProviderDetail(
   return normalizeProviderDetailPayload(payload, providerId);
 }
 
-function buildUsageCommandArgs(...additionalArgs: string[]): string[] {
+function buildProviderUsageCommandArgs(providerId: string): string[] {
   return [
     "usage",
     "--format",
@@ -404,8 +386,11 @@ function buildUsageCommandArgs(...additionalArgs: string[]): string[] {
     "--json-only",
     "--json-output",
     "--web-timeout",
-    String(CODEXBAR_WEB_TIMEOUT_SECONDS),
-    ...additionalArgs,
+    `${CODEXBAR_WEB_TIMEOUT_MS / 1000}`,
+    "--provider",
+    providerId,
+    "--source",
+    "auto",
   ];
 }
 

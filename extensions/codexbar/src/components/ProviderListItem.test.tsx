@@ -36,6 +36,7 @@ vi.mock("./ProviderDetail", () => ({
 import {
   buildProviderListItemAccessories,
   formatProviderDetailErrorTooltip,
+  formatProviderDetailStaleTooltip,
   ProviderListItem,
 } from "./ProviderListItem";
 import { getProviderProgressPalette } from "../providers/registry";
@@ -130,9 +131,20 @@ describe("ProviderListItem", () => {
   });
 
   it("shows both primary and secondary usage in text, tooltip, and icon", () => {
-    const [accessory] = buildProviderListItemAccessories("codex", makeDetail(82, 41), undefined, false) ?? [];
+    const accessories = buildProviderListItemAccessories("codex", makeDetail(82, 41), undefined, false);
 
-    expectProgressAccessory(accessory, "codex", {
+    expectProgressAccessories(accessories, "codex", {
+      primary: 82,
+      secondary: 41,
+      text: "82% • 41%",
+      tooltip: "Session: 82% remaining • Weekly: 41% remaining",
+    });
+  });
+
+  it("keeps fresh cached usage visible while provider detail refreshes", () => {
+    const accessories = buildProviderListItemAccessories("codex", makeDetail(82, 41), undefined, true, "fresh");
+
+    expectProgressAccessories(accessories, "codex", {
       primary: 82,
       secondary: 41,
       text: "82% • 41%",
@@ -151,32 +163,39 @@ describe("ProviderListItem", () => {
     ]);
   });
 
-  it("keeps the stale primary usage accessory visible while provider detail refreshes", () => {
-    const [accessory] = buildProviderListItemAccessories("codex", makeDetail(82, 41), undefined, true) ?? [];
-
-    expectProgressAccessory(accessory, "codex", {
-      primary: 82,
-      secondary: 41,
-      text: "82% • 41%",
-      tooltip: "Session: 82% remaining • Weekly: 41% remaining",
-    });
+  it("shows a loading accessory while stale provider detail refreshes", () => {
+    expect(buildProviderListItemAccessories("codex", makeDetail(82, 41), undefined, true, "stale")).toEqual([
+      {
+        icon: "Hourglass",
+        tooltip: "Loading usage",
+      },
+    ]);
   });
 
-  it("keeps the primary usage accessory visible when stale cached detail also has a refresh error", () => {
-    const [accessory] =
+  it("shows a warning accessory when stale provider detail finished loading without an error", () => {
+    expect(buildProviderListItemAccessories("codex", makeDetail(82, 41), undefined, false, "stale")).toEqual([
+      {
+        icon: "Warning",
+        tooltip: "Stale usage data",
+      },
+    ]);
+  });
+
+  it("shows a warning accessory when stale cached detail also has a refresh error", () => {
+    expect(
       buildProviderListItemAccessories(
         "codex",
         makeDetail(82, 41),
         new Error("Timed out while fetching usage"),
         false,
-      ) ?? [];
-
-    expectProgressAccessory(accessory, "codex", {
-      primary: 82,
-      secondary: 41,
-      text: "82% • 41%",
-      tooltip: "Session: 82% remaining • Weekly: 41% remaining",
-    });
+        "stale",
+      ),
+    ).toEqual([
+      {
+        icon: "Warning",
+        tooltip: "Stale usage data",
+      },
+    ]);
   });
 
   it("shows a loading accessory while provider detail is loading without cached data", () => {
@@ -203,9 +222,9 @@ describe("ProviderListItem", () => {
   });
 
   it("shows only primary text and tooltip while keeping an empty lower track when secondary is missing", () => {
-    const [accessory] = buildProviderListItemAccessories("codex", makeDetail(82), undefined, false) ?? [];
+    const accessories = buildProviderListItemAccessories("codex", makeDetail(82), undefined, false);
 
-    expectProgressAccessory(accessory, "codex", {
+    expectProgressAccessories(accessories, "codex", {
       primary: 82,
       text: "82%",
       tooltip: "Session: 82% remaining",
@@ -214,9 +233,9 @@ describe("ProviderListItem", () => {
   });
 
   it("shows an empty lower track when secondary exists at zero", () => {
-    const [accessory] = buildProviderListItemAccessories("codex", makeDetail(82, 0), undefined, false) ?? [];
+    const accessories = buildProviderListItemAccessories("codex", makeDetail(82, 0), undefined, false);
 
-    expectProgressAccessory(accessory, "codex", {
+    expectProgressAccessories(accessories, "codex", {
       primary: 82,
       secondary: 0,
       text: "82% • 0%",
@@ -227,10 +246,14 @@ describe("ProviderListItem", () => {
   it("uses a generic error tooltip regardless of the underlying detail", () => {
     expect(formatProviderDetailErrorTooltip()).toBe("Failed to load usage");
   });
+
+  it("uses a generic stale tooltip regardless of the underlying detail", () => {
+    expect(formatProviderDetailStaleTooltip()).toBe("Stale usage data");
+  });
 });
 
-function expectProgressAccessory(
-  accessory: { icon?: unknown; text?: string; tooltip?: string } | undefined,
+function expectProgressAccessories(
+  accessories: { icon?: unknown; text?: string; tooltip?: string }[] | undefined,
   providerId: string,
   expected: {
     primary: number;
@@ -240,11 +263,17 @@ function expectProgressAccessory(
     tooltip: string;
   },
 ): void {
-  expect(accessory).toBeDefined();
-  expect(accessory?.text).toBe(expected.text);
-  expect(accessory?.tooltip).toBe(expected.tooltip);
+  expect(accessories).toHaveLength(2);
 
-  const icon = accessory?.icon as { source?: { light?: string; dark?: string } } | undefined;
+  const [textAccessory, iconAccessory] = accessories ?? [];
+  expect(textAccessory).toEqual({
+    text: expected.text,
+    tooltip: expected.tooltip,
+  });
+  expect(iconAccessory?.text).toBeUndefined();
+  expect(iconAccessory?.tooltip).toBe(expected.tooltip);
+
+  const icon = iconAccessory?.icon as { source?: { light?: string; dark?: string } } | undefined;
   expect(icon?.source?.light).toContain("data:image/svg+xml;base64,");
   expect(icon?.source?.dark).toContain("data:image/svg+xml;base64,");
 

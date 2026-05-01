@@ -37,7 +37,13 @@ export function ProviderListItem({
       title={provider.name}
       keywords={provider.keywords}
       icon={provider.icon}
-      accessories={buildProviderListItemAccessories(provider.id, detail, detailError, isDetailLoading)}
+      accessories={buildProviderListItemAccessories(
+        provider.id,
+        detail,
+        detailError,
+        isDetailLoading,
+        detailCacheStatus,
+      )}
       detail={
         <ProviderDetail
           provider={provider}
@@ -85,8 +91,53 @@ export function buildProviderListItemAccessories(
   detail: ProviderDetailData | undefined,
   error: Error | undefined,
   isLoading: boolean,
+  cacheStatus?: ProviderDetailCacheStatus,
 ): List.Item.Accessory[] | undefined {
-  if (isLoading && !detail && !error) {
+  if (cacheStatus === "stale" && detail) {
+    if (isLoading) {
+      return [
+        {
+          icon: Icon.Hourglass,
+          tooltip: "Loading usage",
+        },
+      ];
+    }
+
+    return [
+      {
+        icon: Icon.Warning,
+        tooltip: formatProviderDetailStaleTooltip(),
+      },
+    ];
+  }
+
+  const primaryUsage = getPrimaryUsageSection(detail);
+  if (primaryUsage) {
+    const secondaryUsage = getUsageSection(detail, "Secondary");
+    const primaryRemainingPercent = Math.round(primaryUsage.remainingPercent);
+    const secondaryRemainingPercent = secondaryUsage ? Math.round(secondaryUsage.remainingPercent) : undefined;
+    const text =
+      secondaryRemainingPercent === undefined
+        ? `${primaryRemainingPercent}%`
+        : `${primaryRemainingPercent}% • ${secondaryRemainingPercent}%`;
+    const tooltip =
+      secondaryUsage === undefined
+        ? `${primaryUsage.displayTitle}: ${primaryRemainingPercent}% remaining`
+        : `${primaryUsage.displayTitle}: ${primaryRemainingPercent}% remaining • ${secondaryUsage.displayTitle}: ${secondaryRemainingPercent}% remaining`;
+
+    return [
+      {
+        text,
+        tooltip,
+      },
+      {
+        icon: buildTwoBarAccessoryIcon(providerId, primaryRemainingPercent, secondaryRemainingPercent),
+        tooltip,
+      },
+    ];
+  }
+
+  if (isLoading) {
     return [
       {
         icon: Icon.Hourglass,
@@ -95,7 +146,7 @@ export function buildProviderListItemAccessories(
     ];
   }
 
-  if (error && !detail) {
+  if (error) {
     return [
       {
         icon: Icon.Warning,
@@ -104,32 +155,15 @@ export function buildProviderListItemAccessories(
     ];
   }
 
-  const primaryUsage = getPrimaryUsageSection(detail);
-  if (!primaryUsage) {
-    return undefined;
-  }
-
-  const secondaryUsage = getUsageSection(detail, "Secondary");
-  const primaryRemainingPercent = Math.round(primaryUsage.remainingPercent);
-  const secondaryRemainingPercent = secondaryUsage ? Math.round(secondaryUsage.remainingPercent) : undefined;
-
-  return [
-    {
-      icon: buildTwoBarAccessoryIcon(providerId, primaryRemainingPercent, secondaryRemainingPercent),
-      text:
-        secondaryRemainingPercent === undefined
-          ? `${primaryRemainingPercent}%`
-          : `${primaryRemainingPercent}% • ${secondaryRemainingPercent}%`,
-      tooltip:
-        secondaryUsage === undefined
-          ? `${primaryUsage.displayTitle}: ${primaryRemainingPercent}% remaining`
-          : `${primaryUsage.displayTitle}: ${primaryRemainingPercent}% remaining • ${secondaryUsage.displayTitle}: ${secondaryRemainingPercent}% remaining`,
-    },
-  ];
+  return undefined;
 }
 
 export function formatProviderDetailErrorTooltip(): string {
   return "Failed to load usage";
+}
+
+export function formatProviderDetailStaleTooltip(): string {
+  return "Stale usage data";
 }
 
 function getPrimaryUsageSection(detail: ProviderDetailData | undefined): ProviderUsageSection | undefined {

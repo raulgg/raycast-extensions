@@ -42,7 +42,7 @@ vi.mock("@raycast/api", () => ({
   },
 }));
 
-import { ProviderDetail } from "./ProviderDetail";
+import { getProviderDetailHeaderTimestamp, ProviderDetail } from "./ProviderDetail";
 
 function makeDetail(): ProviderDetailData {
   return {
@@ -175,7 +175,9 @@ describe("ProviderDetail", () => {
 
   it("keeps stale cached detail visible after refresh errors", () => {
     appearanceMock.value = "light";
-    const detail = makeDetail();
+    const detail = { ...makeDetail(), updatedAt: "2026-04-05T17:39:45Z" };
+
+    expect(getProviderDetailHeaderTimestamp(detail, "stale")).toBe("2026-04-05T17:11:00Z");
 
     const element = ProviderDetail({
       provider,
@@ -188,6 +190,7 @@ describe("ProviderDetail", () => {
 
     const svg = decodeFirstSvg(element.props.markdown);
     expect(svg).toContain(">Updated 29m ago | ⚠︎ Stale data<");
+    expect(svg).not.toContain(">Updated just now | ⚠︎ Stale data<");
     expect(svg).toContain(">Session<");
     expect(svg).not.toContain(">Timed out<");
   });

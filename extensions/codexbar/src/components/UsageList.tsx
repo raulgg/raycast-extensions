@@ -2,6 +2,7 @@ import { Icon, List, showToast, Toast } from "@raycast/api";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CommandErrorDetail } from "./CommandErrorDetail";
 import { InstallHelpDetail } from "./InstallHelpDetail";
+import { getProviderDetailHeaderTimestamp } from "./ProviderDetail";
 import { ProviderListItem } from "./ProviderListItem";
 import { useCodexBarAvailability } from "../hooks/useCodexBarAvailability";
 import { useProviderDetails } from "../hooks/useProviderDetails";
@@ -42,9 +43,13 @@ export function UsageList() {
   const providerDetails = useProviderDetails(binary, configuredProviders.providers, selectedProviderId);
   const { isLoading: isProviderDetailLoading, refreshProvider, results: providerDetailResults } = providerDetails;
   const selectedProviderDetail = selectedProviderId ? providerDetailResults[selectedProviderId] : undefined;
+  const selectedProviderDetailHeaderTimestamp = getProviderDetailHeaderTimestamp(
+    selectedProviderDetail?.detail,
+    selectedProviderDetail?.cacheStatus,
+  );
   const relativeTimeNow = useRelativeUpdateTime(
-    selectedProviderDetail?.detail?.updatedAt,
-    Boolean(selectedProviderId && selectedProviderDetail?.detail?.updatedAt && !selectedProviderDetail?.isLoading),
+    selectedProviderDetailHeaderTimestamp,
+    Boolean(selectedProviderId && selectedProviderDetailHeaderTimestamp && !selectedProviderDetail?.isLoading),
   );
   const refreshSelectedProvider = useCallback(() => {
     if (selectedProviderId) {

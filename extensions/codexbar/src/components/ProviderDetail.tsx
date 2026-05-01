@@ -55,9 +55,20 @@ function getHeaderSubtitle(
       return "Updating... | ⚠︎ Stale data";
     }
 
-    const relativeUpdatedAt = formatRelativeUpdateTime(detail.updatedAt, { now });
+    const relativeUpdatedAt = formatRelativeUpdateTime(getProviderDetailHeaderTimestamp(detail, cacheStatus), { now });
     return relativeUpdatedAt ? `Updated ${relativeUpdatedAt} | ⚠︎ Stale data` : "⚠︎ Stale data";
   }
 
   return isLoading ? "Updating..." : undefined;
+}
+
+export function getProviderDetailHeaderTimestamp(
+  detail: Pick<ProviderDetailData, "fetchedAt" | "updatedAt"> | undefined,
+  cacheStatus?: ProviderDetailCacheStatus,
+): string | undefined {
+  if (!detail) {
+    return undefined;
+  }
+
+  return cacheStatus === "stale" ? detail.fetchedAt : detail.updatedAt;
 }
