@@ -1,4 +1,5 @@
 import { formatRelativeUpdateTime } from "../lib/presentation";
+import { buildSvgProgressBar, buildSvgRect } from "../lib/svg";
 import { formatUsagePacingLabels } from "./usagePacing";
 import { getProviderProgressPalette } from "./registry";
 import {
@@ -135,7 +136,7 @@ function splitRenderableSections(sections: ProviderSection[]): {
   return { metricSections, otherSections };
 }
 
-function buildProgressBarSvg(
+function buildProgressBar(
   percent: number,
   x: number,
   y: number,
@@ -144,80 +145,33 @@ function buildProgressBarSvg(
   providerId: string,
   targetRemainingPercent?: number,
 ): string {
-  const normalized = Math.max(0, Math.min(100, percent));
-  const fillWidth = Math.round((normalized / 100) * width);
   const palette = PANEL_PALETTES[appearance];
   const progressPalette = getProviderProgressPalette(providerId);
   const progressFill = appearance === "dark" ? progressPalette.darkFill : progressPalette.lightFill;
 
-  return [
-    buildRectSvg(
-      x,
-      y,
-      width,
-      PROGRESS_BAR.height,
-      PROGRESS_BAR.radius,
-      palette.progressTrackFill,
-      palette.progressTrackOpacity,
-    ),
-    fillWidth > 0
-      ? `<rect x="${x}" y="${y}" width="${fillWidth}" height="${PROGRESS_BAR.height}" rx="${PROGRESS_BAR.radius}" fill="${progressFill}"/>`
-      : "",
-    typeof targetRemainingPercent === "number"
-      ? buildProgressMarkerSvg(targetRemainingPercent, x, y, width, appearance)
-      : "",
-  ].join("");
-}
-
-function buildProgressMarkerSvg(
-  targetRemainingPercent: number,
-  x: number,
-  y: number,
-  width: number,
-  appearance: ProviderDetailAppearance,
-): string {
-  const palette = PANEL_PALETTES[appearance];
-  const normalizedPercent = Math.max(0, Math.min(100, targetRemainingPercent));
-  const markerCenterX = x + (normalizedPercent / 100) * width;
-  const minLeft = x + PROGRESS_MARKER.edgeInset;
-  const maxLeft = x + width - PROGRESS_MARKER.width - PROGRESS_MARKER.edgeInset;
-  const markerX = Math.max(minLeft, Math.min(maxLeft, markerCenterX - PROGRESS_MARKER.width / 2));
-  const markerY = y - (PROGRESS_MARKER.height - PROGRESS_BAR.height) / 2;
-
-  return buildRectSvg(
-    markerX,
-    markerY,
-    PROGRESS_MARKER.width,
-    PROGRESS_MARKER.height,
-    PROGRESS_MARKER.radius,
-    palette.progressMarkerFill,
-    palette.progressMarkerOpacity,
-  );
-}
-
-function buildRectSvg(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-  fill: string,
-  fillOpacity?: number,
-): string {
-  const opacityAttribute = typeof fillOpacity === "number" ? ` fill-opacity="${fillOpacity}"` : "";
-  return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${fill}"${opacityAttribute}/>`;
-}
-
-function buildSkeletonRect(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  fill: string,
-  radius: number,
-  fillOpacity?: number,
-): string {
-  return buildRectSvg(x, y, width, height, radius, fill, fillOpacity);
+  return buildSvgProgressBar({
+    percent,
+    x,
+    y,
+    width,
+    height: PROGRESS_BAR.height,
+    radius: PROGRESS_BAR.radius,
+    trackFill: palette.progressTrackFill,
+    trackFillOpacity: palette.progressTrackOpacity,
+    fill: progressFill,
+    marker:
+      typeof targetRemainingPercent === "number"
+        ? {
+            percent: targetRemainingPercent,
+            width: PROGRESS_MARKER.width,
+            height: PROGRESS_MARKER.height,
+            radius: PROGRESS_MARKER.radius,
+            edgeInset: PROGRESS_MARKER.edgeInset,
+            fill: palette.progressMarkerFill,
+            fillOpacity: palette.progressMarkerOpacity,
+          }
+        : undefined,
+  });
 }
 
 function renderProgressSection(
@@ -241,7 +195,7 @@ function renderProgressSection(
       TYPOGRAPHY.sectionTitleSize,
       FONT_WEIGHT.bold,
     ),
-    buildProgressBarSvg(
+    buildProgressBar(
       percent,
       getLeftContentX(),
       progressY,
@@ -329,42 +283,42 @@ function renderLoadingSkeletonSection(
   const footerY = getUsageFooterY(progressY);
   const footerRightX = getRightContentX() - LOADING_SKELETON_LAYOUT.footerRightWidth;
   const markup = [
-    buildSkeletonRect(
-      getLeftContentX(),
-      getCenteredPlaceholderY(startY, TYPOGRAPHY.sectionTitleSize, LOADING_SKELETON_LAYOUT.titleHeight),
-      LOADING_SKELETON_LAYOUT.titleWidth,
-      LOADING_SKELETON_LAYOUT.titleHeight,
-      palette.progressTrackFill,
-      LOADING_SKELETON_LAYOUT.titleRadius,
-      palette.progressTrackOpacity,
-    ),
-    buildSkeletonRect(
-      getLeftContentX(),
-      progressY,
-      getContentWidth(),
-      PROGRESS_BAR.height,
-      palette.progressTrackFill,
-      PROGRESS_BAR.radius,
-      palette.progressTrackOpacity,
-    ),
-    buildSkeletonRect(
-      getLeftContentX(),
-      getCenteredPlaceholderY(footerY, TYPOGRAPHY.rowValueSize, LOADING_SKELETON_LAYOUT.footerHeight),
-      LOADING_SKELETON_LAYOUT.footerLeftWidth,
-      LOADING_SKELETON_LAYOUT.footerHeight,
-      palette.progressTrackFill,
-      LOADING_SKELETON_LAYOUT.footerRadius,
-      palette.progressTrackOpacity,
-    ),
-    buildSkeletonRect(
-      footerRightX,
-      getCenteredPlaceholderY(footerY, TYPOGRAPHY.rowLabelSize, LOADING_SKELETON_LAYOUT.footerHeight),
-      LOADING_SKELETON_LAYOUT.footerRightWidth,
-      LOADING_SKELETON_LAYOUT.footerHeight,
-      palette.progressTrackFill,
-      LOADING_SKELETON_LAYOUT.footerRadius,
-      palette.progressTrackOpacity,
-    ),
+    buildSvgRect({
+      x: getLeftContentX(),
+      y: getCenteredPlaceholderY(startY, TYPOGRAPHY.sectionTitleSize, LOADING_SKELETON_LAYOUT.titleHeight),
+      width: LOADING_SKELETON_LAYOUT.titleWidth,
+      height: LOADING_SKELETON_LAYOUT.titleHeight,
+      radius: LOADING_SKELETON_LAYOUT.titleRadius,
+      fill: palette.progressTrackFill,
+      fillOpacity: palette.progressTrackOpacity,
+    }),
+    buildSvgRect({
+      x: getLeftContentX(),
+      y: progressY,
+      width: getContentWidth(),
+      height: PROGRESS_BAR.height,
+      radius: PROGRESS_BAR.radius,
+      fill: palette.progressTrackFill,
+      fillOpacity: palette.progressTrackOpacity,
+    }),
+    buildSvgRect({
+      x: getLeftContentX(),
+      y: getCenteredPlaceholderY(footerY, TYPOGRAPHY.rowValueSize, LOADING_SKELETON_LAYOUT.footerHeight),
+      width: LOADING_SKELETON_LAYOUT.footerLeftWidth,
+      height: LOADING_SKELETON_LAYOUT.footerHeight,
+      radius: LOADING_SKELETON_LAYOUT.footerRadius,
+      fill: palette.progressTrackFill,
+      fillOpacity: palette.progressTrackOpacity,
+    }),
+    buildSvgRect({
+      x: footerRightX,
+      y: getCenteredPlaceholderY(footerY, TYPOGRAPHY.rowLabelSize, LOADING_SKELETON_LAYOUT.footerHeight),
+      width: LOADING_SKELETON_LAYOUT.footerRightWidth,
+      height: LOADING_SKELETON_LAYOUT.footerHeight,
+      radius: LOADING_SKELETON_LAYOUT.footerRadius,
+      fill: palette.progressTrackFill,
+      fillOpacity: palette.progressTrackOpacity,
+    }),
   ];
 
   return { markup, contentBottomY: getTextBottomY(footerY, TYPOGRAPHY.rowValueSize) };

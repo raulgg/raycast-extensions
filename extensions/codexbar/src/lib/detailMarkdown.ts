@@ -1,3 +1,14 @@
+import {
+  buildSvgDocument as buildSvgRootDocument,
+  buildSvgLine,
+  buildSvgText,
+  encodeSvgBase64,
+  escapeSvgText,
+  type SvgTextAnchor,
+} from "./svg";
+
+export { escapeSvgText } from "./svg";
+
 export type DetailAppearance = "light" | "dark";
 
 export const DETAIL_PANEL = {
@@ -115,17 +126,8 @@ export function escapeMarkdown(value: string): string {
   return escaped;
 }
 
-export function escapeSvgText(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 export function buildSvgImageMarkdown(alt: string, svg: string, height: number): string {
-  const encodedSvg = Buffer.from(svg, "utf8").toString("base64");
+  const encodedSvg = encodeSvgBase64(svg);
   return `![${escapeMarkdown(alt)}](data:image/svg+xml;base64,${encodedSvg}?raycast-width=${DETAIL_PANEL.width}&raycast-height=${height})`;
 }
 
@@ -136,9 +138,16 @@ export function buildText(
   fill: string,
   fontSize: number,
   fontWeight: number,
-  textAnchor: "start" | "end" = "start",
+  textAnchor: SvgTextAnchor = "start",
 ): string {
-  return `<text x="${x}" y="${y}" fill="${fill}" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" text-anchor="${textAnchor}">${escapeSvgText(value)}</text>`;
+  return buildSvgText(value, {
+    x,
+    y,
+    fill,
+    fontSize,
+    fontWeight,
+    textAnchor,
+  });
 }
 
 export function getLeftContentX(): number {
@@ -179,15 +188,23 @@ export function getPanelHeight(contentBottomY: number): number {
 }
 
 export function buildSectionDivider(y: number, stroke: string): string {
-  return `<line x1="${getLeftContentX()}" y1="${y}" x2="${getRightContentX()}" y2="${y}" stroke="${stroke}" stroke-width="${DETAIL_SVG_LAYOUT.dividerStrokeWidth}"/>`;
+  return buildSvgLine({
+    x1: getLeftContentX(),
+    y1: y,
+    x2: getRightContentX(),
+    y2: y,
+    stroke,
+    strokeWidth: DETAIL_SVG_LAYOUT.dividerStrokeWidth,
+  });
 }
 
 export function buildSvgDocument(markup: string[], height: number): string {
-  return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${DETAIL_PANEL.width}" height="${height}" viewBox="0 0 ${DETAIL_PANEL.width} ${height}" fill="none" role="img">`,
-    ...markup,
-    `</svg>`,
-  ].join("");
+  return buildSvgRootDocument({
+    width: DETAIL_PANEL.width,
+    height,
+    markup,
+    role: "img",
+  });
 }
 
 export function buildHeaderMarkup(
