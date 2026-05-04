@@ -51,7 +51,6 @@ function mockExecSuccess(stdout = "CodexBar", stderr = "") {
       callback: (error: Error | null, stdout: string, stderr: string) => void,
     ) => {
       callback(null, stdout, stderr);
-      return {} as never;
     },
   );
 }
@@ -148,7 +147,19 @@ describe("codexbar runtime helpers", () => {
 
     expect(execFileMock).toHaveBeenCalledWith(
       "/usr/local/bin/codexbar",
-      ["usage", "--format", "json", "--json-only", "--json-output", "--web-timeout", "5", "--provider", "codex"],
+      [
+        "usage",
+        "--format",
+        "json",
+        "--json-only",
+        "--json-output",
+        "--web-timeout",
+        "5",
+        "--provider",
+        "codex",
+        "--source",
+        "auto",
+      ],
       expect.any(Object),
       expect.any(Function),
     );
@@ -160,6 +171,18 @@ describe("codexbar runtime helpers", () => {
     await expect(
       fetchProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "alibaba"),
     ).rejects.toThrow("No available fetch strategy for alibaba.");
+  });
+
+  it("fills USER for child processes when the host environment omits it", async () => {
+    vi.stubEnv("USER", "");
+    vi.stubEnv("LOGNAME", "");
+    mockExecSuccess('{"provider":"codex","usage":{"primary":{"usedPercent":20}}}');
+
+    await fetchProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "codex");
+
+    const execOptions = execFileMock.mock.calls[0][2] as { env?: NodeJS.ProcessEnv };
+    expect(execOptions.env?.USER).toEqual(expect.any(String));
+    expect(execOptions.env?.USER).not.toHaveLength(0);
   });
 
   it("reads supported enabled providers from object-shaped config in file order", async () => {

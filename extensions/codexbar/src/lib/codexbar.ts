@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
 import { access, readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, userInfo } from "node:os";
 import { delimiter, join } from "node:path";
 import { execFile } from "node:child_process";
 import { getProviderMetadata, isKnownProviderId, isProviderSelectorId } from "../providers/registry";
@@ -11,6 +11,7 @@ import { getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
 const CODEXBAR_TIMEOUT_MS = 20_000;
 const CODEXBAR_WEB_TIMEOUT_MS = 5_000;
 const MAX_BUFFER_BYTES = 5 * 1024 * 1024;
+const DEFAULT_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 const FALLBACK_PATHS = ["/opt/homebrew/bin/codexbar", "/usr/local/bin/codexbar"] as const;
 const CONFIG_PATH = join(homedir(), ".codexbar", "config.json");
 const HOMEBREW_INSTALL_COMMAND = "brew install steipete/tap/codexbar";
@@ -60,6 +61,7 @@ type ExecFileOptions = {
   encoding: BufferEncoding;
   timeout: number;
   maxBuffer: number;
+  env?: NodeJS.ProcessEnv;
 };
 
 type CodexBarConfig = {
@@ -120,6 +122,20 @@ function execFileAsync(
       resolve({ stdout, stderr });
     });
   });
+}
+
+function buildCodexBarProcessEnv(): NodeJS.ProcessEnv {
+  const currentUser = userInfo();
+  const username = process.env.USER || process.env.LOGNAME || currentUser.username;
+
+  return {
+    ...process.env,
+    HOME: process.env.HOME || currentUser.homedir || homedir(),
+    USER: username,
+    LOGNAME: process.env.LOGNAME || username,
+    SHELL: process.env.SHELL || currentUser.shell || "/bin/zsh",
+    PATH: process.env.PATH || DEFAULT_PATH,
+  };
 }
 
 function getFailureOutput(error: unknown, key: "stdout" | "stderr"): string {
@@ -290,6 +306,7 @@ async function executeCodexBar(binary: ResolvedCodexBarBinary, args: string[]): 
       encoding: "utf8",
       timeout: CODEXBAR_TIMEOUT_MS,
       maxBuffer: MAX_BUFFER_BYTES,
+      env: buildCodexBarProcessEnv(),
     });
 
     return extractJsonPayload(stdout);
@@ -315,6 +332,7 @@ export async function smokeTestCodexBar(binary: ResolvedCodexBarBinary): Promise
       encoding: "utf8",
       timeout: 5_000,
       maxBuffer: 64 * 1024,
+      env: buildCodexBarProcessEnv(),
     });
   } catch (error) {
     throw classifyExecFailure(error);
