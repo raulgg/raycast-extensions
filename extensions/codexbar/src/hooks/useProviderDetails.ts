@@ -36,85 +36,130 @@ type UseProviderDetailsResult = {
   refreshProvider: (providerId: string) => void;
 };
 
+export type InFlightProviderFetch = {
+  binaryKey: string;
+  fetchId: number;
+  generation: number;
+};
+
 export function useProviderDetails(
   binary: ResolvedCodexBarBinary | undefined,
   providers: ConfiguredProvider[],
   selectedProviderId?: string,
 ): UseProviderDetailsResult {
+  const binaryKey = buildProviderDetailBinaryKey(binary);
   const providerIds = useMemo(() => providers.map((provider) => provider.id), [providers]);
   const providerIdsKey = providerIds.join("\0");
+  const providerIdSet = useMemo(() => new Set(providerIds), [providerIdsKey]);
   const optimisticResults = useMemo(() => buildCachedProviderResults(providerIds), [providerIds, providerIdsKey]);
   const [results, setResults] = useState<ProviderDetailResults>({});
   const [isBatchLoading, setIsBatchLoading] = useState(false);
   const displayedResults = useMemo(() => ({ ...optimisticResults, ...results }), [optimisticResults, results]);
   const resultsRef = useRef(displayedResults);
   const optimisticResultsRef = useRef(optimisticResults);
-  const inFlightRef = useRef(new Map<string, number>());
+  const binaryRef = useRef(binary);
+  const binaryKeyRef = useRef(binaryKey);
+  const providerIdsRef = useRef(providerIdSet);
+  const inFlightRef = useRef(new Map<string, InFlightProviderFetch>());
   const completedRef = useRef(new Map<string, number>());
   const generationRef = useRef(0);
+  const nextFetchIdRef = useRef(0);
 
+  binaryRef.current = binary;
+  binaryKeyRef.current = binaryKey;
+  providerIdsRef.current = providerIdSet;
   optimisticResultsRef.current = optimisticResults;
 
   useEffect(() => {
     resultsRef.current = displayedResults;
   }, [displayedResults]);
 
-  const fetchOneProvider = useCallback(
-    async (providerId: string, generation: number) => {
-      if (!binary || !providerId || inFlightRef.current.has(providerId)) {
+  const fetchOneProvider = useCallback(async (providerId: string, generation: number) => {
+    const currentBinary = binaryRef.current;
+    const currentBinaryKey = binaryKeyRef.current;
+    if (!currentBinary || !currentBinaryKey || !providerId) {
+      return;
+    }
+
+    const inFlightFetch = inFlightRef.current.get(providerId);
+    if (inFlightFetch) {
+      if (inFlightFetch.binaryKey === currentBinaryKey) {
+        inFlightFetch.generation = generation;
+      }
+
+      setProviderLoading(providerId, setResults, optimisticResultsRef.current);
+      return;
+    }
+
+    nextFetchIdRef.current += 1;
+    const fetchId = nextFetchIdRef.current;
+    inFlightRef.current.set(providerId, {
+      binaryKey: currentBinaryKey,
+      fetchId,
+      generation,
+    });
+
+    setProviderLoading(providerId, setResults, optimisticResultsRef.current);
+
+    try {
+      const detail = await fetchProviderDetail(currentBinary, providerId);
+      const completedFetch = inFlightRef.current.get(providerId);
+      if (
+        !canApplyProviderFetchResult({
+          binaryKey: currentBinaryKey,
+          currentBinaryKey: binaryKeyRef.current,
+          currentProviderIds: providerIdsRef.current,
+          fetchId,
+          inFlightFetch: completedFetch,
+          providerId,
+        })
+      ) {
+        clearProviderLoading(providerId, fetchId, inFlightRef.current, setResults);
         return;
       }
 
-      inFlightRef.current.set(providerId, generation);
+      completedRef.current.set(providerId, completedFetch.generation);
+      cacheProviderDetail(detail);
       setResults((current) => ({
         ...current,
-        [providerId]: {
-          ...(current[providerId] ?? optimisticResultsRef.current[providerId]),
-          error: undefined,
-          isLoading: true,
-        },
+        [providerId]: { detail, isLoading: false, cacheStatus: "fresh" },
       }));
-
-      try {
-        const detail = await fetchProviderDetail(binary, providerId);
-        if (generationRef.current !== generation) {
-          return;
-        }
-
-        completedRef.current.set(providerId, generation);
-        cacheProviderDetail(detail);
-        setResults((current) => ({
-          ...current,
-          [providerId]: { detail, isLoading: false, cacheStatus: "fresh" },
-        }));
-      } catch (error) {
-        if (generationRef.current !== generation) {
-          return;
-        }
-
-        completedRef.current.set(providerId, generation);
-        setResults((current) => ({
-          ...current,
-          [providerId]: { ...current[providerId], error: toError(error), isLoading: false },
-        }));
-      } finally {
-        if (inFlightRef.current.get(providerId) === generation) {
-          inFlightRef.current.delete(providerId);
-        }
+    } catch (error) {
+      const completedFetch = inFlightRef.current.get(providerId);
+      if (
+        !canApplyProviderFetchResult({
+          binaryKey: currentBinaryKey,
+          currentBinaryKey: binaryKeyRef.current,
+          currentProviderIds: providerIdsRef.current,
+          fetchId,
+          inFlightFetch: completedFetch,
+          providerId,
+        })
+      ) {
+        clearProviderLoading(providerId, fetchId, inFlightRef.current, setResults);
+        return;
       }
-    },
-    [binary],
-  );
+
+      completedRef.current.set(providerId, completedFetch.generation);
+      setResults((current) => ({
+        ...current,
+        [providerId]: { ...current[providerId], error: toError(error), isLoading: false },
+      }));
+    } finally {
+      if (inFlightRef.current.get(providerId)?.fetchId === fetchId) {
+        inFlightRef.current.delete(providerId);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const generation = generationRef.current + 1;
     generationRef.current = generation;
-    inFlightRef.current.clear();
     completedRef.current.clear();
     const currentProviderIds = providerIdsKey ? providerIdsKey.split("\0") : [];
-    setResults({});
+    setResults((current) => preserveInFlightProviderResults(current, inFlightRef.current));
 
-    if (!binary || currentProviderIds.length === 0) {
+    if (!binaryKey || currentProviderIds.length === 0) {
       setIsBatchLoading(false);
       return;
     }
@@ -125,10 +170,6 @@ export function useProviderDetails(
       concurrency: PROVIDER_DETAIL_CONCURRENCY,
       fetchProvider: (providerId) => fetchOneProvider(providerId, generation),
       shouldSkip: (providerId) => {
-        if (inFlightRef.current.has(providerId)) {
-          return true;
-        }
-
         return completedRef.current.get(providerId) === generation;
       },
     }).finally(() => {
@@ -136,10 +177,10 @@ export function useProviderDetails(
         setIsBatchLoading(false);
       }
     });
-  }, [binary, fetchOneProvider, providerIdsKey]);
+  }, [binaryKey, fetchOneProvider, providerIdsKey]);
 
   useEffect(() => {
-    if (!binary || !selectedProviderId || inFlightRef.current.has(selectedProviderId)) {
+    if (!binaryKey || !selectedProviderId) {
       return;
     }
 
@@ -150,7 +191,7 @@ export function useProviderDetails(
     }
 
     void fetchOneProvider(selectedProviderId, generationRef.current);
-  }, [binary, fetchOneProvider, selectedProviderId]);
+  }, [binaryKey, fetchOneProvider, selectedProviderId]);
 
   const refreshProvider = useCallback(
     (providerId: string) => {
@@ -170,6 +211,81 @@ export function useProviderDetails(
     isLoading: isBatchLoading || hasProviderLoading,
     refreshProvider,
   };
+}
+
+function buildProviderDetailBinaryKey(binary: ResolvedCodexBarBinary | undefined): string {
+  return binary ? `${binary.source}\0${binary.command}` : "";
+}
+
+export function canApplyProviderFetchResult({
+  binaryKey,
+  currentBinaryKey,
+  currentProviderIds,
+  fetchId,
+  inFlightFetch,
+  providerId,
+}: {
+  binaryKey: string;
+  currentBinaryKey: string;
+  currentProviderIds: Set<string>;
+  fetchId: number;
+  inFlightFetch: InFlightProviderFetch | undefined;
+  providerId: string;
+}): inFlightFetch is InFlightProviderFetch {
+  return (
+    inFlightFetch?.fetchId === fetchId &&
+    inFlightFetch.binaryKey === binaryKey &&
+    binaryKey === currentBinaryKey &&
+    currentProviderIds.has(providerId)
+  );
+}
+
+export function preserveInFlightProviderResults(
+  results: ProviderDetailResults,
+  inFlightFetches: Map<string, InFlightProviderFetch>,
+): ProviderDetailResults {
+  return Object.fromEntries(Object.entries(results).filter(([providerId]) => inFlightFetches.has(providerId)));
+}
+
+function setProviderLoading(
+  providerId: string,
+  setResults: (update: (current: ProviderDetailResults) => ProviderDetailResults) => void,
+  optimisticResults: ProviderDetailResults,
+): void {
+  setResults((current) => ({
+    ...current,
+    [providerId]: {
+      ...(current[providerId] ?? optimisticResults[providerId]),
+      error: undefined,
+      isLoading: true,
+    },
+  }));
+}
+
+function clearProviderLoading(
+  providerId: string,
+  fetchId: number,
+  inFlightFetches: Map<string, InFlightProviderFetch>,
+  setResults: (update: (current: ProviderDetailResults) => ProviderDetailResults) => void,
+): void {
+  if (inFlightFetches.get(providerId)?.fetchId !== fetchId) {
+    return;
+  }
+
+  setResults((current) => {
+    const currentResult = current[providerId];
+    if (!currentResult?.isLoading) {
+      return current;
+    }
+
+    return {
+      ...current,
+      [providerId]: {
+        ...currentResult,
+        isLoading: false,
+      },
+    };
+  });
 }
 
 export async function runProviderDetailFetches({

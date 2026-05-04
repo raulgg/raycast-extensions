@@ -2,9 +2,12 @@ import { Cache } from "@raycast/api";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   buildCachedProviderResults,
+  canApplyProviderFetchResult,
   cacheProviderDetail,
+  preserveInFlightProviderResults,
   runProviderDetailFetches,
   shouldRefreshSelectedProvider,
+  type InFlightProviderFetch,
 } from "./useProviderDetails";
 import type { ProviderDetailData } from "../providers/types";
 
@@ -136,5 +139,72 @@ describe("runProviderDetailFetches", () => {
   it("fetches selected providers with no data unless current generation already completed", () => {
     expect(shouldRefreshSelectedProvider(undefined, undefined, 1)).toBe(true);
     expect(shouldRefreshSelectedProvider(undefined, 1, 1)).toBe(false);
+  });
+
+  it("preserves in-flight provider state across batch resets", () => {
+    const inFlightFetches = new Map<string, InFlightProviderFetch>([
+      ["claude", { binaryKey: "path\0codexbar", fetchId: 1, generation: 2 }],
+    ]);
+
+    expect(
+      preserveInFlightProviderResults(
+        {
+          claude: { isLoading: true },
+          codex: { isLoading: false, detail: makeDetail("codex", "2026-04-15T12:00:00Z") },
+        },
+        inFlightFetches,
+      ),
+    ).toEqual({
+      claude: { isLoading: true },
+    });
+  });
+
+  it("accepts only current in-flight provider fetch results", () => {
+    const inFlightFetch = { binaryKey: "path\0codexbar", fetchId: 1, generation: 2 };
+    const currentProviderIds = new Set(["claude"]);
+
+    expect(
+      canApplyProviderFetchResult({
+        binaryKey: "path\0codexbar",
+        currentBinaryKey: "path\0codexbar",
+        currentProviderIds,
+        fetchId: 1,
+        inFlightFetch,
+        providerId: "claude",
+      }),
+    ).toBe(true);
+
+    expect(
+      canApplyProviderFetchResult({
+        binaryKey: "path\0codexbar",
+        currentBinaryKey: "fallback\0codexbar",
+        currentProviderIds,
+        fetchId: 1,
+        inFlightFetch,
+        providerId: "claude",
+      }),
+    ).toBe(false);
+
+    expect(
+      canApplyProviderFetchResult({
+        binaryKey: "path\0codexbar",
+        currentBinaryKey: "path\0codexbar",
+        currentProviderIds: new Set(["codex"]),
+        fetchId: 1,
+        inFlightFetch,
+        providerId: "claude",
+      }),
+    ).toBe(false);
+
+    expect(
+      canApplyProviderFetchResult({
+        binaryKey: "path\0codexbar",
+        currentBinaryKey: "path\0codexbar",
+        currentProviderIds,
+        fetchId: 2,
+        inFlightFetch,
+        providerId: "claude",
+      }),
+    ).toBe(false);
   });
 });
