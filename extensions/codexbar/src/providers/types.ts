@@ -12,6 +12,7 @@ export type ConfiguredProvider = {
 export type ProviderSectionItem = {
   label: string;
   value: string;
+  personal?: boolean;
 };
 
 export type ProviderUsagePacingStage =
@@ -42,6 +43,7 @@ export type ProviderUsageSection = {
   remainingPercent: number;
   resetsIn?: string;
   usagePacing?: ProviderUsagePacing;
+  nextRegenPercent?: number;
 };
 
 export type ProviderSupplementalUsageSection = {
@@ -50,6 +52,7 @@ export type ProviderSupplementalUsageSection = {
   remainingPercent: number;
   resetsIn?: string;
   usagePacing?: ProviderUsagePacing;
+  nextRegenPercent?: number;
 };
 
 export type ProviderCreditsSection = {
@@ -87,6 +90,10 @@ export type ProviderDetailData = {
   fetchedAt: string;
   updatedAt?: string;
   accountEmail?: string;
+  accountLabel?: string;
+  accountOrganization?: string;
+  source?: string;
+  cliVersion?: string;
   planText?: string;
   sections: ProviderSection[];
   markdown: string;

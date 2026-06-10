@@ -71,7 +71,10 @@ _Avoid_: Enabled provider, active provider
 The CodexBar config file (`~/.codexbar/config.json`), owned by the CodexBar app, listing which Providers are enabled and in what order. The extension reads and reorders it but treats the app as the owner.
 
 **Source**:
-How the CodexBar CLI acquires a Provider's usage — API, browser session (web), OAuth, local file, or CLI. Upstream categorizes Providers by source; this extension requests `auto` and does not currently surface which source was used.
+How the CodexBar CLI acquires a Provider's usage — API, browser session (web), OAuth, local file, or CLI. Upstream categorizes Providers by source; this extension requests `auto` and shows the source the CLI reports back as a "Source" row in the detail view's General section.
+
+**Provider id alias**:
+An alternate spelling the CLI accepts for a Provider id (its `cliName` or upstream aliases, e.g. `alibaba-coding-plan` → `alibaba`, `groqcloud` → `groq`). The registry resolves aliases to the canonical id (the upstream enum case name, which is what the config file and payloads use) so a config listing either spelling renders one row.
 
 ## Identity & Supplemental Meters
 
@@ -83,4 +86,7 @@ Upstream's single identity field carrying both how you authenticated and your pl
 _Avoid_: Plan, tier, subscription (upstream models no such standalone field)
 
 **Supplemental usage**:
-A Provider-specific usage meter that falls outside the Primary/Secondary/Tertiary windows (e.g. Codex's "Code review" allowance; upstream also models Cursor requests and z.ai/MiniMax/OpenRouter metrics). The extension currently surfaces only Code review.
+A Provider-specific usage meter that falls outside the Primary/Secondary/Tertiary windows. The extension surfaces: Codex's "Code review" allowance, named **extra rate windows** (upstream `extraRateWindows`, e.g. "Codex Spark"), and OpenRouter key usage (via a per-field mapper table in `normalize.ts`). Upstream also models shapes not yet mapped — `cursorRequests`, `zaiUsage`, `minimaxUsage`, `kiroUsage`, `mistralUsage`, `deepseekUsage`, `deepgramUsage`, `openAIAPIUsage`, `claudeAdminAPIUsage`, and `antigravityPlanInfo` — deferred until their live JSON can be sampled; unmapped shapes render nothing.
+
+**General section**:
+The detail view's info list: Last Updated, Source, CLI-reported version, account label and organization (both hidden by the _Hide Personal Information_ preference), and subscription renewal/expiry dates when the payload carries them. Recent credit events and the OpenAI dashboard's daily credit spend render as their own info sections.

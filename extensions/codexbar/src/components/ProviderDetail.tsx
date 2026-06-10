@@ -3,7 +3,7 @@ import { buildProviderErrorMarkdown, formatRelativeUpdateTime } from "../lib/pre
 import type { ProviderDetailCacheStatus } from "../hooks/useProviderDetails";
 import { getHidePersonalInfoPreference } from "../preferences";
 import { buildProviderDetailMarkdown, buildProviderLoadingMarkdown } from "../providers/markdown";
-import type { ConfiguredProvider, ProviderDetailData } from "../providers/types";
+import type { ConfiguredProvider, ProviderDetailData, ProviderSection } from "../providers/types";
 
 type ProviderDetailProps = {
   provider: ConfiguredProvider;
@@ -24,14 +24,10 @@ export function ProviderDetail({
 }: ProviderDetailProps) {
   const hidePersonalInfo = getHidePersonalInfoPreference();
   const detailMarkdown = detail
-    ? buildProviderDetailMarkdown(
-        hidePersonalInfo ? { ...detail, accountEmail: undefined } : detail,
-        environment.appearance,
-        {
-          subtitle: getHeaderSubtitle(detail, isLoading, cacheStatus, relativeTimeNow),
-          now: relativeTimeNow,
-        },
-      ).trim()
+    ? buildProviderDetailMarkdown(hidePersonalInfo ? redactPersonalInfo(detail) : detail, environment.appearance, {
+        subtitle: getHeaderSubtitle(detail, isLoading, cacheStatus, relativeTimeNow),
+        now: relativeTimeNow,
+      }).trim()
     : undefined;
   const markdown =
     detailMarkdown ??
@@ -42,6 +38,30 @@ export function ProviderDetail({
         : "No data available");
 
   return <List.Item.Detail isLoading={isLoading} markdown={markdown} />;
+}
+
+export function redactPersonalInfo(detail: ProviderDetailData): ProviderDetailData {
+  const sections: ProviderSection[] = [];
+
+  for (const section of detail.sections) {
+    if (section.kind !== "info") {
+      sections.push(section);
+      continue;
+    }
+
+    const items = section.items.filter((item) => !item.personal);
+    if (items.length > 0) {
+      sections.push({ ...section, items });
+    }
+  }
+
+  return {
+    ...detail,
+    accountEmail: undefined,
+    accountLabel: undefined,
+    accountOrganization: undefined,
+    sections,
+  };
 }
 
 function getHeaderSubtitle(

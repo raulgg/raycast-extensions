@@ -3,7 +3,7 @@ import { access, readFile, writeFile } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
 import { delimiter, join } from "node:path";
 import { execFile } from "node:child_process";
-import { getProviderMetadata, isKnownProviderId, isProviderSelectorId } from "../providers/registry";
+import { getProviderMetadata, isKnownProviderId, isProviderSelectorId, resolveProviderId } from "../providers/registry";
 import { extractProviderErrorMessage, normalizeProviderDetailPayload } from "../providers/normalize";
 import type { ConfiguredProvider, ProviderDetailData } from "../providers/types";
 import { getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
@@ -481,6 +481,8 @@ function extractConfiguredProvidersFromConfig(rawConfig: string): ConfiguredProv
   const parsedConfig = JSON.parse(rawConfig) as CodexBarConfig;
   const providers = normalizeConfiguredProviders(parsedConfig);
 
+  const seenProviderIds = new Set<string>();
+
   return providers
     .filter(
       (provider): provider is { id: string; enabled: true } =>
@@ -488,6 +490,15 @@ function extractConfiguredProvidersFromConfig(rawConfig: string): ConfiguredProv
     )
     .map((provider) => provider.id.trim())
     .filter((providerId) => !isProviderSelectorId(providerId) && isKnownProviderId(providerId))
+    .filter((providerId) => {
+      const canonicalId = resolveProviderId(providerId);
+      if (seenProviderIds.has(canonicalId)) {
+        return false;
+      }
+
+      seenProviderIds.add(canonicalId);
+      return true;
+    })
     .map((providerId) => {
       const metadata = getProviderMetadata(providerId);
       return {
@@ -576,7 +587,9 @@ function findConfiguredProviderMoveIndexes(
     return [{ id, index }];
   });
 
-  const currentVisibleIndex = visibleProviders.findIndex((provider) => provider.id === providerId);
+  const currentVisibleIndex = visibleProviders.findIndex(
+    (provider) => resolveProviderId(provider.id) === resolveProviderId(providerId),
+  );
   if (currentVisibleIndex < 0) {
     return undefined;
   }

@@ -7,7 +7,7 @@ export type ProviderProgressPalette = {
 
 export type ProviderUsageSectionLabels = {
   primary: string;
-  secondary: string;
+  secondary?: string;
   tertiary?: string;
 };
 
@@ -192,7 +192,187 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#20B2AA",
     usageSectionLabels: { primary: "Credits", secondary: "Bonus credits", tertiary: "Purchased" },
   },
+  openai: {
+    name: "OpenAI",
+    icon: providerIcon("codex", Icon.Terminal),
+    brandColor: "#0F826E",
+    usageSectionLabels: { primary: "Spend", secondary: "Requests" },
+  },
+  azureopenai: {
+    name: "Azure OpenAI",
+    icon: providerIcon("codex", Icon.Terminal),
+    brandColor: "#0078D4",
+    usageSectionLabels: { primary: "Status", secondary: "Deployment" },
+  },
+  alibabatokenplan: {
+    name: "Alibaba Token Plan",
+    icon: providerIcon("alibaba"),
+    brandColor: "#FF6A00",
+    usageSectionLabels: { primary: "Credits", secondary: "Usage" },
+  },
+  manus: {
+    name: "Manus",
+    icon: providerIcon("manus"),
+    brandColor: "#34322D",
+    usageSectionLabels: { primary: "Monthly credits", secondary: "Daily refresh" },
+  },
+  moonshot: {
+    name: "Moonshot / Kimi API",
+    icon: providerIcon("kimi"),
+    brandColor: "#205DEB",
+    usageSectionLabels: { primary: "Balance", secondary: "Balance" },
+  },
+  t3chat: {
+    name: "T3 Chat",
+    icon: providerIcon("t3chat", Icon.Bubble),
+    brandColor: "#F56647",
+    usageSectionLabels: { primary: "Base", secondary: "Overage" },
+  },
+  elevenlabs: {
+    name: "ElevenLabs",
+    icon: providerIcon("elevenlabs", Icon.SpeakerOn),
+    brandColor: "#EBEBE6",
+    usageSectionLabels: { primary: "Credits", secondary: "Voices" },
+  },
+  windsurf: {
+    name: "Windsurf",
+    icon: providerIcon("windsurf", Icon.Code),
+    brandColor: "#34E8BB",
+    usageSectionLabels: { primary: "Daily", secondary: "Weekly" },
+  },
+  mimo: {
+    name: "Xiaomi MiMo",
+    icon: providerIcon("mimo"),
+    brandColor: "#FF6900",
+    usageSectionLabels: { primary: "Credits", secondary: "Window" },
+  },
+  doubao: {
+    name: "Doubao",
+    icon: providerIcon("doubao"),
+    brandColor: "#3370FF",
+    usageSectionLabels: { primary: "Requests", secondary: "Rate limit" },
+  },
+  abacus: {
+    name: "Abacus AI",
+    icon: providerIcon("abacus", Icon.BarChart),
+    brandColor: "#38BDF8",
+    usageSectionLabels: { primary: "Credits", secondary: "Weekly" },
+  },
+  mistral: {
+    name: "Mistral",
+    icon: providerIcon("mistral", Icon.Bolt),
+    brandColor: "#FF500F",
+    usageSectionLabels: { primary: "Monthly" },
+  },
+  deepseek: {
+    name: "DeepSeek",
+    icon: providerIcon("deepseek"),
+    brandColor: "#527DF0",
+    usageSectionLabels: { primary: "Balance", secondary: "Balance" },
+  },
+  codebuff: {
+    name: "Codebuff",
+    icon: providerIcon("codebuff", Icon.Code),
+    brandColor: "#44FF00",
+    usageSectionLabels: { primary: "Credits", secondary: "Weekly" },
+  },
+  crof: {
+    name: "Crof",
+    icon: providerIcon("crof"),
+    brandColor: "#2EAB94",
+    usageSectionLabels: { primary: "Requests", secondary: "Credits" },
+  },
+  venice: {
+    name: "Venice",
+    icon: providerIcon("venice", Icon.Globe),
+    brandColor: "#3399FF",
+    usageSectionLabels: { primary: "Balance", secondary: "Balance" },
+  },
+  commandcode: {
+    name: "Command Code",
+    icon: providerIcon("commandcode", Icon.Terminal),
+    brandColor: "#000000",
+    usageSectionLabels: { primary: "Monthly credits", secondary: "Monthly" },
+  },
+  stepfun: {
+    name: "StepFun",
+    icon: providerIcon("stepfun"),
+    brandColor: "#2196F2",
+    usageSectionLabels: { primary: "5h Window", secondary: "Weekly Window" },
+  },
+  bedrock: {
+    name: "AWS Bedrock",
+    icon: providerIcon("bedrock", Icon.Cloud),
+    brandColor: "#FF9900",
+    usageSectionLabels: { primary: "Budget", secondary: "Cost" },
+  },
+  grok: {
+    name: "Grok",
+    icon: providerIcon("grok", Icon.Stars),
+    brandColor: "#10A37F",
+    usageSectionLabels: { primary: "Credits", secondary: "On-demand" },
+  },
+  groq: {
+    name: "Groq",
+    icon: providerIcon("groq", Icon.Bolt),
+    brandColor: "#F56844",
+    usageSectionLabels: { primary: "Requests", secondary: "Tokens" },
+  },
+  llmproxy: {
+    name: "LLM Proxy",
+    icon: providerIcon("llmproxy", Icon.Network),
+    brandColor: "#24B47E",
+    usageSectionLabels: { primary: "Quota", secondary: "Requests" },
+  },
+  deepgram: {
+    name: "Deepgram",
+    icon: providerIcon("deepgram", Icon.Microphone),
+    brandColor: "#6467F2",
+    usageSectionLabels: { primary: "Requests", secondary: "Usage" },
+  },
 } satisfies Record<string, ProviderDefinition>;
+
+// Alternate spellings the CLI accepts (cliName + aliases from upstream
+// ProviderCLIConfig), mapped to the canonical config.json/payload id.
+const PROVIDER_ID_ALIASES: Record<string, string> = {
+  "alibaba-coding-plan": "alibaba",
+  bailian: "alibaba",
+  "alibaba-token-plan": "alibabatokenplan",
+  "alibaba-token": "alibabatokenplan",
+  "bailian-token-plan": "alibabatokenplan",
+  "azure-openai": "azureopenai",
+  aoai: "azureopenai",
+  "openai-api": "openai",
+  abacusai: "abacus",
+  "abacus-ai": "abacus",
+  groqcloud: "groq",
+  "groq-api": "groq",
+  "aws-bedrock": "bedrock",
+  manicode: "codebuff",
+  "command-code": "commandcode",
+  crofai: "crof",
+  dg: "deepgram",
+  "deep-seek": "deepseek",
+  ds: "deepseek",
+  volcengine: "doubao",
+  ark: "doubao",
+  bytedance: "doubao",
+  "11labs": "elevenlabs",
+  eleven: "elevenlabs",
+  "llm-api-key-proxy": "llmproxy",
+  "llm-proxy": "llmproxy",
+  "xiaomi-mimo": "mimo",
+  "mistral-ai": "mistral",
+  "step-fun": "stepfun",
+  sf: "stepfun",
+  "t3-chat": "t3chat",
+  t3: "t3chat",
+  ven: "venice",
+};
+
+export function resolveProviderId(id: string): string {
+  return PROVIDER_ID_ALIASES[id] ?? id;
+}
 
 export const PROVIDER_IDS = Object.keys(PROVIDER_DEFINITIONS);
 export const PROVIDER_SELECTOR_IDS = ["all", "both"] as const;
@@ -268,7 +448,7 @@ function fallbackName(id: string): string {
 }
 
 export function isKnownProviderId(id: string): boolean {
-  return PROVIDER_REGISTRY.has(id);
+  return PROVIDER_REGISTRY.has(resolveProviderId(id));
 }
 
 export function isProviderSelectorId(id: string): boolean {
@@ -276,7 +456,7 @@ export function isProviderSelectorId(id: string): boolean {
 }
 
 export function getProviderMetadata(id: string): ProviderRegistryEntry {
-  const entry = PROVIDER_REGISTRY.get(id);
+  const entry = PROVIDER_REGISTRY.get(resolveProviderId(id));
   if (entry) {
     return entry;
   }
@@ -303,7 +483,7 @@ export function getProviderUsageSectionDisplayTitle(providerId: string, sectionT
   }
 
   if (sectionTitle === "Secondary") {
-    return labels.secondary;
+    return labels.secondary ?? sectionTitle;
   }
 
   if (sectionTitle === "Tertiary") {

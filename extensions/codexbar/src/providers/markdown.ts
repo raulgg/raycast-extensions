@@ -266,6 +266,9 @@ function renderMetricSection(
         right: section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
       },
       ...(usagePacingFooter ? [{ left: usagePacingFooter.leftLabel, right: usagePacingFooter.rightLabel }] : []),
+      ...(section.nextRegenPercent !== undefined
+        ? [{ left: `Regenerates ${formatPercent(section.nextRegenPercent)} next tick` }]
+        : []),
     ],
     providerId,
     appearance,

@@ -9,6 +9,7 @@ import {
   isKnownProviderId,
   PROVIDER_IDS,
   PROVIDER_SELECTOR_IDS,
+  resolveProviderId,
 } from "./registry";
 
 describe("provider registry", () => {
@@ -27,6 +28,75 @@ describe("provider registry", () => {
   it("recognizes known providers", () => {
     expect(isKnownProviderId("codex")).toBe(true);
     expect(isKnownProviderId("unknown-provider")).toBe(false);
+  });
+
+  it("covers every provider id the upstream CLI exposes", () => {
+    const upstreamEnumIds = [
+      "openai",
+      "azureopenai",
+      "alibabatokenplan",
+      "manus",
+      "moonshot",
+      "t3chat",
+      "elevenlabs",
+      "windsurf",
+      "mimo",
+      "doubao",
+      "abacus",
+      "mistral",
+      "deepseek",
+      "codebuff",
+      "crof",
+      "venice",
+      "commandcode",
+      "stepfun",
+      "bedrock",
+      "grok",
+      "groq",
+      "llmproxy",
+      "deepgram",
+    ];
+
+    for (const providerId of upstreamEnumIds) {
+      expect(PROVIDER_IDS, `missing registry entry for ${providerId}`).toContain(providerId);
+    }
+  });
+
+  it("resolves upstream CLI aliases to canonical provider ids", () => {
+    expect(resolveProviderId("alibaba-coding-plan")).toBe("alibaba");
+    expect(resolveProviderId("alibaba-token-plan")).toBe("alibabatokenplan");
+    expect(resolveProviderId("azure-openai")).toBe("azureopenai");
+    expect(resolveProviderId("abacusai")).toBe("abacus");
+    expect(resolveProviderId("groqcloud")).toBe("groq");
+    expect(resolveProviderId("codex")).toBe("codex");
+    expect(resolveProviderId("unknown-provider")).toBe("unknown-provider");
+
+    expect(isKnownProviderId("alibaba-coding-plan")).toBe(true);
+    expect(getProviderMetadata("alibaba-coding-plan").id).toBe("alibaba");
+    expect(getProviderMetadata("groqcloud").name).toBe("Groq");
+  });
+
+  it("uses harvested upstream metadata for new providers", () => {
+    expect(getProviderMetadata("openai")).toMatchObject({
+      name: "OpenAI",
+      brandColor: "#0F826E",
+      usageSectionLabels: { primary: "Spend", secondary: "Requests" },
+    });
+    expect(getProviderMetadata("mistral")).toMatchObject({
+      name: "Mistral",
+      brandColor: "#FF500F",
+      usageSectionLabels: { primary: "Monthly" },
+    });
+    expect(getProviderMetadata("alibabatokenplan")).toMatchObject({
+      name: "Alibaba Token Plan",
+      brandColor: "#FF6A00",
+      usageSectionLabels: { primary: "Credits", secondary: "Usage" },
+    });
+  });
+
+  it("falls back to the semantic slot title when a label is missing", () => {
+    expect(getProviderUsageSectionDisplayTitle("mistral", "Primary")).toBe("Monthly");
+    expect(getProviderUsageSectionDisplayTitle("mistral", "Secondary")).toBe("Secondary");
   });
 
   it("returns friendly metadata for known providers", () => {

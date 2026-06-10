@@ -17,6 +17,7 @@ type MockWindow = {
   usedPercent: number;
   resetsAt: string | null;
   resetDescription: string | null;
+  nextRegenPercent?: number;
 };
 
 type MockPayloadOptions = {
@@ -55,6 +56,29 @@ const MOCK_SOURCES: Record<string, string> = {
   warp: "api",
   openrouter: "api",
   perplexity: "api",
+  openai: "api",
+  azureopenai: "api",
+  alibabatokenplan: "web",
+  manus: "web",
+  moonshot: "api",
+  t3chat: "web",
+  elevenlabs: "api",
+  windsurf: "web",
+  mimo: "web",
+  doubao: "web",
+  abacus: "web",
+  mistral: "web",
+  deepseek: "api",
+  codebuff: "api",
+  crof: "api",
+  venice: "api",
+  commandcode: "web",
+  stepfun: "web",
+  bedrock: "oauth",
+  grok: "web",
+  groq: "api",
+  llmproxy: "api",
+  deepgram: "api",
 };
 
 const MOCK_VERSIONS: Record<string, string | null> = {
@@ -81,11 +105,13 @@ function buildWindow(
   usedPercent: number,
   resetOffsetMs: number | null,
   resetDescription: string | null = null,
+  nextRegenPercent?: number,
 ): MockWindow {
   return {
     usedPercent,
     resetsAt: resetOffsetMs === null ? null : offsetIso(now, resetOffsetMs),
     resetDescription,
+    ...(nextRegenPercent === undefined ? {} : { nextRegenPercent }),
   };
 }
 
@@ -254,7 +280,16 @@ function buildCodex(now: Date): RawProviderPayload {
       buildWindow(now, 61, 90 * MINUTE, "Session"),
       buildWindow(now, 19, 7 * DAY, "Weekly"),
       null,
-      buildIdentity("codex", "dev@example.com", null, "pro"),
+      {
+        extraRateWindows: [
+          {
+            id: "codex-spark",
+            title: "Codex Spark",
+            window: buildWindow(now, 12, 5 * HOUR, null),
+          },
+        ],
+        ...buildIdentity("codex", "dev@example.com", null, "pro"),
+      },
     ),
     credits: buildCredits(now, 12.5),
     antigravityPlanInfo: null,
@@ -270,10 +305,11 @@ function buildClaude(now: Date): RawProviderPayload {
     usage: buildUsage(
       now,
       buildWindow(now, 48, 2 * DAY, "Daily"),
-      buildWindow(now, 71, 7 * DAY, "Weekly"),
+      buildWindow(now, 71, 7 * DAY, "Weekly", 4),
       buildWindow(now, 91, 30 * DAY, "Monthly"),
       {
         providerCost: buildClaudeProviderCost(now),
+        subscriptionRenewsAt: offsetIso(now, 21 * DAY),
         ...buildIdentity("claude", "dev@example.com", "Example Labs", "oauth"),
       },
     ),
@@ -690,6 +726,36 @@ function buildPerplexity(now: Date): RawProviderPayload {
   });
 }
 
+function hashSeed(value: string): number {
+  let hash = 0;
+  for (const character of value) {
+    hash = (hash * 31 + character.charCodeAt(0)) | 0;
+  }
+
+  return Math.abs(hash);
+}
+
+function buildGenericProvider(providerId: string, windowCount: 1 | 2 = 2): MockBuilder {
+  return (now) => {
+    const seed = hashSeed(providerId);
+    return buildPayload(providerId, {
+      source: MOCK_SOURCES[providerId] ?? "api",
+      version: MOCK_VERSIONS[providerId] ?? null,
+      status: null,
+      usage: buildUsage(
+        now,
+        buildWindow(now, 15 + (seed % 70), 5 * HOUR, null),
+        windowCount > 1 ? buildWindow(now, 10 + (seed % 80), 7 * DAY, null) : null,
+        null,
+        buildIdentity(providerId, null, null, "Pro"),
+      ),
+      credits: null,
+      antigravityPlanInfo: null,
+      openaiDashboard: null,
+    });
+  };
+}
+
 const MOCK_BUILDERS: Record<string, MockBuilder> = {
   codex: buildCodex,
   claude: buildClaude,
@@ -716,6 +782,29 @@ const MOCK_BUILDERS: Record<string, MockBuilder> = {
   warp: buildWarp,
   openrouter: buildOpenRouter,
   perplexity: buildPerplexity,
+  openai: buildGenericProvider("openai"),
+  azureopenai: buildGenericProvider("azureopenai"),
+  alibabatokenplan: buildGenericProvider("alibabatokenplan"),
+  manus: buildGenericProvider("manus"),
+  moonshot: buildGenericProvider("moonshot"),
+  t3chat: buildGenericProvider("t3chat"),
+  elevenlabs: buildGenericProvider("elevenlabs"),
+  windsurf: buildGenericProvider("windsurf"),
+  mimo: buildGenericProvider("mimo"),
+  doubao: buildGenericProvider("doubao"),
+  abacus: buildGenericProvider("abacus"),
+  mistral: buildGenericProvider("mistral", 1),
+  deepseek: buildGenericProvider("deepseek"),
+  codebuff: buildGenericProvider("codebuff"),
+  crof: buildGenericProvider("crof"),
+  venice: buildGenericProvider("venice"),
+  commandcode: buildGenericProvider("commandcode"),
+  stepfun: buildGenericProvider("stepfun"),
+  bedrock: buildGenericProvider("bedrock"),
+  grok: buildGenericProvider("grok"),
+  groq: buildGenericProvider("groq"),
+  llmproxy: buildGenericProvider("llmproxy"),
+  deepgram: buildGenericProvider("deepgram"),
 };
 
 const missingMockProviderIds = PROVIDER_IDS.filter((id) => !MOCK_BUILDERS[id]);

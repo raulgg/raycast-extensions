@@ -222,6 +222,23 @@ describe("codexbar runtime helpers", () => {
     ]);
   });
 
+  it("resolves alias provider ids and dedupes them against the canonical id", async () => {
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        providers: [
+          { id: "alibaba-coding-plan", enabled: true },
+          { id: "alibaba", enabled: true },
+          { id: "groqcloud", enabled: true },
+        ],
+      }),
+    );
+
+    const providers = await readConfiguredProvidersFromConfig();
+
+    expect(providers.map((provider) => provider.id)).toEqual(["alibaba", "groq"]);
+    expect(providers[1].name).toBe("Groq");
+  });
+
   it("throws when the config file is missing", async () => {
     readFileMock.mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" }));
 

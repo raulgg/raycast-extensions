@@ -304,4 +304,178 @@ describe("provider normalization", () => {
 
     expect(message).toBe("No available fetch strategy for alibaba.");
   });
+
+  it("surfaces source, version, account, organization, and subscription dates in General", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "claude",
+        source: "openai-web",
+        version: "2.1.170",
+        account: "work",
+        usage: {
+          primary: { usedPercent: 10, resetsAt: "2026-03-23T12:00:00Z" },
+          subscriptionRenewsAt: "2026-04-01T00:00:00Z",
+          subscriptionExpiresAt: "2026-05-01T00:00:00Z",
+          identity: { accountOrganization: "Example Labs" },
+          updatedAt: "2026-03-23T09:00:00Z",
+        },
+      },
+      "claude",
+      Date.parse("2026-03-23T10:30:00Z"),
+    );
+
+    expect(detail.source).toBe("OpenAI Web");
+    expect(detail.cliVersion).toBe("2.1.170");
+    expect(detail.accountLabel).toBe("work");
+    expect(detail.accountOrganization).toBe("Example Labs");
+
+    const generalSection = detail.sections.find((section) => section.kind === "info" && section.title === "General");
+    expect(generalSection).toMatchObject({
+      kind: "info",
+      title: "General",
+      items: [
+        { label: "Last Updated", value: formatLocalDateTime("2026-03-23T09:00:00Z") },
+        { label: "Source", value: "OpenAI Web" },
+        { label: "Version", value: "2.1.170" },
+        { label: "Account", value: "work", personal: true },
+        { label: "Organization", value: "Example Labs", personal: true },
+        { label: "Renews", value: formatLocalDateTime("2026-04-01T00:00:00Z") },
+        { label: "Expires", value: formatLocalDateTime("2026-05-01T00:00:00Z") },
+      ],
+    });
+  });
+
+  it("renders named extra rate windows after the slot sections", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "codex",
+        usage: {
+          primary: { usedPercent: 40, resetsAt: "2026-03-23T12:00:00Z" },
+          extraRateWindows: [
+            {
+              id: "codex-spark",
+              title: "Codex Spark",
+              window: { usedPercent: 25, resetsAt: "2026-03-23T15:30:00Z", nextRegenPercent: 5 },
+            },
+          ],
+        },
+      },
+      "codex",
+      Date.parse("2026-03-23T10:30:00Z"),
+    );
+
+    expect(detail.sections).toMatchObject([
+      { kind: "usage", title: "Primary", remainingPercent: 60 },
+      {
+        kind: "supplementalUsage",
+        title: "Codex Spark",
+        remainingPercent: 75,
+        resetsIn: "5h",
+        nextRegenPercent: 5,
+      },
+    ]);
+  });
+
+  it("passes nextRegenPercent through slot windows and renders the regen footer", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "claude",
+        usage: {
+          primary: { usedPercent: 30, resetsAt: "2026-03-23T12:00:00Z", nextRegenPercent: 4 },
+        },
+      },
+      "claude",
+      Date.parse("2026-03-23T10:30:00Z"),
+    );
+    const [detailSvg] = extractSvgMarkup(detail.markdown);
+
+    expect(detail.sections[0]).toMatchObject({ kind: "usage", nextRegenPercent: 4 });
+    expect(detailSvg).toContain(">Regenerates 4% next tick<");
+  });
+
+  it("lists recent credit events newest first and caps them at three", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "codex",
+        credits: {
+          remaining: 10,
+          events: [
+            { id: "1", date: "2026-03-20T10:00:00Z", service: "Codex", creditsUsed: 1.5 },
+            { id: "2", date: "2026-03-23T10:00:00Z", service: "Code Review", creditsUsed: 2 },
+            { id: "3", date: "2026-03-21T10:00:00Z", service: "Codex", creditsUsed: 0.5 },
+            { id: "4", date: "2026-03-19T10:00:00Z", service: "Codex", creditsUsed: 4 },
+          ],
+        },
+      },
+      "codex",
+      Date.parse("2026-03-23T10:30:00Z"),
+    );
+
+    const eventsSection = detail.sections.find(
+      (section) => section.kind === "info" && section.title === "Recent credit activity",
+    );
+    expect(eventsSection).toMatchObject({
+      items: [
+        { label: "Mar 23 · Code Review", value: "2 credits" },
+        { label: "Mar 21 · Codex", value: "0.5 credits" },
+        { label: "Mar 20 · Codex", value: "1.5 credits" },
+      ],
+    });
+  });
+
+  it("summarizes the OpenAI dashboard daily credit spend", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "codex",
+        openaiDashboard: {
+          usageBreakdown: [
+            { day: "2026-03-22", totalCreditsUsed: 3.5, services: [{ service: "CLI", creditsUsed: 3.5 }] },
+            { day: "2026-03-23", totalCreditsUsed: 1.25, services: [{ service: "Code Review", creditsUsed: 1.25 }] },
+          ],
+        },
+      },
+      "codex",
+      Date.parse("2026-03-23T10:30:00Z"),
+    );
+
+    const spendSection = detail.sections.find(
+      (section) => section.kind === "info" && section.title === "Daily credit spend",
+    );
+    expect(spendSection).toMatchObject({
+      items: [
+        { label: "Mar 23", value: "1.3 credits" },
+        { label: "Mar 22", value: "3.5 credits" },
+      ],
+    });
+  });
+
+  it("maps openRouterUsage into supplemental and info sections", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "openrouter",
+        usage: {
+          openRouterUsage: {
+            usedPercent: 49,
+            balance: 25.5,
+            keyUsage: 47,
+            keyLimit: 100,
+          },
+        },
+      },
+      "openrouter",
+      Date.parse("2026-03-23T10:30:00Z"),
+    );
+
+    expect(detail.sections).toMatchObject([
+      { kind: "supplementalUsage", title: "Credits used", remainingPercent: 51 },
+      {
+        kind: "info",
+        title: "OpenRouter",
+        items: [
+          { label: "Balance", value: "$25.50" },
+          { label: "Key usage", value: "$47 / $100" },
+        ],
+      },
+    ]);
+  });
 });

@@ -28,7 +28,7 @@
       "required": false,
       "title": "Advanced",
       "label": "Hide Personal Information",
-      "description": "Hide provider account emails in headers.",
+      "description": "Hide provider account emails, account labels, and organizations in the detail view.",
       "default": false
     }
   ],

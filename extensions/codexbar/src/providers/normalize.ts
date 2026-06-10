@@ -1,6 +1,12 @@
 import { calculateWeeklyUsagePacing } from "./usagePacing";
 import { getProviderMetadata, getProviderUsageSectionDisplayTitle, type ProviderUsagePacingSlot } from "./registry";
-import type { ProviderDetailData, ProviderInfoSection, ProviderSection, RawProviderPayload } from "./types";
+import type {
+  ProviderDetailData,
+  ProviderInfoSection,
+  ProviderSection,
+  ProviderSectionItem,
+  RawProviderPayload,
+} from "./types";
 import { formatLocalDateTime } from "../lib/presentation";
 import { buildProviderDetailMarkdown } from "./markdown";
 
@@ -205,7 +211,90 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
         remainingPercent: clampPercent(progressPercent),
         resetsIn: buildWindowReset(record, slot.resetTimestamp, now),
         usagePacing,
+        nextRegenPercent: toFiniteNumber(record.nextRegenPercent),
       });
+    }
+  }
+
+  return sections;
+}
+
+function buildExtraRateWindowSections(payload: RawProviderPayload, now = Date.now()): ProviderSection[] {
+  const usage = toRecord(payload.usage);
+  const extraRateWindows = Array.isArray(usage?.extraRateWindows) ? usage.extraRateWindows : [];
+  const sections: ProviderSection[] = [];
+
+  for (const entry of extraRateWindows) {
+    const record = toRecord(entry);
+    if (!record) {
+      continue;
+    }
+
+    const title = toTrimmedString(record.title) ?? toTrimmedString(record.id);
+    const window = toRecord(record.window);
+    const usedPercent = toFiniteNumber(window?.usedPercent);
+    if (!title || !window || usedPercent === undefined) {
+      continue;
+    }
+
+    sections.push({
+      kind: "supplementalUsage",
+      title,
+      remainingPercent: clampPercent(100 - usedPercent),
+      resetsIn: buildWindowReset(window, undefined, now),
+      nextRegenPercent: toFiniteNumber(window.nextRegenPercent),
+    });
+  }
+
+  return sections;
+}
+
+const SUPPLEMENTAL_USAGE_MAPPERS: Record<string, (record: RawProviderPayload, now: number) => ProviderSection[]> = {
+  openRouterUsage: (record) => {
+    const sections: ProviderSection[] = [];
+    const usedPercent = toFiniteNumber(record.usedPercent);
+    if (usedPercent !== undefined) {
+      sections.push({
+        kind: "supplementalUsage",
+        title: "Credits used",
+        remainingPercent: clampPercent(100 - usedPercent),
+      });
+    }
+
+    const items: ProviderSectionItem[] = [];
+    const balance = toFiniteNumber(record.balance);
+    if (balance !== undefined) {
+      items.push({ label: "Balance", value: formatCurrency(balance, "USD") });
+    }
+
+    const keyUsage = toFiniteNumber(record.keyUsage);
+    const keyLimit = toFiniteNumber(record.keyLimit);
+    if (keyUsage !== undefined && keyLimit !== undefined && keyLimit > 0) {
+      items.push({
+        label: "Key usage",
+        value: `${formatCurrency(keyUsage, "USD")} / ${formatCurrency(keyLimit, "USD")}`,
+      });
+    }
+
+    if (items.length > 0) {
+      sections.push({ kind: "info", title: "OpenRouter", items });
+    }
+
+    return sections;
+  },
+};
+
+function buildProviderSpecificUsageSections(payload: RawProviderPayload, now = Date.now()): ProviderSection[] {
+  const usage = toRecord(payload.usage);
+  if (!usage) {
+    return [];
+  }
+
+  const sections: ProviderSection[] = [];
+  for (const [fieldName, mapper] of Object.entries(SUPPLEMENTAL_USAGE_MAPPERS)) {
+    const record = toRecord(usage[fieldName]);
+    if (record) {
+      sections.push(...mapper(record, now));
     }
   }
 
@@ -275,16 +364,146 @@ function buildProviderCostSection(payload: RawProviderPayload): ProviderSection 
   };
 }
 
-function buildUpdatedSection(updatedAt?: string): ProviderInfoSection | undefined {
+function formatShortDate(isoTimestamp: string): string | undefined {
+  // Date-only strings parse as UTC midnight; treat them as local dates so the
+  // displayed day never shifts in timezones west of UTC.
+  const dateOnlyMatch = isoTimestamp.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const date = dateOnlyMatch
+    ? new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]))
+    : new Date(Date.parse(isoTimestamp));
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function buildCreditEventsSection(payload: RawProviderPayload): ProviderInfoSection | undefined {
+  const credits = toRecord(payload.credits);
+  const events = Array.isArray(credits?.events) ? credits.events : [];
+  const datedItems: Array<{ timestamp: number; item: ProviderSectionItem }> = [];
+
+  for (const entry of events) {
+    const record = toRecord(entry);
+    if (!record) {
+      continue;
+    }
+
+    const creditsUsed = toFiniteNumber(record.creditsUsed);
+    const service = toTrimmedString(record.service);
+    if (creditsUsed === undefined || !service) {
+      continue;
+    }
+
+    const date = toString(record.date);
+    const shortDate = date ? formatShortDate(date) : undefined;
+    const parsedDate = date ? Date.parse(date) : Number.NaN;
+    datedItems.push({
+      timestamp: Number.isNaN(parsedDate) ? 0 : parsedDate,
+      item: {
+        label: shortDate ? `${shortDate} · ${service}` : service,
+        value: `${formatNumber(creditsUsed)} credits`,
+      },
+    });
+  }
+
+  if (datedItems.length === 0) {
+    return undefined;
+  }
+
+  datedItems.sort((first, second) => second.timestamp - first.timestamp);
+  return {
+    kind: "info",
+    title: "Recent credit activity",
+    items: datedItems.slice(0, 3).map(({ item }) => item),
+  };
+}
+
+function buildDailyCreditSpendSection(payload: RawProviderPayload): ProviderInfoSection | undefined {
+  const dashboard = toRecord(payload.openaiDashboard);
+  const usageBreakdown = Array.isArray(dashboard?.usageBreakdown) ? dashboard.usageBreakdown : [];
+  const datedItems: Array<{ day: string; item: ProviderSectionItem }> = [];
+
+  for (const entry of usageBreakdown) {
+    const record = toRecord(entry);
+    if (!record) {
+      continue;
+    }
+
+    const day = toTrimmedString(record.day);
+    const totalCreditsUsed = toFiniteNumber(record.totalCreditsUsed);
+    if (!day || totalCreditsUsed === undefined) {
+      continue;
+    }
+
+    datedItems.push({
+      day,
+      item: {
+        label: formatShortDate(day) ?? day,
+        value: `${formatNumber(totalCreditsUsed)} credits`,
+      },
+    });
+  }
+
+  if (datedItems.length === 0) {
+    return undefined;
+  }
+
+  datedItems.sort((first, second) => second.day.localeCompare(first.day));
+  return {
+    kind: "info",
+    title: "Daily credit spend",
+    items: datedItems.slice(0, 5).map(({ item }) => item),
+  };
+}
+
+function buildGeneralInfoSection(payload: RawProviderPayload, updatedAt?: string): ProviderInfoSection | undefined {
+  const items: ProviderSectionItem[] = [];
+
   const formattedDate = formatLocalDateTime(updatedAt);
-  if (!formattedDate) {
+  if (formattedDate) {
+    items.push({ label: "Last Updated", value: formattedDate });
+  }
+
+  const source = extractSource(payload);
+  if (source) {
+    items.push({ label: "Source", value: source });
+  }
+
+  const cliVersion = extractCliVersion(payload);
+  if (cliVersion) {
+    items.push({ label: "Version", value: cliVersion });
+  }
+
+  const accountLabel = extractAccountLabel(payload);
+  if (accountLabel) {
+    items.push({ label: "Account", value: accountLabel, personal: true });
+  }
+
+  const accountOrganization = extractAccountOrganization(payload);
+  if (accountOrganization) {
+    items.push({ label: "Organization", value: accountOrganization, personal: true });
+  }
+
+  const usage = toRecord(payload.usage);
+  const renewsAt = formatLocalDateTime(toString(usage?.subscriptionRenewsAt));
+  if (renewsAt) {
+    items.push({ label: "Renews", value: renewsAt });
+  }
+
+  const expiresAt = formatLocalDateTime(toString(usage?.subscriptionExpiresAt));
+  if (expiresAt) {
+    items.push({ label: "Expires", value: expiresAt });
+  }
+
+  if (items.length === 0) {
     return undefined;
   }
 
   return {
     kind: "info",
     title: "General",
-    items: [{ label: "Last Updated", value: formattedDate }],
+    items,
   };
 }
 
@@ -301,6 +520,40 @@ function extractAccountEmail(payload: RawProviderPayload): string | undefined {
     usageIdentity?.accountEmail,
     account?.accountEmail,
     account?.email,
+  );
+}
+
+function extractSource(payload: RawProviderPayload): string | undefined {
+  const source = toTrimmedString(payload.source);
+  if (!source) {
+    return undefined;
+  }
+
+  return formatSlugLabel(source);
+}
+
+function extractCliVersion(payload: RawProviderPayload): string | undefined {
+  return toTrimmedString(payload.version);
+}
+
+function extractAccountLabel(payload: RawProviderPayload): string | undefined {
+  const account = toRecord(payload.account);
+
+  return firstString(payload.account, account?.label, account?.name);
+}
+
+function extractAccountOrganization(payload: RawProviderPayload): string | undefined {
+  const usage = toRecord(payload.usage);
+  const usageIdentity = toRecord(usage?.identity);
+  const identity = toRecord(payload.identity);
+  const account = toRecord(payload.account);
+
+  return firstString(
+    payload.accountOrganization,
+    identity?.accountOrganization,
+    usage?.accountOrganization,
+    usageIdentity?.accountOrganization,
+    account?.accountOrganization,
   );
 }
 
@@ -329,6 +582,7 @@ function formatSlugLabel(raw: string): string {
     ["oauth", "OAuth"],
     ["sso", "SSO"],
     ["usd", "USD"],
+    ["openai", "OpenAI"],
   ]);
 
   return raw
@@ -446,21 +700,36 @@ function normalizePayload(providerId: string, payload: RawProviderPayload, now =
   const fetchedAt = new Date(now).toISOString();
   const accountEmail = extractAccountEmail(payload);
   const planText = formatPlanText(metadata.id, payload);
-  const sections = [...buildUsageSections(metadata.id, payload, now), ...buildSupplementalUsageSections(payload, now)];
+  const sections = [
+    ...buildUsageSections(metadata.id, payload, now),
+    ...buildExtraRateWindowSections(payload, now),
+    ...buildSupplementalUsageSections(payload, now),
+    ...buildProviderSpecificUsageSections(payload, now),
+  ];
   const creditsSection = buildCreditsSection(payload);
+  const creditEventsSection = buildCreditEventsSection(payload);
   const providerCostSection = buildProviderCostSection(payload);
-  const updatedSection = buildUpdatedSection(updatedAt);
+  const dailyCreditSpendSection = buildDailyCreditSpendSection(payload);
+  const generalSection = buildGeneralInfoSection(payload, updatedAt);
 
   if (creditsSection) {
     sections.push(creditsSection);
+  }
+
+  if (creditEventsSection) {
+    sections.push(creditEventsSection);
   }
 
   if (providerCostSection) {
     sections.push(providerCostSection);
   }
 
-  if (updatedSection) {
-    sections.push(updatedSection);
+  if (dailyCreditSpendSection) {
+    sections.push(dailyCreditSpendSection);
+  }
+
+  if (generalSection) {
+    sections.push(generalSection);
   }
 
   const detail = {
@@ -470,6 +739,10 @@ function normalizePayload(providerId: string, payload: RawProviderPayload, now =
     fetchedAt,
     updatedAt,
     accountEmail,
+    accountLabel: extractAccountLabel(payload),
+    accountOrganization: extractAccountOrganization(payload),
+    source: extractSource(payload),
+    cliVersion: extractCliVersion(payload),
     planText,
     sections,
   };
