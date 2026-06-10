@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { formatLocalDateTime } from "../lib/presentation";
 import { extractSvgMarkup } from "../../test/svg-markdown";
 import { extractProviderErrorMessage, normalizeProviderDetailPayload } from "./normalize";
 
@@ -32,7 +31,6 @@ describe("provider normalization", () => {
   it("normalizes generic provider detail sections", () => {
     const detail = normalizeProviderDetailPayload(codexPayload, "codex", Date.parse("2026-03-23T10:30:00Z"));
     const [detailSvg] = extractSvgMarkup(detail.markdown);
-    const expectedUpdated = formatLocalDateTime("2026-03-23T09:00:00Z");
     const expectedHeaderUpdated = "1h ago";
 
     expect(detail.id).toBe("codex");
@@ -60,18 +58,6 @@ describe("provider normalization", () => {
         title: "Code review",
         remainingPercent: 78,
       },
-      {
-        kind: "credits",
-        title: "Credits",
-        remaining: "112.4",
-        remainingPercent: 11,
-        scaleLabel: "1K tokens",
-      },
-      {
-        kind: "info",
-        title: "General",
-        items: [{ label: "Last Updated", value: expectedUpdated }],
-      },
     ]);
     expect(detail.markdown).toContain("data:image/svg+xml;base64,");
     expect(detail.markdown).not.toContain("prefers-color-scheme");
@@ -89,11 +75,10 @@ describe("provider normalization", () => {
     expect(detailSvg).toContain(">Resets in 1h 30m");
     expect(detailSvg).toContain(">Code review<");
     expect(detailSvg).toContain(">78% left<");
-    expect(detailSvg).toContain(">Credits<");
-    expect(detailSvg).toContain(">112.4<");
-    expect(detailSvg).toContain(">1K tokens<");
+    // Credits, Cost, and General are no longer surfaced — usage meters only.
+    expect(detailSvg).not.toContain(">Credits<");
     expect(detailSvg).not.toContain(">General<");
-    expect(detailSvg.match(/<line /g)).toHaveLength(2);
+    expect(detailSvg.match(/<line /g)).toHaveLength(1);
     expect(detailSvg).toContain('width="440"');
   });
 
@@ -232,37 +217,6 @@ describe("provider normalization", () => {
     expect(detail.sections[0]).toMatchObject({ resetsIn: "1h" });
   });
 
-  it("normalizes provider cost as a typed progress section", () => {
-    const detail = normalizeProviderDetailPayload(
-      {
-        provider: "claude",
-        usage: {
-          providerCost: {
-            used: 1.42,
-            limit: 20,
-            currencyCode: "USD",
-            period: "monthly",
-          },
-        },
-      },
-      "claude",
-      Date.parse("2026-03-23T10:30:00Z"),
-    );
-    const [detailSvg] = extractSvgMarkup(detail.markdown);
-
-    expect(detail.sections).toMatchObject([
-      {
-        kind: "providerCost",
-        title: "Extra usage",
-        usedPercent: 7,
-        spendLine: "monthly: $1.42 / $20",
-      },
-    ]);
-    expect(detailSvg).toContain(">Extra usage<");
-    expect(detailSvg).toContain(">monthly: $1.42 / $20<");
-    expect(detailSvg).toContain(">7% used<");
-  });
-
   it("keeps sparse payloads as minimal details instead of throwing", () => {
     const detail = normalizeProviderDetailPayload({ provider: "warp" }, "warp");
 
@@ -303,46 +257,6 @@ describe("provider normalization", () => {
     );
 
     expect(message).toBe("No available fetch strategy for alibaba.");
-  });
-
-  it("surfaces source, version, account, organization, and subscription dates in General", () => {
-    const detail = normalizeProviderDetailPayload(
-      {
-        provider: "claude",
-        source: "openai-web",
-        version: "2.1.170",
-        account: "work",
-        usage: {
-          primary: { usedPercent: 10, resetsAt: "2026-03-23T12:00:00Z" },
-          subscriptionRenewsAt: "2026-04-01T00:00:00Z",
-          subscriptionExpiresAt: "2026-05-01T00:00:00Z",
-          identity: { accountOrganization: "Example Labs" },
-          updatedAt: "2026-03-23T09:00:00Z",
-        },
-      },
-      "claude",
-      Date.parse("2026-03-23T10:30:00Z"),
-    );
-
-    expect(detail.source).toBe("OpenAI Web");
-    expect(detail.cliVersion).toBe("2.1.170");
-    expect(detail.accountLabel).toBe("work");
-    expect(detail.accountOrganization).toBe("Example Labs");
-
-    const generalSection = detail.sections.find((section) => section.kind === "info" && section.title === "General");
-    expect(generalSection).toMatchObject({
-      kind: "info",
-      title: "General",
-      items: [
-        { label: "Last Updated", value: formatLocalDateTime("2026-03-23T09:00:00Z") },
-        { label: "Source", value: "OpenAI Web" },
-        { label: "Version", value: "2.1.170" },
-        { label: "Account", value: "work", personal: true },
-        { label: "Organization", value: "Example Labs", personal: true },
-        { label: "Renews", value: formatLocalDateTime("2026-04-01T00:00:00Z") },
-        { label: "Expires", value: formatLocalDateTime("2026-05-01T00:00:00Z") },
-      ],
-    });
   });
 
   it("renders named extra rate windows after the slot sections", () => {
@@ -391,62 +305,6 @@ describe("provider normalization", () => {
 
     expect(detail.sections[0]).toMatchObject({ kind: "usage", nextRegenPercent: 4 });
     expect(detailSvg).toContain(">Regenerates 4% next tick<");
-  });
-
-  it("lists recent credit events newest first and caps them at three", () => {
-    const detail = normalizeProviderDetailPayload(
-      {
-        provider: "codex",
-        credits: {
-          remaining: 10,
-          events: [
-            { id: "1", date: "2026-03-20T10:00:00Z", service: "Codex", creditsUsed: 1.5 },
-            { id: "2", date: "2026-03-23T10:00:00Z", service: "Code Review", creditsUsed: 2 },
-            { id: "3", date: "2026-03-21T10:00:00Z", service: "Codex", creditsUsed: 0.5 },
-            { id: "4", date: "2026-03-19T10:00:00Z", service: "Codex", creditsUsed: 4 },
-          ],
-        },
-      },
-      "codex",
-      Date.parse("2026-03-23T10:30:00Z"),
-    );
-
-    const eventsSection = detail.sections.find(
-      (section) => section.kind === "info" && section.title === "Recent credit activity",
-    );
-    expect(eventsSection).toMatchObject({
-      items: [
-        { label: "Mar 23 · Code Review", value: "2 credits" },
-        { label: "Mar 21 · Codex", value: "0.5 credits" },
-        { label: "Mar 20 · Codex", value: "1.5 credits" },
-      ],
-    });
-  });
-
-  it("summarizes the OpenAI dashboard daily credit spend", () => {
-    const detail = normalizeProviderDetailPayload(
-      {
-        provider: "codex",
-        openaiDashboard: {
-          usageBreakdown: [
-            { day: "2026-03-22", totalCreditsUsed: 3.5, services: [{ service: "CLI", creditsUsed: 3.5 }] },
-            { day: "2026-03-23", totalCreditsUsed: 1.25, services: [{ service: "Code Review", creditsUsed: 1.25 }] },
-          ],
-        },
-      },
-      "codex",
-      Date.parse("2026-03-23T10:30:00Z"),
-    );
-
-    const spendSection = detail.sections.find(
-      (section) => section.kind === "info" && section.title === "Daily credit spend",
-    );
-    expect(spendSection).toMatchObject({
-      items: [
-        { label: "Mar 23", value: "1.3 credits" },
-        { label: "Mar 22", value: "3.5 credits" },
-      ],
-    });
   });
 
   it("maps openRouterUsage into supplemental and info sections", () => {

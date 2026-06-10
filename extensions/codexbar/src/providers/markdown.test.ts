@@ -75,18 +75,6 @@ describe("provider markdown", () => {
             title: "Code review",
             remainingPercent: 78,
           },
-          {
-            kind: "credits",
-            title: "Credits",
-            remaining: "112.4",
-            remainingPercent: 11,
-            scaleLabel: "1K tokens",
-          },
-          {
-            kind: "info",
-            title: "General",
-            items: [{ label: "Last Updated", value: "2026-03-23T09:00:00Z" }],
-          },
         ],
       },
       "light",
@@ -111,9 +99,7 @@ describe("provider markdown", () => {
     expect(svg).toContain(">Resets in 1h 30m<");
     expect(svg).toContain(">Code review<");
     expect(svg).toContain(">78% left<");
-    expect(svg).toContain(">Credits<");
-    expect(svg).toContain(">112.4<");
-    expect(svg).toContain(">1K tokens<");
+    expect(svg).not.toContain(">Credits<");
     expect(svg).not.toContain(">General<");
   });
 
@@ -486,11 +472,9 @@ describe("provider markdown", () => {
             resetsIn: "7d",
           },
           {
-            kind: "credits",
-            title: "Credits",
-            remaining: "112.4",
-            remainingPercent: 11,
-            scaleLabel: "1K tokens",
+            kind: "info",
+            title: "OpenRouter",
+            items: [{ label: "Balance", value: "$25.50" }],
           },
         ],
       },
@@ -499,11 +483,11 @@ describe("provider markdown", () => {
 
     const [svg] = extractSvgMarkup(markdown);
     const weeklyFooterY = getTextY(svg, "Resets in 7d");
-    const creditsTitleY = getTextY(svg, "Credits");
-    const creditsDividerY = getLineYAfterText(svg, "Resets in 7d");
+    const infoTitleY = getTextY(svg, "OpenRouter");
+    const infoDividerY = getLineYAfterText(svg, "Resets in 7d");
 
-    const gapAboveDivider = creditsDividerY - getTextBottomY(weeklyFooterY, 12);
-    const gapBelowDivider = getTextTopY(creditsTitleY, 14) - creditsDividerY;
+    const gapAboveDivider = infoDividerY - getTextBottomY(weeklyFooterY, 12);
+    const gapBelowDivider = getTextTopY(infoTitleY, 14) - infoDividerY;
 
     expect(gapAboveDivider).toBeCloseTo(16.5);
     expect(gapBelowDivider).toBeCloseTo(16.5);

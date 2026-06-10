@@ -55,33 +55,13 @@ export type ProviderSupplementalUsageSection = {
   nextRegenPercent?: number;
 };
 
-export type ProviderCreditsSection = {
-  kind: "credits";
-  title: "Credits";
-  remaining: string;
-  remainingPercent: number;
-  scaleLabel: string;
-};
-
-export type ProviderCostSection = {
-  kind: "providerCost";
-  title: "Extra usage" | "Quota usage";
-  usedPercent: number;
-  spendLine: string;
-};
-
 export type ProviderInfoSection = {
   kind: "info";
   title: string;
   items: ProviderSectionItem[];
 };
 
-export type ProviderSection =
-  | ProviderUsageSection
-  | ProviderSupplementalUsageSection
-  | ProviderCreditsSection
-  | ProviderCostSection
-  | ProviderInfoSection;
+export type ProviderSection = ProviderUsageSection | ProviderSupplementalUsageSection | ProviderInfoSection;
 
 export type ProviderDetailData = {
   id: string;
@@ -90,10 +70,6 @@ export type ProviderDetailData = {
   fetchedAt: string;
   updatedAt?: string;
   accountEmail?: string;
-  accountLabel?: string;
-  accountOrganization?: string;
-  source?: string;
-  cliVersion?: string;
   planText?: string;
   sections: ProviderSection[];
   markdown: string;

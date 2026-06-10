@@ -115,23 +115,7 @@ function splitRenderableSections(sections: ProviderSection[]): {
   otherSections: ProviderSection[];
 } {
   const metricSections = sections.filter((section) => section.kind === "usage" || section.kind === "supplementalUsage");
-  const otherSections: ProviderSection[] = [];
-
-  for (const section of sections) {
-    if (section.kind === "usage" || section.kind === "supplementalUsage") {
-      continue;
-    }
-
-    if (section.kind === "info" && section.title === "General") {
-      const remainingItems = section.items.filter((item) => item.label !== "Last Updated");
-      if (remainingItems.length > 0) {
-        otherSections.push({ ...section, items: remainingItems });
-      }
-      continue;
-    }
-
-    otherSections.push(section);
-  }
+  const otherSections = sections.filter((section) => section.kind !== "usage" && section.kind !== "supplementalUsage");
 
   return { metricSections, otherSections };
 }
@@ -443,30 +427,6 @@ function renderStandaloneSection(
   appearance: ProviderDetailAppearance,
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
-  if (section.kind === "credits") {
-    return renderProgressSection(
-      section.title,
-      section.remainingPercent,
-      [{ left: section.remaining, right: section.scaleLabel }],
-      providerId,
-      appearance,
-      startY,
-      undefined,
-    );
-  }
-
-  if (section.kind === "providerCost") {
-    return renderProgressSection(
-      section.title,
-      section.usedPercent,
-      [{ left: section.spendLine, right: `${formatPercent(section.usedPercent)} used` }],
-      providerId,
-      appearance,
-      startY,
-      undefined,
-    );
-  }
-
   if (section.kind === "info") {
     return renderGenericSection(section, appearance, startY);
   }

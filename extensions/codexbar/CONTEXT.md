@@ -50,12 +50,14 @@ A projection, from the current pace, of when a window's remaining usage will be 
 
 ## Balances & Cost
 
+> **Not currently surfaced.** The detail view focuses on Usage and Supplemental usage only. The terms below describe concepts the CodexBar CLI still reports but that the extension no longer renders; kept as vocabulary for a possible later revisit.
+
 **Credits**:
 A spendable balance a Provider draws down over time, independent of any reset window. Replenished by purchase or plan, not by a reset clock.
 _Avoid_: Tokens, points
 
 **Cost**:
-Money spent against a spending limit within a billing period. Surfaced as "Extra usage" for pay-as-you-go overage beyond an included plan. (Open: whether "Extra usage" is strictly overage or any metered dollar cost — unconfirmed.)
+Money spent against a spending limit within a billing period. Was surfaced as "Extra usage" for pay-as-you-go overage beyond an included plan. (Open: whether "Extra usage" is strictly overage or any metered dollar cost — unconfirmed.)
 _Avoid_: Spend, charge
 
 **Quota**:
@@ -71,7 +73,7 @@ _Avoid_: Enabled provider, active provider
 The CodexBar config file (`~/.codexbar/config.json`), owned by the CodexBar app, listing which Providers are enabled and in what order. The extension reads and reorders it but treats the app as the owner.
 
 **Source**:
-How the CodexBar CLI acquires a Provider's usage — API, browser session (web), OAuth, local file, or CLI. Upstream categorizes Providers by source; this extension requests `auto` and shows the source the CLI reports back as a "Source" row in the detail view's General section.
+How the CodexBar CLI acquires a Provider's usage — API, browser session (web), OAuth, local file, or CLI. Upstream categorizes Providers by source; this extension requests `auto`. (Not currently surfaced — the Source row lived in the now-removed General section.)
 
 **Provider id alias**:
 An alternate spelling the CLI accepts for a Provider id (its `cliName` or upstream aliases, e.g. `alibaba-coding-plan` → `alibaba`, `groqcloud` → `groq`). The registry resolves aliases to the canonical id (the upstream enum case name, which is what the config file and payloads use) so a config listing either spelling renders one row.
@@ -79,7 +81,7 @@ An alternate spelling the CLI accepts for a Provider id (its `cliName` or upstre
 ## Identity & Supplemental Meters
 
 **Account identity**:
-The account a Configured Provider is authenticated as, per upstream's identity snapshot: account email, optional organization, and login method. Shown in the detail header; the email can be hidden via the *Hide Personal Information* preference.
+The account a Configured Provider is authenticated as, per upstream's identity snapshot: account email, optional organization, and login method. Only the email (and the plan tier derived from login method) is shown, in the detail header; the email can be hidden via the _Hide Personal Information_ preference. Organization and account label are no longer surfaced (they lived in the now-removed General section).
 
 **Login method**:
 Upstream's single identity field carrying both how you authenticated and your plan tier as one string (e.g. `chatgpt-plus`, `oauth`). Upstream has no separate plan field, so plan/tier is read from here.
@@ -88,5 +90,5 @@ _Avoid_: Plan, tier, subscription (upstream models no such standalone field)
 **Supplemental usage**:
 A Provider-specific usage meter that falls outside the Primary/Secondary/Tertiary windows. The extension surfaces: Codex's "Code review" allowance, named **extra rate windows** (upstream `extraRateWindows`, e.g. "Codex Spark"), and OpenRouter key usage (via a per-field mapper table in `normalize.ts`). Upstream also models shapes not yet mapped — `cursorRequests`, `zaiUsage`, `minimaxUsage`, `kiroUsage`, `mistralUsage`, `deepseekUsage`, `deepgramUsage`, `openAIAPIUsage`, `claudeAdminAPIUsage`, and `antigravityPlanInfo` — deferred until their live JSON can be sampled; unmapped shapes render nothing.
 
-**General section**:
-The detail view's info list: Last Updated, Source, CLI-reported version, account label and organization (both hidden by the _Hide Personal Information_ preference), and subscription renewal/expiry dates when the payload carries them. Recent credit events and the OpenAI dashboard's daily credit spend render as their own info sections.
+**General section** _(removed)_:
+Formerly the detail view's info list (Last Updated, Source, CLI version, account label/organization, subscription renewal/expiry), plus the sibling Recent credit activity and Daily credit spend info sections. All removed — the detail view now renders only Usage and Supplemental usage meters. The "Updated …" time moved to the header subtitle.

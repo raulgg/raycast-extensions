@@ -62,11 +62,6 @@ function makeDetail(): ProviderDetailData {
         remainingPercent: 53,
         resetsIn: "1 hour 30 minutes",
       },
-      {
-        kind: "info",
-        title: "General",
-        items: [{ label: "Last Updated", value: "Apr 5, 2026, 5:11 PM" }],
-      },
     ],
   };
 }
@@ -213,19 +208,17 @@ describe("ProviderDetail", () => {
     expect(svg).toContain(">Pro<");
   });
 
-  it("redacts account label, organization, and personal info items when the preference is enabled", () => {
+  it("redacts personal info items from info sections when the preference is enabled", () => {
     appearanceMock.value = "light";
     hidePersonalInfoMock.value = true;
     const detail = makeDetail();
-    detail.accountLabel = "work";
-    detail.accountOrganization = "Example Labs";
     detail.sections = [
       ...detail.sections.filter((section) => section.kind !== "info"),
       {
         kind: "info",
-        title: "General",
+        title: "OpenRouter",
         items: [
-          { label: "Last Updated", value: "Apr 5, 2026, 5:11 PM" },
+          { label: "Balance", value: "$25.50" },
           { label: "Source", value: "Web" },
           { label: "Account", value: "work", personal: true },
           { label: "Organization", value: "Example Labs", personal: true },

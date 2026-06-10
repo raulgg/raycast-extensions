@@ -58,8 +58,6 @@ export function redactPersonalInfo(detail: ProviderDetailData): ProviderDetailDa
   return {
     ...detail,
     accountEmail: undefined,
-    accountLabel: undefined,
-    accountOrganization: undefined,
     sections,
   };
 }
