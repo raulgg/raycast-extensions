@@ -1,6 +1,6 @@
 import type { ProviderUsagePacing, ProviderUsagePacingStage } from "./types";
 
-const DEFAULT_WEEKLY_WINDOW_MINUTES = 10_080;
+const DEFAULT_WINDOW_MINUTES = 10_080;
 const MINIMUM_WINDOW_ELAPSED_PERCENT = 3;
 
 type UsagePacingWindowInput = {
@@ -37,10 +37,10 @@ function stageForUsedVsIdealDelta(usedVsIdealDeltaPercent: number): ProviderUsag
   return usedVsIdealDeltaPercent >= 0 ? "farOver" : "farUnder";
 }
 
-export function calculateWeeklyUsagePacing(
+export function calculateUsagePacing(
   window: UsagePacingWindowInput,
   computedAt = Date.now(),
-  defaultWindowMinutes = DEFAULT_WEEKLY_WINDOW_MINUTES,
+  defaultWindowMinutes = DEFAULT_WINDOW_MINUTES,
 ): ProviderUsagePacing | undefined {
   if (window.remainingPercent <= 0 || !window.resetsAt) {
     return undefined;

@@ -304,7 +304,7 @@ function buildClaude(now: Date): RawProviderPayload {
     status: buildStatus("Claude operational", "https://status.anthropic.com", now),
     usage: buildUsage(
       now,
-      buildWindow(now, 48, 2 * DAY, "Daily"),
+      buildWindow(now, 47, 3 * HOUR, "Session"),
       buildWindow(now, 71, 7 * DAY, "Weekly", 4),
       buildWindow(now, 91, 30 * DAY, "Monthly"),
       {

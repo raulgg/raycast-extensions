@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { calculateWeeklyUsagePacing, formatUsagePacingLabels } from "./usagePacing";
+import { calculateUsagePacing, formatUsagePacingLabels } from "./usagePacing";
 
 describe("provider usage pacing", () => {
   it("calculates reserve usage pacing for resettable weekly windows", () => {
-    const usagePacing = calculateWeeklyUsagePacing(
+    const usagePacing = calculateUsagePacing(
       {
         usedPercent: 53,
         remainingPercent: 47,
@@ -31,7 +31,7 @@ describe("provider usage pacing", () => {
   });
 
   it("suppresses usage pacing before enough weekly signal exists", () => {
-    const usagePacing = calculateWeeklyUsagePacing(
+    const usagePacing = calculateUsagePacing(
       {
         usedPercent: 12,
         remainingPercent: 88,
@@ -45,7 +45,7 @@ describe("provider usage pacing", () => {
   });
 
   it("adjusts eta labels relative to computed timestamp", () => {
-    const usagePacing = calculateWeeklyUsagePacing(
+    const usagePacing = calculateUsagePacing(
       {
         usedPercent: 90,
         remainingPercent: 10,

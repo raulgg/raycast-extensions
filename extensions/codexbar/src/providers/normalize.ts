@@ -1,4 +1,4 @@
-import { calculateWeeklyUsagePacing } from "./usagePacing";
+import { calculateUsagePacing } from "./usagePacing";
 import { getProviderMetadata, getProviderUsageSectionDisplayTitle, type ProviderUsagePacingSlot } from "./registry";
 import type { ProviderDetailData, ProviderSection, ProviderSectionItem, RawProviderPayload } from "./types";
 import { buildProviderDetailMarkdown } from "./markdown";
@@ -142,11 +142,16 @@ function buildWindowReset(
   return undefined;
 }
 
-function matchesUsagePacingSlot(
-  title: "Primary" | "Secondary" | "Tertiary",
-  usagePacingSlot?: ProviderUsagePacingSlot,
-): boolean {
-  return title.toLowerCase() === usagePacingSlot;
+// Session windows run on a 5h cadence; weekly/monthly windows on the 7d cadence.
+// Used only when the payload window omits an explicit `windowMinutes`.
+const USAGE_PACING_DEFAULT_WINDOW_MINUTES: Record<ProviderUsagePacingSlot, number> = {
+  primary: 300,
+  secondary: 10_080,
+  tertiary: 10_080,
+};
+
+function usagePacingSlotForTitle(title: "Primary" | "Secondary" | "Tertiary"): ProviderUsagePacingSlot {
+  return title.toLowerCase() as ProviderUsagePacingSlot;
 }
 
 function buildUsageSections(providerId: string, payload: RawProviderPayload, now = Date.now()): ProviderSection[] {
@@ -185,9 +190,11 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
     if (progressPercent !== undefined) {
       const resolvedUsedPercent = usedPercent ?? Math.max(0, 100 - progressPercent);
       const resolvedResetsAt = toString(record.resetsAt) ?? slot.resetTimestamp;
+      const pacingSlot = usagePacingSlotForTitle(slot.title);
+      const pacingEnabled = metadata.usagePacingSlots?.includes(pacingSlot) ?? false;
       const usagePacing =
-        matchesUsagePacingSlot(slot.title, metadata.usagePacingSlot) && resolvedResetsAt
-          ? calculateWeeklyUsagePacing(
+        pacingEnabled && resolvedResetsAt
+          ? calculateUsagePacing(
               {
                 usedPercent: resolvedUsedPercent,
                 remainingPercent: progressPercent,
@@ -195,6 +202,7 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
                 windowMinutes: toFiniteNumber(record.windowMinutes),
               },
               now,
+              USAGE_PACING_DEFAULT_WINDOW_MINUTES[pacingSlot],
             )
           : undefined;
       sections.push({

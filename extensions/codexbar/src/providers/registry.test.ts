@@ -166,10 +166,11 @@ describe("provider registry", () => {
   });
 
   it("declares usage-projection-capable providers explicitly", () => {
-    expect(getProviderMetadata("codex").usagePacingSlot).toBe("secondary");
-    expect(getProviderMetadata("claude").usagePacingSlot).toBe("secondary");
-    expect(getProviderMetadata("opencode").usagePacingSlot).toBe("secondary");
-    expect(getProviderMetadata("opencodego").usagePacingSlot).toBeUndefined();
+    expect(getProviderMetadata("codex").usagePacingSlots).toEqual(["primary", "secondary"]);
+    expect(getProviderMetadata("claude").usagePacingSlots).toEqual(["primary", "secondary"]);
+    expect(getProviderMetadata("ollama").usagePacingSlots).toEqual(["primary", "secondary"]);
+    expect(getProviderMetadata("opencode").usagePacingSlots).toEqual(["secondary"]);
+    expect(getProviderMetadata("opencodego").usagePacingSlots).toBeUndefined();
   });
 
   it("falls back to a title-cased label for unknown providers", () => {
