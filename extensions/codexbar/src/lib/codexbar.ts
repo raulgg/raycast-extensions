@@ -10,9 +10,6 @@ import { getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
 
 const CODEXBAR_TIMEOUT_MS = 60_000;
 const CODEXBAR_WEB_TIMEOUT_MS = 5_000;
-const PROVIDER_USAGE_SOURCE_OVERRIDES: Record<string, string> = {
-  codex: "oauth",
-};
 const MAX_BUFFER_BYTES = 5 * 1024 * 1024;
 const DEFAULT_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 const FALLBACK_PATHS = ["/opt/homebrew/bin/codexbar", "/usr/local/bin/codexbar"] as const;
@@ -400,8 +397,6 @@ export async function fetchProviderDetail(
 }
 
 function buildProviderUsageCommandArgs(providerId: string): string[] {
-  const source = PROVIDER_USAGE_SOURCE_OVERRIDES[providerId] ?? "auto";
-
   return [
     "usage",
     "--format",
@@ -413,7 +408,7 @@ function buildProviderUsageCommandArgs(providerId: string): string[] {
     "--provider",
     providerId,
     "--source",
-    source,
+    "auto",
   ];
 }
 
