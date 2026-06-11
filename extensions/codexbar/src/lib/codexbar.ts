@@ -8,7 +8,7 @@ import { extractProviderErrorMessage, normalizeProviderDetailPayload } from "../
 import type { ConfiguredProvider, ProviderDetailData } from "../providers/types";
 import { getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
 
-const CODEXBAR_TIMEOUT_MS = 20_000;
+const CODEXBAR_TIMEOUT_MS = 60_000;
 const CODEXBAR_WEB_TIMEOUT_MS = 5_000;
 const MAX_BUFFER_BYTES = 5 * 1024 * 1024;
 const DEFAULT_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
