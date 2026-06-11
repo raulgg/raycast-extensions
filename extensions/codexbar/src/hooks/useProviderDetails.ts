@@ -7,7 +7,7 @@ const PROVIDER_DETAIL_CONCURRENCY = 4;
 const PROVIDER_DETAIL_FRESHNESS_WINDOW_MS = 5 * 60 * 1000;
 const PROVIDER_DETAIL_STALE_WINDOW_MS = 60 * 60 * 1000;
 const SELECTED_PROVIDER_REFRESH_STALE_MS = 60 * 1000;
-const PROVIDER_DETAIL_SCHEMA_VERSION = "provider-details-v3";
+const PROVIDER_DETAIL_SCHEMA_VERSION = "provider-details-v4";
 const providerDetailCache = new Cache({ namespace: "provider-details" });
 
 export type ProviderDetailCacheStatus = "fresh" | "stale";

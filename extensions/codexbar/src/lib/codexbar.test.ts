@@ -134,7 +134,7 @@ describe("codexbar runtime helpers", () => {
     }
   });
 
-  it("uses json-only and json-output flags for provider detail fetches", async () => {
+  it("uses json-only, json-output, and Codex OAuth source for Codex detail fetches", async () => {
     mockExecSuccess('{"provider":"codex","usage":{"primary":{"usedPercent":20}}}');
 
     await expect(
@@ -158,8 +158,21 @@ describe("codexbar runtime helpers", () => {
         "--provider",
         "codex",
         "--source",
-        "auto",
+        "oauth",
       ],
+      expect.any(Object),
+      expect.any(Function),
+    );
+  });
+
+  it("keeps automatic source selection for non-Codex provider detail fetches", async () => {
+    mockExecSuccess('{"provider":"claude","usage":{"primary":{"usedPercent":20}}}');
+
+    await fetchProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "claude");
+
+    expect(execFileMock).toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      expect.arrayContaining(["--provider", "claude", "--source", "auto"]),
       expect.any(Object),
       expect.any(Function),
     );
