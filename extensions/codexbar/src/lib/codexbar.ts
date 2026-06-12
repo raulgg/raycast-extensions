@@ -1,8 +1,9 @@
 import { constants } from "node:fs";
 import { access, readFile, writeFile } from "node:fs/promises";
+import { request } from "node:http";
 import { homedir, userInfo } from "node:os";
 import { delimiter, join } from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { getProviderMetadata, isKnownProviderId, isProviderSelectorId, resolveProviderId } from "../providers/registry";
 import { extractProviderErrorMessage, normalizeProviderDetailPayload } from "../providers/normalize";
 import type { ConfiguredProvider, ProviderDetailData } from "../providers/types";
@@ -10,6 +11,13 @@ import { getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
 
 const CODEXBAR_TIMEOUT_MS = 60_000;
 const CODEXBAR_WEB_TIMEOUT_MS = 5_000;
+const CODEXBAR_SERVE_HOST = "127.0.0.1";
+const CODEXBAR_SERVE_PORT = 17_653;
+const CODEXBAR_SERVE_REFRESH_INTERVAL_SECONDS = 60;
+const CODEXBAR_SERVE_REQUEST_TIMEOUT_SECONDS = 30;
+const CODEXBAR_SERVE_HEALTH_TIMEOUT_MS = 500;
+const CODEXBAR_SERVE_STARTUP_TIMEOUT_MS = 1_500;
+const CODEXBAR_SERVE_STARTUP_POLL_MS = 150;
 const MAX_BUFFER_BYTES = 5 * 1024 * 1024;
 const DEFAULT_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 const FALLBACK_PATHS = ["/opt/homebrew/bin/codexbar", "/usr/local/bin/codexbar"] as const;
@@ -326,6 +334,140 @@ async function executeCodexBar(binary: ResolvedCodexBarBinary, args: string[]): 
   }
 }
 
+function requestCodexBarServeJson(path: string, timeout: number): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let totalBytes = 0;
+    const req = request(
+      {
+        hostname: CODEXBAR_SERVE_HOST,
+        port: CODEXBAR_SERVE_PORT,
+        path,
+        method: "GET",
+        timeout,
+      },
+      (res) => {
+        res.on("data", (chunk: Buffer | string) => {
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          totalBytes += buffer.byteLength;
+          if (totalBytes > MAX_BUFFER_BYTES) {
+            req.destroy(new Error("CodexBar serve returned too much data."));
+            return;
+          }
+
+          chunks.push(buffer);
+        });
+        res.on("end", () => {
+          if (res.statusCode !== 200) {
+            reject(new Error(`CodexBar serve returned HTTP ${res.statusCode ?? "unknown"}.`));
+            return;
+          }
+
+          try {
+            resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+          } catch {
+            reject(new CodexBarCliError("invalid-json", "CodexBar serve returned invalid JSON."));
+          }
+        });
+      },
+    );
+
+    req.on("timeout", () => {
+      req.destroy(new CodexBarCliError("timeout", "CodexBar serve request timed out."));
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+export async function isCodexBarServeHealthy(): Promise<boolean> {
+  try {
+    const payload = await requestCodexBarServeJson("/health", CODEXBAR_SERVE_HEALTH_TIMEOUT_MS);
+    return Boolean(payload && typeof payload === "object" && (payload as Record<string, unknown>).status === "ok");
+  } catch {
+    return false;
+  }
+}
+
+function startCodexBarServe(binary: ResolvedCodexBarBinary, onError: (error: Error) => void): void {
+  const child = spawn(
+    binary.command,
+    [
+      "serve",
+      "--port",
+      String(CODEXBAR_SERVE_PORT),
+      "--refresh-interval",
+      String(CODEXBAR_SERVE_REFRESH_INTERVAL_SECONDS),
+      "--request-timeout",
+      String(CODEXBAR_SERVE_REQUEST_TIMEOUT_SECONDS),
+    ],
+    {
+      detached: true,
+      stdio: "ignore",
+      env: buildCodexBarProcessEnv(),
+    },
+  );
+  child.once("error", onError);
+  child.unref();
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+export async function ensureCodexBarServe(binary: ResolvedCodexBarBinary): Promise<boolean> {
+  if (await isCodexBarServeHealthy()) {
+    return true;
+  }
+
+  let serveStartupFailed = false;
+  try {
+    startCodexBarServe(binary, () => {
+      serveStartupFailed = true;
+    });
+  } catch {
+    return false;
+  }
+
+  const deadline = Date.now() + CODEXBAR_SERVE_STARTUP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (serveStartupFailed) {
+      return false;
+    }
+
+    if (await isCodexBarServeHealthy()) {
+      return true;
+    }
+
+    await sleep(CODEXBAR_SERVE_STARTUP_POLL_MS);
+  }
+
+  return false;
+}
+
+async function executeCodexBarServe(providerId: string): Promise<unknown> {
+  return requestCodexBarServeJson(
+    `/usage?provider=${encodeURIComponent(providerId)}`,
+    CODEXBAR_SERVE_REQUEST_TIMEOUT_SECONDS * 1000,
+  );
+}
+
+async function fetchProviderDetailPayload(binary: ResolvedCodexBarBinary, providerId: string): Promise<unknown> {
+  const usageCommandArgs = buildProviderUsageCommandArgs(providerId);
+
+  if (await isCodexBarServeHealthy()) {
+    try {
+      return await executeCodexBarServe(providerId);
+    } catch {
+      return executeCodexBar(binary, usageCommandArgs);
+    }
+  }
+
+  return executeCodexBar(binary, usageCommandArgs);
+}
+
 export async function smokeTestCodexBar(binary: ResolvedCodexBarBinary): Promise<void> {
   try {
     await execFileAsync(binary.command, ["--version"], {
@@ -378,17 +520,55 @@ export async function fetchProviderDetail(
   binary: ResolvedCodexBarBinary,
   providerId: string,
 ): Promise<ProviderDetailData> {
-  const normalizedProviderId = providerId.trim();
-  if (!normalizedProviderId || isProviderSelectorId(normalizedProviderId)) {
-    throw new CodexBarCliError("execution", "Cannot fetch provider detail without an enabled provider id.");
+  const normalizedProviderId = assertFetchableProviderId(providerId);
+
+  if (binary.source === "mock" || isCodexBarMockMode()) {
+    return normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId);
   }
+
+  const payload = await fetchProviderDetailPayload(binary, normalizedProviderId);
+  return normalizeProviderDetailResponse(payload, normalizedProviderId);
+}
+
+export async function fetchProviderDetailFromServe(
+  binary: ResolvedCodexBarBinary,
+  providerId: string,
+): Promise<ProviderDetailData> {
+  const normalizedProviderId = assertFetchableProviderId(providerId);
+
+  if (binary.source === "mock" || isCodexBarMockMode()) {
+    return normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId);
+  }
+
+  const payload = await executeCodexBarServe(normalizedProviderId);
+  return normalizeProviderDetailResponse(payload, normalizedProviderId);
+}
+
+export async function fetchProviderDetailFromUsageCommand(
+  binary: ResolvedCodexBarBinary,
+  providerId: string,
+): Promise<ProviderDetailData> {
+  const normalizedProviderId = assertFetchableProviderId(providerId);
 
   if (binary.source === "mock" || isCodexBarMockMode()) {
     return normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId);
   }
 
   const payload = await executeCodexBar(binary, buildProviderUsageCommandArgs(normalizedProviderId));
-  const providerError = extractProviderErrorMessage(payload, normalizedProviderId);
+  return normalizeProviderDetailResponse(payload, normalizedProviderId);
+}
+
+function assertFetchableProviderId(providerId: string): string {
+  const normalizedProviderId = providerId.trim();
+  if (!normalizedProviderId || isProviderSelectorId(normalizedProviderId)) {
+    throw new CodexBarCliError("execution", "Cannot fetch provider detail without an enabled provider id.");
+  }
+
+  return normalizedProviderId;
+}
+
+function normalizeProviderDetailResponse(payload: unknown, providerId: string): ProviderDetailData {
+  const providerError = extractProviderErrorMessage(payload, providerId);
   if (providerError) {
     throw new CodexBarCliError("execution", providerError);
   }

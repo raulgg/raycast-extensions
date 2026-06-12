@@ -14,6 +14,12 @@ export const environment = {
   isDevelopment: false,
 } as const;
 
+export function getPreferenceValues<T extends Record<string, unknown>>(): T {
+  return {
+    hidePersonalInfo: false,
+  } as T;
+}
+
 const cacheStore = new Map<string, string>();
 
 export class Cache {

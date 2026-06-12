@@ -4,20 +4,22 @@ import {
   buildCachedProviderResults,
   canApplyProviderFetchResult,
   cacheProviderDetail,
+  cacheProviderDetailIfRicher,
   preserveInFlightProviderResults,
   runProviderDetailFetches,
   shouldRefreshSelectedProvider,
+  shouldReplaceProviderDetail,
   type InFlightProviderFetch,
 } from "./useProviderDetails";
-import type { ProviderDetailData } from "../providers/types";
+import type { ProviderDetailData, ProviderSection } from "../providers/types";
 
-function makeDetail(providerId: string, fetchedAt: string): ProviderDetailData {
+function makeDetail(providerId: string, fetchedAt: string, sections?: ProviderSection[]): ProviderDetailData {
   return {
     id: providerId,
     name: providerId,
     raw: {},
     fetchedAt,
-    sections: [
+    sections: sections ?? [
       {
         kind: "usage",
         title: "Primary",
@@ -206,5 +208,143 @@ describe("runProviderDetailFetches", () => {
         providerId: "claude",
       }),
     ).toBe(false);
+  });
+
+  it("keeps richer current details over poorer refreshes for any provider", () => {
+    const richDetail = makeDetail("claude", "2026-04-15T12:00:00Z", [
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Session",
+        remainingPercent: 82,
+        resetsIn: "2h",
+      },
+      {
+        kind: "usage",
+        title: "Secondary",
+        displayTitle: "Weekly",
+        remainingPercent: 76,
+        resetsIn: "4d",
+      },
+      {
+        kind: "supplementalUsage",
+        title: "Model",
+        remainingPercent: 91,
+        resetsIn: "4d",
+      },
+    ]);
+    const poorDetail = makeDetail("claude", "2026-04-15T12:01:00Z", [
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Session",
+        remainingPercent: 82,
+      },
+      {
+        kind: "usage",
+        title: "Secondary",
+        displayTitle: "Weekly",
+        remainingPercent: 76,
+      },
+    ]);
+
+    expect(shouldReplaceProviderDetail(richDetail, poorDetail)).toBe(false);
+  });
+
+  it("accepts poorer refreshes when an existing usage value changed", () => {
+    const richDetail = makeDetail("claude", "2026-04-15T12:00:00Z", [
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Session",
+        remainingPercent: 82,
+        resetsIn: "2h",
+      },
+      {
+        kind: "supplementalUsage",
+        title: "Model",
+        remainingPercent: 91,
+        resetsIn: "4d",
+      },
+    ]);
+    const newerUsageDetail = makeDetail("claude", "2026-04-15T12:01:00Z", [
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Session",
+        remainingPercent: 55,
+      },
+    ]);
+
+    expect(shouldReplaceProviderDetail(richDetail, newerUsageDetail)).toBe(true);
+  });
+
+  it("accepts equal or richer refreshes for any provider", () => {
+    const currentDetail = makeDetail("codex", "2026-04-15T12:00:00Z", [
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Session",
+        remainingPercent: 82,
+      },
+    ]);
+    const richerDetail = makeDetail("codex", "2026-04-15T12:01:00Z", [
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Session",
+        remainingPercent: 82,
+        resetsIn: "2h",
+      },
+      {
+        kind: "usage",
+        title: "Secondary",
+        displayTitle: "Weekly",
+        remainingPercent: 76,
+      },
+    ]);
+
+    expect(shouldReplaceProviderDetail(currentDetail, richerDetail)).toBe(true);
+  });
+
+  it("does not overwrite richer cached details with poorer background refreshes", () => {
+    const now = Date.parse("2026-04-15T12:02:00Z");
+    const richDetail = makeDetail("codex", "2026-04-15T12:00:00Z", [
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Session",
+        remainingPercent: 82,
+        resetsIn: "2h",
+      },
+      {
+        kind: "supplementalUsage",
+        title: "Codex Spark",
+        remainingPercent: 100,
+        resetsIn: "5h",
+      },
+    ]);
+    const poorDetail = makeDetail("codex", "2026-04-15T12:01:00Z", [
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Session",
+        remainingPercent: 82,
+      },
+    ]);
+
+    cacheProviderDetail(richDetail);
+
+    expect(cacheProviderDetailIfRicher(poorDetail, now)).toBe(false);
+    expect(buildCachedProviderResults(["codex"], now)).toMatchObject({
+      codex: {
+        detail: {
+          sections: [
+            { kind: "usage", title: "Primary", resetsIn: "2h" },
+            { kind: "supplementalUsage", title: "Codex Spark" },
+          ],
+        },
+      },
+    });
   });
 });

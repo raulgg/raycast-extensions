@@ -1,12 +1,15 @@
-import { Color, Icon } from "@raycast/api";
+import { Cache, Color, Icon } from "@raycast/api";
+import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { accessMock, readFileMock, writeFileMock, execFileMock } = vi.hoisted(() => {
+const { accessMock, readFileMock, writeFileMock, execFileMock, spawnMock, httpRequestMock } = vi.hoisted(() => {
   return {
     accessMock: vi.fn(),
     readFileMock: vi.fn(),
     writeFileMock: vi.fn(),
     execFileMock: vi.fn(),
+    spawnMock: vi.fn(),
+    httpRequestMock: vi.fn(),
   };
 });
 
@@ -18,11 +21,17 @@ vi.mock("node:fs/promises", () => ({
 
 vi.mock("node:child_process", () => ({
   execFile: execFileMock,
+  spawn: spawnMock,
+}));
+
+vi.mock("node:http", () => ({
+  request: httpRequestMock,
 }));
 
 import {
   classifyExecFailure,
   CodexBarCliError,
+  ensureCodexBarServe,
   extractJsonPayload,
   fetchProviderDetail,
   getCodexBarAvailability,
@@ -31,6 +40,8 @@ import {
   readConfiguredProvidersFromConfig,
   resolveCodexBarBinary,
 } from "./codexbar";
+import { refreshUsageCache } from "./backgroundRefresh";
+import { buildCachedProviderResults } from "../hooks/useProviderDetails";
 
 function mockAccessForPaths(paths: string[]) {
   accessMock.mockImplementation((targetPath: string) => {
@@ -55,14 +66,72 @@ function mockExecSuccess(stdout = "CodexBar", stderr = "") {
   );
 }
 
+function makeMockChildProcess() {
+  return Object.assign(new EventEmitter(), { unref: vi.fn() });
+}
+
+function mockServeUnavailable() {
+  httpRequestMock.mockImplementation(() => {
+    const req = {
+      destroy: vi.fn(),
+      end: vi.fn(),
+      on: vi.fn((event: string, handler: (error: Error) => void) => {
+        if (event === "error") {
+          queueMicrotask(() => handler(new Error("connect ECONNREFUSED")));
+        }
+        return req;
+      }),
+    };
+
+    return req;
+  });
+}
+
+function mockServeResponses(...responses: Array<unknown | Error>) {
+  const pendingResponses = [...responses];
+  httpRequestMock.mockImplementation(
+    (_options: unknown, callback: (response: EventEmitter & { statusCode: number }) => void) => {
+      const response = pendingResponses.shift();
+      const req = {
+        destroy: vi.fn(),
+        end: vi.fn(),
+        on: vi.fn((event: string, handler: (error: Error) => void) => {
+          if (event === "error" && response instanceof Error) {
+            queueMicrotask(() => handler(response));
+          }
+          return req;
+        }),
+      };
+
+      if (!(response instanceof Error)) {
+        const res = Object.assign(new EventEmitter(), { statusCode: 200 });
+        queueMicrotask(() => {
+          callback(res);
+          res.emit("data", Buffer.from(JSON.stringify(response)));
+          res.emit("end");
+        });
+      }
+
+      return req;
+    },
+  );
+}
+
 describe("codexbar runtime helpers", () => {
   beforeEach(() => {
     accessMock.mockReset();
     readFileMock.mockReset();
     writeFileMock.mockReset();
     execFileMock.mockReset();
+    spawnMock.mockReset();
+    httpRequestMock.mockReset();
+    new Cache({ namespace: "provider-details" }).clear();
     readFileMock.mockRejectedValue(new Error("missing"));
     writeFileMock.mockResolvedValue(undefined);
+    spawnMock.mockImplementation(() => {
+      throw new Error("serve unavailable");
+    });
+    mockServeUnavailable();
   });
 
   it("resolves the CLI from PATH before fallback locations", async () => {
@@ -134,7 +203,106 @@ describe("codexbar runtime helpers", () => {
     }
   });
 
-  it("uses json-only and json-output flags for provider detail fetches", async () => {
+  it("prefers CodexBar serve for provider detail fetches when available", async () => {
+    mockServeResponses({ status: "ok" }, { provider: "codex", usage: { primary: { usedPercent: 20 } } });
+
+    await expect(
+      fetchProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "codex"),
+    ).resolves.toMatchObject({
+      id: "codex",
+      sections: [{ kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 80 }],
+    });
+
+    expect(httpRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ hostname: "127.0.0.1", path: "/health", port: 17653 }),
+      expect.any(Function),
+    );
+    expect(httpRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ hostname: "127.0.0.1", path: "/usage?provider=codex", port: 17653 }),
+      expect.any(Function),
+    );
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(execFileMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to one-shot usage without starting serve when foreground health check misses", async () => {
+    mockExecSuccess('{"provider":"codex","usage":{"primary":{"usedPercent":20}}}');
+    mockServeResponses(new Error("connect ECONNREFUSED"));
+
+    await fetchProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "codex");
+
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(execFileMock).toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      expect.arrayContaining(["usage", "--provider", "codex", "--source", "auto"]),
+      expect.any(Object),
+      expect.any(Function),
+    );
+  });
+
+  it("starts CodexBar serve only when the background path explicitly ensures it", async () => {
+    spawnMock.mockReturnValue(makeMockChildProcess());
+    mockServeResponses(new Error("connect ECONNREFUSED"), { status: "ok" });
+
+    await expect(ensureCodexBarServe({ command: "/usr/local/bin/codexbar", source: "path" })).resolves.toBe(true);
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      ["serve", "--port", "17653", "--refresh-interval", "60", "--request-timeout", "30"],
+      expect.objectContaining({
+        detached: true,
+        stdio: "ignore",
+      }),
+    );
+  });
+
+  it("handles asynchronous CodexBar serve spawn errors", async () => {
+    const child = makeMockChildProcess();
+    spawnMock.mockImplementation(() => {
+      queueMicrotask(() => {
+        child.emit("error", new Error("spawn codexbar ENOENT"));
+      });
+      return child;
+    });
+
+    await expect(ensureCodexBarServe({ command: "/usr/local/bin/codexbar", source: "path" })).resolves.toBe(false);
+
+    expect(child.unref).toHaveBeenCalled();
+  });
+
+  it("refreshes the provider detail cache from the background path after starting serve", async () => {
+    vi.stubEnv("PATH", "/usr/local/bin");
+    mockAccessForPaths(["/usr/local/bin/codexbar"]);
+    mockExecSuccess("CodexBar\n");
+    readFileMock.mockResolvedValue(JSON.stringify({ providers: [{ id: "codex", enabled: true }] }));
+    spawnMock.mockReturnValue(makeMockChildProcess());
+    mockServeResponses(
+      new Error("connect ECONNREFUSED"),
+      { status: "ok" },
+      { provider: "codex", usage: { primary: { usedPercent: 20 } } },
+    );
+
+    await expect(refreshUsageCache()).resolves.toMatchObject({
+      status: "completed",
+      providerCount: 1,
+      refreshedCount: 1,
+      errorCount: 0,
+      usedServe: true,
+    });
+
+    expect(buildCachedProviderResults(["codex"])).toMatchObject({
+      codex: {
+        detail: {
+          id: "codex",
+          sections: [{ kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 80 }],
+        },
+        cacheStatus: "fresh",
+        isLoading: false,
+      },
+    });
+  });
+
+  it("falls back to json-only and json-output one-shot usage when CodexBar serve is unavailable", async () => {
     mockExecSuccess('{"provider":"codex","usage":{"primary":{"usedPercent":20}}}');
 
     await expect(

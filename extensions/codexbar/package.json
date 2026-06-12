@@ -19,6 +19,13 @@
       "title": "Usage Overview",
       "description": "Show usage overview of all configured providers",
       "mode": "view"
+    },
+    {
+      "name": "refresh-usage-cache",
+      "title": "Refresh Usage Cache",
+      "description": "Refresh cached CodexBar usage data and keep CodexBar serve warm",
+      "mode": "no-view",
+      "interval": "5m"
     }
   ],
   "preferences": [

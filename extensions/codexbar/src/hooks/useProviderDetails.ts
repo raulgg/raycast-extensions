@@ -1,7 +1,7 @@
 import { Cache } from "@raycast/api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchProviderDetail, type ResolvedCodexBarBinary } from "../lib/codexbar";
-import type { ConfiguredProvider, ProviderDetailData } from "../providers/types";
+import type { ConfiguredProvider, ProviderDetailData, ProviderSection } from "../providers/types";
 
 const PROVIDER_DETAIL_CONCURRENCY = 4;
 const PROVIDER_DETAIL_FRESHNESS_WINDOW_MS = 5 * 60 * 1000;
@@ -119,10 +119,18 @@ export function useProviderDetails(
       }
 
       completedRef.current.set(providerId, completedFetch.generation);
-      cacheProviderDetail(detail);
+      const previousResult = resultsRef.current[providerId];
+      const shouldReplaceDetail = shouldReplaceProviderDetail(previousResult?.detail, detail);
+
+      if (shouldReplaceDetail) {
+        cacheProviderDetail(detail);
+      }
+
       setResults((current) => ({
         ...current,
-        [providerId]: { detail, isLoading: false, cacheStatus: "fresh" },
+        [providerId]: shouldReplaceDetail
+          ? { detail, isLoading: false, cacheStatus: "fresh" }
+          : { ...previousResult, error: undefined, isLoading: false },
       }));
     } catch (error) {
       const completedFetch = inFlightRef.current.get(providerId);
@@ -355,6 +363,16 @@ export function cacheProviderDetail(detail: ProviderDetailData): void {
   providerDetailCache.set(buildProviderDetailCacheKey(detail.id), JSON.stringify(detail));
 }
 
+export function cacheProviderDetailIfRicher(detail: ProviderDetailData, now = Date.now()): boolean {
+  const currentDetail = readCachedProviderDetail(detail.id, now)?.detail;
+  if (!shouldReplaceProviderDetail(currentDetail, detail)) {
+    return false;
+  }
+
+  cacheProviderDetail(detail);
+  return true;
+}
+
 function readCachedProviderDetail(
   providerId: string,
   now = Date.now(),
@@ -409,4 +427,81 @@ function isProviderDetailSchemaCurrent(detail: ProviderDetailData): boolean {
 
 function buildProviderDetailCacheKey(providerId: string): string {
   return `${PROVIDER_DETAIL_SCHEMA_VERSION}:${providerId}`;
+}
+
+export function shouldReplaceProviderDetail(
+  currentDetail: ProviderDetailData | undefined,
+  nextDetail: ProviderDetailData,
+): boolean {
+  if (!currentDetail || currentDetail.id !== nextDetail.id) {
+    return true;
+  }
+
+  if (hasProviderUsageValueChanged(currentDetail, nextDetail)) {
+    return true;
+  }
+
+  return getProviderDetailQualityScore(nextDetail) >= getProviderDetailQualityScore(currentDetail);
+}
+
+function hasProviderUsageValueChanged(currentDetail: ProviderDetailData, nextDetail: ProviderDetailData): boolean {
+  const currentUsageSections = new Map(
+    currentDetail.sections
+      .filter((section) => section.kind === "usage" || section.kind === "supplementalUsage")
+      .map((section) => [buildProviderUsageSectionKey(section), section]),
+  );
+
+  return nextDetail.sections.some((section) => {
+    if (section.kind !== "usage" && section.kind !== "supplementalUsage") {
+      return false;
+    }
+
+    const currentSection = currentUsageSections.get(buildProviderUsageSectionKey(section));
+    if (!currentSection) {
+      return false;
+    }
+
+    return (
+      currentSection.remainingPercent !== section.remainingPercent ||
+      currentSection.nextRegenPercent !== section.nextRegenPercent
+    );
+  });
+}
+
+function buildProviderUsageSectionKey(
+  section: Extract<ProviderSection, { kind: "usage" | "supplementalUsage" }>,
+): string {
+  if (section.kind === "usage") {
+    return `${section.kind}\0${section.title}\0${section.displayTitle}`;
+  }
+
+  return `${section.kind}\0${section.title}`;
+}
+
+function getProviderDetailQualityScore(detail: ProviderDetailData): number {
+  const metadataScore = (detail.accountEmail ? 2 : 0) + (detail.planText ? 2 : 0) + (detail.updatedAt ? 1 : 0);
+
+  return detail.sections.reduce((score, section) => {
+    if (section.kind === "usage") {
+      return (
+        score +
+        20 +
+        (section.resetsIn ? 5 : 0) +
+        (section.usagePacing ? 3 : 0) +
+        (section.nextRegenPercent !== undefined ? 1 : 0)
+      );
+    }
+
+    if (section.kind === "supplementalUsage") {
+      return (
+        score +
+        12 +
+        (section.resetsIn ? 4 : 0) +
+        (section.usagePacing ? 3 : 0) +
+        (section.nextRegenPercent !== undefined ? 1 : 0)
+      );
+    }
+
+    return score + Math.max(1, section.items.length);
+  }, metadataScore);
 }

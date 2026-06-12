@@ -9,8 +9,16 @@ A coding-agent service whose usage quota CodexBar can report on, identified by a
 _Avoid_: Agent, tool, vendor, service, account
 
 **CodexBar CLI**:
-The external `codexbar` executable this extension wraps; the sole source of usage data. Found on `PATH` (or known fallback paths) and invoked as `usage --provider <id>`. Can be installed standalone (Homebrew, GitHub releases) — it does not strictly require the CodexBar app.
+The external `codexbar` executable this extension wraps; the sole source of usage data. Found on `PATH` (or known fallback paths) and invoked either as a one-shot usage command or through its serve mode. Can be installed standalone (Homebrew, GitHub releases) — it does not strictly require the CodexBar app.
 _Avoid_: "the binary" (used bare)
+
+**CodexBar serve daemon**:
+A long-lived localhost-only process started from the CodexBar CLI's serve mode that exposes CodexBar usage payloads over HTTP. It is still part of the external CodexBar CLI, not the CodexBar app, and can outlive a single Raycast command invocation. In this extension, the scheduled Raycast background refresh may start it, while the Usage Overview foreground command only consumes it if it is already healthy.
+_Avoid_: Raycast background task, app daemon
+
+**Raycast background refresh**:
+Raycast's scheduled launch of a `no-view` or `menu-bar` command at a manifest-defined interval. It is useful for prefetching and updating shared extension state, but it is not a persistent process and does not keep a command loaded between runs. CodexBar uses `refresh-usage-cache` to warm provider detail cache data and to keep the CodexBar serve daemon available when that scheduled command is enabled.
+_Avoid_: Daemon, worker, service
 
 **CodexBar app**:
 steipete's macOS menu-bar app that ships and can install/configure the CLI. Upstream of this extension; not part of it.
