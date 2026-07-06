@@ -95,6 +95,19 @@ export function buildSvgText(value: string, options: SvgTextOptions): string {
   return `<text x="${options.x}" y="${options.y}" fill="${options.fill}" font-family="${fontFamily}" font-size="${options.fontSize}" font-weight="${options.fontWeight}" text-anchor="${textAnchor}">${escapeSvgText(value)}</text>`;
 }
 
+// Heroicons "exclamation-triangle" (solid, 24px viewBox, MIT). The exclamation
+// mark subpaths are punched out via fill-rule so the icon works on any
+// background without needing a second "hole" color.
+const WARNING_ICON_PATH =
+  "M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z";
+
+const WARNING_ICON_VIEWBOX = 24;
+
+export function buildSvgWarningIcon({ x, y, size, fill }: { x: number; y: number; size: number; fill: string }): string {
+  const scale = size / WARNING_ICON_VIEWBOX;
+  return `<path d="${WARNING_ICON_PATH}" fill="${fill}" fill-rule="evenodd" transform="translate(${x} ${y}) scale(${scale})"/>`;
+}
+
 export function buildSvgLine({ x1, y1, x2, y2, stroke, strokeWidth = 1 }: SvgLineOptions): string {
   return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
 }

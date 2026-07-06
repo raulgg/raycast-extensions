@@ -493,7 +493,7 @@ describe("provider markdown", () => {
     expect(gapBelowDivider).toBeCloseTo(16.5);
   });
 
-  it("renders a status row when a renderable incident status is provided", () => {
+  it("renders a tinted incident banner above the usage sections for a minor incident", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",
@@ -505,11 +505,16 @@ describe("provider markdown", () => {
     );
 
     const [svg] = extractSvgMarkup(markdown);
-    expect(svg).toContain("Status</text>");
-    expect(svg).toContain("Partial outage – Partial System Degradation</text>");
+    expect(svg).toContain("Partial outage</text>");
+    expect(svg).toContain("Partial System Degradation</text>");
+    // Banner background + warning icon share the warning tone.
+    expect(svg).toContain('fill="#F59E0B" fill-opacity="0.12"');
+    expect(svg).toContain('fill="#F59E0B" fill-rule="evenodd"');
+    // The banner precedes the usage section in the document.
+    expect(svg.indexOf("Partial outage</text>")).toBeLessThan(svg.indexOf("Session</text>"));
   });
 
-  it("renders a header and status section when only a renderable status exists", () => {
+  it("renders a header and incident banner when only a renderable status exists", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",
@@ -524,12 +529,31 @@ describe("provider markdown", () => {
     expect(markdown).not.toBe("No data available");
     expect(markdown).toContain("data:image/svg+xml;base64,");
     expect(svg).toContain(">Codex<");
-    expect(svg).toContain("Status</text>");
-    expect(svg).toContain("Major outage – Major Service Outage</text>");
+    expect(svg).toContain("Major outage</text>");
+    expect(svg).toContain("Major Service Outage</text>");
+    // Major incidents use the danger tone for the banner background.
+    expect(svg).toContain('fill="#EF4444" fill-opacity="0.1"');
     expect(svg).not.toContain(">No data available<");
   });
 
-  it("omits the status row for operational status", () => {
+  it("renders the banner label alone when the incident has no description", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        sections: [{ kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 61 }],
+      },
+      "light",
+      { status: { indicator: "maintenance" } },
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+    expect(svg).toContain("Maintenance</text>");
+    // Neutral tone for maintenance.
+    expect(svg).toContain('fill="#6B7280" fill-opacity="0.1"');
+  });
+
+  it("omits the incident banner for operational status", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",
@@ -541,6 +565,7 @@ describe("provider markdown", () => {
     );
 
     const [svg] = extractSvgMarkup(markdown);
-    expect(svg).not.toContain("Status</text>");
+    expect(svg).not.toContain("Operational</text>");
+    expect(svg).not.toContain("All systems operational");
   });
 });

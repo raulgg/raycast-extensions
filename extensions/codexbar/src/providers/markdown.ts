@@ -1,5 +1,5 @@
 import { formatRelativeUpdateTime } from "../lib/presentation";
-import { buildSvgProgressBar, buildSvgRect } from "../lib/svg";
+import { buildSvgProgressBar, buildSvgRect, buildSvgWarningIcon } from "../lib/svg";
 import { formatUsagePacingLabels } from "./usagePacing";
 import { getProviderProgressPalette } from "./registry";
 import {
@@ -18,11 +18,19 @@ import {
   getRightContentX,
   getSectionDividerY,
   getSectionTitleY,
+  getTextBaselineY,
   getTextBottomY,
+  wrapText,
   type DetailAppearance,
 } from "../lib/detailMarkdown";
-import { formatProviderStatusSummary, isRenderableProviderStatusIndicator } from "./status";
-import type { ProviderDetailData, ProviderInfoSection, ProviderSection, ProviderStatus } from "./types";
+import { getProviderStatusLabel, isRenderableProviderStatusIndicator } from "./status";
+import type {
+  ProviderDetailData,
+  ProviderInfoSection,
+  ProviderSection,
+  ProviderStatus,
+  ProviderStatusIndicator,
+} from "./types";
 
 export type ProviderDetailAppearance = DetailAppearance;
 type ProviderDetailMarkdownOptions = {
@@ -122,19 +130,118 @@ function splitRenderableSections(sections: ProviderSection[]): {
   return { metricSections, otherSections };
 }
 
-// Renders the incident status as a single-row "Status" section: the label and
-// description on one line (e.g. "Partial outage – …"). Operational/unknown never
-// reach here. The status page URL is offered as a detail action, not drawn here.
-function buildStatusInfoSection(status?: ProviderStatus): ProviderInfoSection | undefined {
-  if (!status || !isRenderableProviderStatusIndicator(status.indicator)) {
-    return undefined;
+const STATUS_BANNER_LAYOUT = {
+  topSpacing: 16,
+  paddingX: 12,
+  paddingY: 12,
+  radius: 8,
+  iconSize: 14,
+  iconToLabelGap: 7,
+  // Distance from the label baseline up to the icon's top edge. Empirically
+  // tuned against Raycast's rendered detail panel (not qlmanage/browser
+  // previews — Raycast draws SVG text ~2px higher relative to path
+  // coordinates) so the glyph's visual center matches the label's cap center.
+  iconTopAboveLabelBaseline: 13.4,
+  labelToDescriptionOffset: 19,
+  descriptionLineGap: 17,
+  // Description column width ≈ panel width minus banner + text padding; at the
+  // 12px row font this holds roughly 62 characters per line.
+  descriptionMaxLineLength: 62,
+} as const;
+
+type StatusBannerTone = "danger" | "warning" | "neutral";
+
+const STATUS_BANNER_PALETTES: Record<
+  DetailAppearance,
+  Record<StatusBannerTone, { fill: string; fillOpacity: number; iconFill: string; labelFill: string }>
+> = {
+  light: {
+    danger: { fill: "#EF4444", fillOpacity: 0.1, iconFill: "#EF4444", labelFill: "#B91C1C" },
+    warning: { fill: "#F59E0B", fillOpacity: 0.12, iconFill: "#F59E0B", labelFill: "#B45309" },
+    neutral: { fill: "#6B7280", fillOpacity: 0.1, iconFill: "#6B7280", labelFill: "#4B5563" },
+  },
+  dark: {
+    danger: { fill: "#EF4444", fillOpacity: 0.16, iconFill: "#F87171", labelFill: "#FCA5A5" },
+    warning: { fill: "#F59E0B", fillOpacity: 0.16, iconFill: "#FBBF24", labelFill: "#FCD34D" },
+    neutral: { fill: "#9CA3AF", fillOpacity: 0.14, iconFill: "#9CA3AF", labelFill: "#D1D5DB" },
+  },
+};
+
+function getStatusBannerTone(indicator: ProviderStatusIndicator): StatusBannerTone {
+  switch (indicator) {
+    case "major":
+    case "critical":
+      return "danger";
+    case "minor":
+      return "warning";
+    default:
+      return "neutral";
+  }
+}
+
+// Renders the incident status as a tinted banner directly under the header: a
+// rounded severity-colored panel with a status dot, the indicator label, and
+// the wrapped incident description. Operational/unknown never reach here. The
+// status page URL is offered as a detail action, not drawn here.
+function renderStatusBanner(
+  status: ProviderStatus,
+  appearance: ProviderDetailAppearance,
+  startY: number,
+): { markup: string[]; contentBottomY: number } {
+  const tonePalette = STATUS_BANNER_PALETTES[appearance][getStatusBannerTone(status.indicator)];
+  const palette = PANEL_PALETTES[appearance];
+  const textX = getLeftContentX() + STATUS_BANNER_LAYOUT.paddingX;
+  const labelBaselineY = getTextBaselineY(startY + STATUS_BANNER_LAYOUT.paddingY, TYPOGRAPHY.sectionTitleSize);
+  const markup: string[] = [];
+
+  const iconTopY = labelBaselineY - STATUS_BANNER_LAYOUT.iconTopAboveLabelBaseline;
+  markup.push(
+    buildSvgWarningIcon({
+      x: textX,
+      y: iconTopY,
+      size: STATUS_BANNER_LAYOUT.iconSize,
+      fill: tonePalette.iconFill,
+    }),
+    buildText(
+      getProviderStatusLabel(status.indicator),
+      textX + STATUS_BANNER_LAYOUT.iconSize + STATUS_BANNER_LAYOUT.iconToLabelGap,
+      labelBaselineY,
+      tonePalette.labelFill,
+      TYPOGRAPHY.sectionTitleSize,
+      FONT_WEIGHT.bold,
+    ),
+  );
+
+  let lastBaselineY = labelBaselineY;
+  let lastFontSize: number = TYPOGRAPHY.sectionTitleSize;
+
+  if (status.description) {
+    const lines = wrapText(status.description, STATUS_BANNER_LAYOUT.descriptionMaxLineLength);
+    let lineY = labelBaselineY + STATUS_BANNER_LAYOUT.labelToDescriptionOffset;
+
+    for (const line of lines) {
+      markup.push(buildText(line, textX, lineY, palette.valueFill, TYPOGRAPHY.rowLabelSize, FONT_WEIGHT.medium));
+      lastBaselineY = lineY;
+      lastFontSize = TYPOGRAPHY.rowLabelSize;
+      lineY += STATUS_BANNER_LAYOUT.descriptionLineGap;
+    }
   }
 
-  return {
-    kind: "info",
-    title: "Status",
-    items: [{ label: formatProviderStatusSummary(status), value: "" }],
-  };
+  const bannerBottomY = getTextBottomY(lastBaselineY, lastFontSize) + STATUS_BANNER_LAYOUT.paddingY;
+  // The banner background is prepended so the dot and text render on top.
+  markup.unshift(
+    buildSvgRect({
+      x: getLeftContentX(),
+      y: startY,
+      width: getContentWidth(),
+      height: bannerBottomY - startY,
+      radius: STATUS_BANNER_LAYOUT.radius,
+      fill: tonePalette.fill,
+      fillOpacity: tonePalette.fillOpacity,
+    }),
+  );
+
+  return { markup, contentBottomY: bannerBottomY };
 }
 
 function buildProgressBar(
@@ -459,17 +566,15 @@ export function buildProviderDetailMarkdown(
   const sections = detail.sections.filter((section) => section.kind !== "info" || section.items.length > 0);
   const subtitle = options?.subtitle ?? getHeaderSubtitle(detail.updatedAt, options?.now);
   const hasHeaderContent = Boolean(subtitle || detail.accountEmail || detail.planText);
-  const statusSection = buildStatusInfoSection(options?.status);
+  const status =
+    options?.status && isRenderableProviderStatusIndicator(options.status.indicator) ? options.status : undefined;
 
-  if (sections.length === 0 && !hasHeaderContent && !statusSection) {
+  if (sections.length === 0 && !hasHeaderContent && !status) {
     return "No data available";
   }
 
   const palette = PANEL_PALETTES[appearance];
   const { metricSections, otherSections } = splitRenderableSections(sections);
-  // Status leads the non-metric sections when present, mirroring how the app
-  // surfaces an incident above the usual detail rows.
-  const trailingSections = statusSection ? [statusSection, ...otherSections] : otherSections;
   const header = buildHeaderMarkup(
     detail.name,
     appearance,
@@ -483,6 +588,14 @@ export function buildProviderDetailMarkdown(
   const markup = [...header.markup];
   let currentY = header.contentBottomY;
 
+  // An incident banner sits directly under the header, above every section, so
+  // an outage is the first thing read in the detail panel.
+  if (status) {
+    const rendered = renderStatusBanner(status, appearance, currentY + STATUS_BANNER_LAYOUT.topSpacing);
+    markup.push(...rendered.markup);
+    currentY = rendered.contentBottomY;
+  }
+
   if (metricSections.length > 0) {
     markup.push(buildSectionDivider(getSectionDividerY(currentY), palette.dividerStroke));
     currentY = getSectionTitleY(currentY);
@@ -492,7 +605,7 @@ export function buildProviderDetailMarkdown(
     currentY = rendered.contentBottomY;
   }
 
-  for (const section of trailingSections) {
+  for (const section of otherSections) {
     markup.push(buildSectionDivider(getSectionDividerY(currentY), palette.dividerStroke));
     currentY = getSectionTitleY(currentY);
 
