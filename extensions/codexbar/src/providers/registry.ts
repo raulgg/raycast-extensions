@@ -19,6 +19,7 @@ export type ProviderRegistryEntry = {
   progressPalette: ProviderProgressPalette;
   usageSectionLabels: ProviderUsageSectionLabels;
   dashboardUrl?: string;
+  subscriptionDashboardUrl?: string;
   statusPageUrl?: string;
 };
 
@@ -52,6 +53,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#CC7C5E",
     usageSectionLabels: { primary: "Session", secondary: "Weekly", tertiary: "Sonnet" },
     dashboardUrl: "https://console.anthropic.com/settings/billing",
+    subscriptionDashboardUrl: "https://claude.ai/settings/usage",
     statusPageUrl: "https://status.claude.com/",
   },
   cursor: {
@@ -257,6 +259,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#F56647",
     usageSectionLabels: { primary: "Base", secondary: "Overage" },
     dashboardUrl: "https://t3.chat/settings/customization",
+    subscriptionDashboardUrl: "https://t3.chat/settings/subscription",
   },
   elevenlabs: {
     name: "ElevenLabs",
@@ -264,6 +267,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#EBEBE6",
     usageSectionLabels: { primary: "Credits", secondary: "Voices" },
     dashboardUrl: "https://elevenlabs.io/app/developers/usage",
+    subscriptionDashboardUrl: "https://elevenlabs.io/app/subscription",
   },
   windsurf: {
     name: "Windsurf",
@@ -335,6 +339,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#000000",
     usageSectionLabels: { primary: "Monthly credits", secondary: "Monthly" },
     dashboardUrl: "https://commandcode.ai/studio",
+    subscriptionDashboardUrl: "https://commandcode.ai/sixhobbits/settings/billing",
   },
   stepfun: {
     name: "StepFun",
@@ -383,6 +388,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#46B482",
     usageSectionLabels: { primary: "Daily", secondary: "Weekly" },
     dashboardUrl: "https://app.devin.ai",
+    subscriptionDashboardUrl: "https://app.devin.ai/settings/usage",
   },
   zed: {
     name: "Zed",
@@ -586,6 +592,65 @@ export function getProviderMetadata(id: string): ProviderRegistryEntry {
 
 export function getProviderProgressPalette(id: string): ProviderProgressPalette {
   return getProviderMetadata(id).progressPalette;
+}
+
+// Ports CodexBarCore/Providers/Claude/ClaudePlan.swift. `fromCompatibilityLoginMethod`
+// splits the login-method / plan string into alphanumeric words and matches the
+// first plan keyword in priority order. `isSubscriptionLoginMethod` then treats
+// Max, Pro, Team, and Ultra as subscriptions while Enterprise is not.
+type ClaudePlan = "max" | "pro" | "team" | "enterprise" | "ultra";
+
+const CLAUDE_SUBSCRIPTION_PLANS = new Set<ClaudePlan>(["max", "pro", "team", "ultra"]);
+
+function normalizedPlanWords(text: string | undefined): string[] {
+  return (text ?? "")
+    .trim()
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+function claudePlanFromLoginMethod(text: string | undefined): ClaudePlan | undefined {
+  const words = normalizedPlanWords(text);
+  if (words.length === 0) {
+    return undefined;
+  }
+  if (words.includes("max")) {
+    return "max";
+  }
+  if (words.includes("pro")) {
+    return "pro";
+  }
+  if (words.includes("team")) {
+    return "team";
+  }
+  if (words.includes("enterprise")) {
+    return "enterprise";
+  }
+  if (words.includes("ultra")) {
+    return "ultra";
+  }
+  return undefined;
+}
+
+// Mirrors ClaudePlan.isSubscriptionLoginMethod: true only for Max/Pro/Team/Ultra
+// login methods (case-insensitive, whether the text is a slug like "max" or a
+// prettified label like "Claude Max"). API-key/OAuth/Enterprise/undefined → false.
+export function isClaudeSubscriptionLoginMethod(text: string | undefined): boolean {
+  const plan = claudePlanFromLoginMethod(text);
+  return plan === undefined ? false : CLAUDE_SUBSCRIPTION_PLANS.has(plan);
+}
+
+// Picks the "Open Usage Dashboard" target. Mirrors upstream
+// StatusItemController+Actions.swift:273-277 — only Claude swaps to the
+// subscription dashboard (falling back to the plain one) when the account's
+// login method is a subscription plan; every other provider keeps dashboardUrl.
+export function resolveDashboardUrl(providerId: string, planText?: string): string | undefined {
+  const metadata = getProviderMetadata(providerId);
+  if (resolveProviderId(providerId) === "claude" && isClaudeSubscriptionLoginMethod(planText)) {
+    return metadata.subscriptionDashboardUrl ?? metadata.dashboardUrl;
+  }
+  return metadata.dashboardUrl;
 }
 
 export function getProviderUsageSectionDisplayTitle(providerId: string, sectionTitle: string): string {

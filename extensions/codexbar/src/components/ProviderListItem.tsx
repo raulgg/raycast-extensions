@@ -3,7 +3,7 @@ import type { ProviderDetailCacheStatus } from "../hooks/useProviderDetails";
 import type { ConfiguredProvider, ProviderDetailData, ProviderStatus, ProviderUsageSection } from "../providers/types";
 import { formatProviderStatusSummary, isRenderableProviderStatusIndicator } from "../providers/status";
 import { buildTwoBarAccessoryIcon } from "../lib/twoBarAccessoryIcon";
-import { getProviderMetadata } from "../providers/registry";
+import { getProviderMetadata, resolveDashboardUrl } from "../providers/registry";
 import { ProviderDetail } from "./ProviderDetail";
 
 type ProviderListItemProps = {
@@ -35,7 +35,9 @@ export function ProviderListItem({
 }: ProviderListItemProps) {
   const fetchCommand = `codexbar usage --provider ${provider.id}`;
   const statusPageUrl = getProviderMetadata(provider.id).statusPageUrl ?? status?.url;
-  const dashboardUrl = getProviderMetadata(provider.id).dashboardUrl;
+  // When detail (and thus planText) hasn't loaded yet, this falls back to the
+  // plain dashboardUrl; for Claude subscription plans it resolves to claude.ai.
+  const dashboardUrl = resolveDashboardUrl(provider.id, detail?.planText);
 
   return (
     <List.Item

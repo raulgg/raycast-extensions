@@ -6,9 +6,11 @@ import { describe, expect, it } from "vitest";
 import {
   getProviderMetadata,
   getProviderUsageSectionDisplayTitle,
+  isClaudeSubscriptionLoginMethod,
   isKnownProviderId,
   PROVIDER_IDS,
   PROVIDER_SELECTOR_IDS,
+  resolveDashboardUrl,
   resolveProviderId,
 } from "./registry";
 
@@ -267,6 +269,74 @@ describe("provider registry", () => {
         darkFill: "#4EC8DD",
       },
       usageSectionLabels: { primary: "Primary", secondary: "Secondary", tertiary: "Tertiary" },
+    });
+  });
+
+  it("harvests upstream subscription dashboard URLs for the five providers that have one", () => {
+    expect(getProviderMetadata("claude").subscriptionDashboardUrl).toBe("https://claude.ai/settings/usage");
+    expect(getProviderMetadata("devin").subscriptionDashboardUrl).toBe("https://app.devin.ai/settings/usage");
+    expect(getProviderMetadata("t3chat").subscriptionDashboardUrl).toBe("https://t3.chat/settings/subscription");
+    expect(getProviderMetadata("elevenlabs").subscriptionDashboardUrl).toBe("https://elevenlabs.io/app/subscription");
+    expect(getProviderMetadata("commandcode").subscriptionDashboardUrl).toBe(
+      "https://commandcode.ai/sixhobbits/settings/billing",
+    );
+  });
+
+  it("omits subscriptionDashboardUrl for providers without one", () => {
+    expect(getProviderMetadata("codex").subscriptionDashboardUrl).toBeUndefined();
+    expect(getProviderMetadata("cursor").subscriptionDashboardUrl).toBeUndefined();
+  });
+
+  describe("isClaudeSubscriptionLoginMethod", () => {
+    it("treats Max, Pro, Team, and Ultra login methods as subscriptions", () => {
+      for (const plan of ["max", "pro", "team", "ultra"]) {
+        expect(isClaudeSubscriptionLoginMethod(plan)).toBe(true);
+      }
+    });
+
+    it("matches prettified branded login labels case-insensitively", () => {
+      expect(isClaudeSubscriptionLoginMethod("Claude Max")).toBe(true);
+      expect(isClaudeSubscriptionLoginMethod("CLAUDE PRO")).toBe(true);
+      expect(isClaudeSubscriptionLoginMethod("Claude Team")).toBe(true);
+      expect(isClaudeSubscriptionLoginMethod("claude ultra")).toBe(true);
+    });
+
+    it("does not treat Enterprise as a subscription", () => {
+      expect(isClaudeSubscriptionLoginMethod("enterprise")).toBe(false);
+      expect(isClaudeSubscriptionLoginMethod("Claude Enterprise")).toBe(false);
+    });
+
+    it("returns false for api-key, oauth, unrelated, and undefined login methods", () => {
+      expect(isClaudeSubscriptionLoginMethod("api-key")).toBe(false);
+      expect(isClaudeSubscriptionLoginMethod("oauth")).toBe(false);
+      expect(isClaudeSubscriptionLoginMethod("API Key")).toBe(false);
+      expect(isClaudeSubscriptionLoginMethod("")).toBe(false);
+      expect(isClaudeSubscriptionLoginMethod(undefined)).toBe(false);
+    });
+  });
+
+  describe("resolveDashboardUrl", () => {
+    it("swaps Claude to the subscription dashboard for subscription login methods", () => {
+      expect(resolveDashboardUrl("claude", "Claude Max")).toBe("https://claude.ai/settings/usage");
+      expect(resolveDashboardUrl("claude", "pro")).toBe("https://claude.ai/settings/usage");
+    });
+
+    it("keeps Claude on the plain dashboard for non-subscription or missing plans", () => {
+      expect(resolveDashboardUrl("claude", "enterprise")).toBe("https://console.anthropic.com/settings/billing");
+      expect(resolveDashboardUrl("claude", "api-key")).toBe("https://console.anthropic.com/settings/billing");
+      expect(resolveDashboardUrl("claude", undefined)).toBe("https://console.anthropic.com/settings/billing");
+    });
+
+    it("never swaps dashboards for non-Claude providers even with a subscription-like plan", () => {
+      expect(resolveDashboardUrl("devin", "Max")).toBe("https://app.devin.ai");
+      expect(resolveDashboardUrl("t3chat", "pro")).toBe("https://t3.chat/settings/customization");
+      expect(resolveDashboardUrl("elevenlabs", "team")).toBe("https://elevenlabs.io/app/developers/usage");
+    });
+
+    it("resolves Claude via alias ids as well", () => {
+      // resolveProviderId has no claude alias today, but the helper still keys off
+      // the canonical id so alias handling stays consistent with the rest of the registry.
+      expect(resolveDashboardUrl("claude", "Ultra")).toBe("https://claude.ai/settings/usage");
     });
   });
 

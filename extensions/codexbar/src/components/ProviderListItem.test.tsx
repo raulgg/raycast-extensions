@@ -112,6 +112,47 @@ describe("ProviderListItem", () => {
     expect(actions[3].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
   });
 
+  it("opens the Claude subscription dashboard when the loaded plan is a subscription", () => {
+    const element = ProviderListItem({
+      provider: { id: "claude", name: "Claude", icon: { source: "provider-icons/claude.svg" } },
+      detail: {
+        id: "claude",
+        name: "Claude",
+        raw: {},
+        fetchedAt: "2026-04-15T12:00:00Z",
+        planText: "Claude Max",
+        sections: [],
+        markdown: "# Claude",
+      },
+      isDetailLoading: false,
+      isSelected: true,
+      onRefresh: vi.fn(),
+    });
+
+    const actions = element.props.actions.props.children.flat().filter(Boolean);
+    const dashboardAction = actions.find(
+      (action: { props: { title?: string } }) => action.props.title === "Open Usage Dashboard",
+    );
+
+    expect(dashboardAction?.props.url).toBe("https://claude.ai/settings/usage");
+  });
+
+  it("opens the plain Claude console dashboard when detail (and plan) has not loaded", () => {
+    const element = ProviderListItem({
+      provider: { id: "claude", name: "Claude", icon: { source: "provider-icons/claude.svg" } },
+      isDetailLoading: false,
+      isSelected: true,
+      onRefresh: vi.fn(),
+    });
+
+    const actions = element.props.actions.props.children.flat().filter(Boolean);
+    const dashboardAction = actions.find(
+      (action: { props: { title?: string } }) => action.props.title === "Open Usage Dashboard",
+    );
+
+    expect(dashboardAction?.props.url).toBe("https://console.anthropic.com/settings/billing");
+  });
+
   it("adds move actions with keyboard shortcuts when reordering is available", () => {
     const element = ProviderListItem({
       provider: {
