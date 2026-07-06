@@ -331,6 +331,60 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#6467F2",
     usageSectionLabels: { primary: "Requests", secondary: "Usage" },
   },
+  devin: {
+    name: "Devin",
+    icon: providerIcon("devin", Icon.Code),
+    brandColor: "#46B482",
+    usageSectionLabels: { primary: "Daily", secondary: "Weekly" },
+  },
+  zed: {
+    name: "Zed",
+    icon: providerIcon("zed", Icon.AppWindow),
+    brandColor: "#084EFF",
+    usageSectionLabels: { primary: "Edit predictions", secondary: "Billing cycle" },
+  },
+  sakana: {
+    name: "Sakana AI",
+    icon: providerIcon("sakana"),
+    brandColor: "#2975DB",
+    usageSectionLabels: { primary: "5-hour", secondary: "Weekly" },
+  },
+  qoder: {
+    name: "Qoder",
+    icon: providerIcon("qoder", Icon.Code),
+    brandColor: "#10B981",
+    usageSectionLabels: { primary: "Credits", secondary: "Balance" },
+  },
+  litellm: {
+    name: "LiteLLM",
+    icon: providerIcon("litellm", Icon.Network),
+    brandColor: "#4C89F0",
+    usageSectionLabels: { primary: "Personal budget", secondary: "Team budget" },
+  },
+  poe: {
+    name: "Poe",
+    icon: providerIcon("poe", Icon.Bubble),
+    brandColor: "#5D5CDE",
+    usageSectionLabels: { primary: "Points", secondary: "Points" },
+  },
+  chutes: {
+    name: "Chutes",
+    icon: providerIcon("chutes", Icon.Bolt),
+    brandColor: "#3184FF",
+    usageSectionLabels: { primary: "4-hour quota", secondary: "Monthly quota" },
+  },
+  crossmodel: {
+    name: "CrossModel",
+    icon: providerIcon("crossmodel", Icon.Wallet),
+    brandColor: "#7C3AED",
+    usageSectionLabels: { primary: "Credits", secondary: "Usage" },
+  },
+  clawrouter: {
+    name: "ClawRouter",
+    icon: providerIcon("clawrouter", Icon.Network),
+    brandColor: "#596EF6",
+    usageSectionLabels: { primary: "Monthly budget", secondary: "Requests" },
+  },
 } satisfies Record<string, ProviderDefinition>;
 
 // Alternate spellings the CLI accepts (cliName + aliases from upstream
@@ -369,6 +423,11 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   "t3-chat": "t3chat",
   t3: "t3chat",
   ven: "venice",
+  "sakana-ai": "sakana",
+  "litellm-proxy": "litellm",
+  "chutes.ai": "chutes",
+  cm: "crossmodel",
+  "claw-router": "clawrouter",
 };
 
 export function resolveProviderId(id: string): string {

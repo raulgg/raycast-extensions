@@ -55,6 +55,15 @@ describe("provider registry", () => {
       "groq",
       "llmproxy",
       "deepgram",
+      "devin",
+      "zed",
+      "sakana",
+      "qoder",
+      "litellm",
+      "poe",
+      "chutes",
+      "crossmodel",
+      "clawrouter",
     ];
 
     for (const providerId of upstreamEnumIds) {
@@ -74,6 +83,12 @@ describe("provider registry", () => {
     expect(isKnownProviderId("alibaba-coding-plan")).toBe(true);
     expect(getProviderMetadata("alibaba-coding-plan").id).toBe("alibaba");
     expect(getProviderMetadata("groqcloud").name).toBe("Groq");
+
+    expect(resolveProviderId("sakana-ai")).toBe("sakana");
+    expect(resolveProviderId("litellm-proxy")).toBe("litellm");
+    expect(resolveProviderId("chutes.ai")).toBe("chutes");
+    expect(resolveProviderId("cm")).toBe("crossmodel");
+    expect(resolveProviderId("claw-router")).toBe("clawrouter");
   });
 
   it("uses harvested upstream metadata for new providers", () => {
@@ -91,6 +106,51 @@ describe("provider registry", () => {
       name: "Alibaba Token Plan",
       brandColor: "#FF6A00",
       usageSectionLabels: { primary: "Credits", secondary: "Usage" },
+    });
+    expect(getProviderMetadata("devin")).toMatchObject({
+      name: "Devin",
+      brandColor: "#46B482",
+      usageSectionLabels: { primary: "Daily", secondary: "Weekly" },
+    });
+    expect(getProviderMetadata("zed")).toMatchObject({
+      name: "Zed",
+      brandColor: "#084EFF",
+      usageSectionLabels: { primary: "Edit predictions", secondary: "Billing cycle" },
+    });
+    expect(getProviderMetadata("sakana")).toMatchObject({
+      name: "Sakana AI",
+      brandColor: "#2975DB",
+      usageSectionLabels: { primary: "5-hour", secondary: "Weekly" },
+    });
+    expect(getProviderMetadata("qoder")).toMatchObject({
+      name: "Qoder",
+      brandColor: "#10B981",
+      usageSectionLabels: { primary: "Credits", secondary: "Balance" },
+    });
+    expect(getProviderMetadata("litellm")).toMatchObject({
+      name: "LiteLLM",
+      brandColor: "#4C89F0",
+      usageSectionLabels: { primary: "Personal budget", secondary: "Team budget" },
+    });
+    expect(getProviderMetadata("poe")).toMatchObject({
+      name: "Poe",
+      brandColor: "#5D5CDE",
+      usageSectionLabels: { primary: "Points", secondary: "Points" },
+    });
+    expect(getProviderMetadata("chutes")).toMatchObject({
+      name: "Chutes",
+      brandColor: "#3184FF",
+      usageSectionLabels: { primary: "4-hour quota", secondary: "Monthly quota" },
+    });
+    expect(getProviderMetadata("crossmodel")).toMatchObject({
+      name: "CrossModel",
+      brandColor: "#7C3AED",
+      usageSectionLabels: { primary: "Credits", secondary: "Usage" },
+    });
+    expect(getProviderMetadata("clawrouter")).toMatchObject({
+      name: "ClawRouter",
+      brandColor: "#596EF6",
+      usageSectionLabels: { primary: "Monthly budget", secondary: "Requests" },
     });
   });
 
@@ -171,6 +231,8 @@ describe("provider registry", () => {
     expect(getProviderMetadata("ollama").usagePacingSlots).toEqual(["primary", "secondary"]);
     expect(getProviderMetadata("opencode").usagePacingSlots).toEqual(["secondary"]);
     expect(getProviderMetadata("opencodego").usagePacingSlots).toBeUndefined();
+    expect(getProviderMetadata("devin").usagePacingSlots).toBeUndefined();
+    expect(getProviderMetadata("chutes").usagePacingSlots).toBeUndefined();
   });
 
   it("falls back to a title-cased label for unknown providers", () => {

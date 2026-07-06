@@ -79,6 +79,15 @@ const MOCK_SOURCES: Record<string, string> = {
   groq: "api",
   llmproxy: "api",
   deepgram: "api",
+  devin: "web",
+  zed: "local",
+  sakana: "web",
+  qoder: "web",
+  litellm: "api",
+  poe: "api",
+  chutes: "api",
+  crossmodel: "api",
+  clawrouter: "api",
 };
 
 const MOCK_VERSIONS: Record<string, string | null> = {
@@ -805,6 +814,15 @@ const MOCK_BUILDERS: Record<string, MockBuilder> = {
   groq: buildGenericProvider("groq"),
   llmproxy: buildGenericProvider("llmproxy"),
   deepgram: buildGenericProvider("deepgram"),
+  devin: buildGenericProvider("devin"),
+  zed: buildGenericProvider("zed"),
+  sakana: buildGenericProvider("sakana"),
+  qoder: buildGenericProvider("qoder"),
+  litellm: buildGenericProvider("litellm"),
+  poe: buildGenericProvider("poe"),
+  chutes: buildGenericProvider("chutes"),
+  crossmodel: buildGenericProvider("crossmodel"),
+  clawrouter: buildGenericProvider("clawrouter"),
 };
 
 const missingMockProviderIds = PROVIDER_IDS.filter((id) => !MOCK_BUILDERS[id]);
