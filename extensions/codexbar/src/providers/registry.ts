@@ -605,6 +605,8 @@ const CLAUDE_SUBSCRIPTION_PLANS = new Set<ClaudePlan>(["max", "pro", "team", "ul
 function normalizedPlanWords(text: string | undefined): string[] {
   return (text ?? "")
     .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Za-z])(\d)/g, "$1 $2")
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter(Boolean);
@@ -615,19 +617,19 @@ function claudePlanFromLoginMethod(text: string | undefined): ClaudePlan | undef
   if (words.length === 0) {
     return undefined;
   }
-  if (words.includes("max")) {
+  if (words.includes("max") || words.some((word) => word.includes("claudemax"))) {
     return "max";
   }
-  if (words.includes("pro")) {
+  if (words.includes("pro") || words.includes("claudepro")) {
     return "pro";
   }
-  if (words.includes("team")) {
+  if (words.includes("team") || words.includes("claudeteam")) {
     return "team";
   }
-  if (words.includes("enterprise")) {
+  if (words.includes("enterprise") || words.includes("claudeenterprise")) {
     return "enterprise";
   }
-  if (words.includes("ultra")) {
+  if (words.includes("ultra") || words.includes("claudeultra")) {
     return "ultra";
   }
   return undefined;

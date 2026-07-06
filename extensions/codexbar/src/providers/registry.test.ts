@@ -301,15 +301,26 @@ describe("provider registry", () => {
       expect(isClaudeSubscriptionLoginMethod("claude ultra")).toBe(true);
     });
 
+    it("matches compact Claude subscription labels", () => {
+      expect(isClaudeSubscriptionLoginMethod("ClaudeMax")).toBe(true);
+      expect(isClaudeSubscriptionLoginMethod("claudepro")).toBe(true);
+      expect(isClaudeSubscriptionLoginMethod("claudeTeam")).toBe(true);
+      expect(isClaudeSubscriptionLoginMethod("ClaudeUltra")).toBe(true);
+      expect(isClaudeSubscriptionLoginMethod("defaultclaudemax20x")).toBe(true);
+      expect(isClaudeSubscriptionLoginMethod("max20x")).toBe(true);
+    });
+
     it("does not treat Enterprise as a subscription", () => {
       expect(isClaudeSubscriptionLoginMethod("enterprise")).toBe(false);
       expect(isClaudeSubscriptionLoginMethod("Claude Enterprise")).toBe(false);
+      expect(isClaudeSubscriptionLoginMethod("ClaudeEnterprise")).toBe(false);
     });
 
     it("returns false for api-key, oauth, unrelated, and undefined login methods", () => {
       expect(isClaudeSubscriptionLoginMethod("api-key")).toBe(false);
       expect(isClaudeSubscriptionLoginMethod("oauth")).toBe(false);
       expect(isClaudeSubscriptionLoginMethod("API Key")).toBe(false);
+      expect(isClaudeSubscriptionLoginMethod("profile")).toBe(false);
       expect(isClaudeSubscriptionLoginMethod("")).toBe(false);
       expect(isClaudeSubscriptionLoginMethod(undefined)).toBe(false);
     });
