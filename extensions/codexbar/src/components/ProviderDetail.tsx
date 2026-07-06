@@ -3,7 +3,7 @@ import { buildProviderErrorMarkdown, formatRelativeUpdateTime } from "../lib/pre
 import type { ProviderDetailCacheStatus } from "../hooks/useProviderDetails";
 import { getHidePersonalInfoPreference } from "../preferences";
 import { buildProviderDetailMarkdown, buildProviderLoadingMarkdown } from "../providers/markdown";
-import type { ConfiguredProvider, ProviderDetailData, ProviderSection } from "../providers/types";
+import type { ConfiguredProvider, ProviderDetailData, ProviderSection, ProviderStatus } from "../providers/types";
 
 type ProviderDetailProps = {
   provider: ConfiguredProvider;
@@ -11,6 +11,7 @@ type ProviderDetailProps = {
   error?: Error;
   isLoading: boolean;
   cacheStatus?: ProviderDetailCacheStatus;
+  status?: ProviderStatus;
   relativeTimeNow?: number;
 };
 
@@ -20,6 +21,7 @@ export function ProviderDetail({
   error,
   isLoading,
   cacheStatus,
+  status,
   relativeTimeNow,
 }: ProviderDetailProps) {
   const hidePersonalInfo = getHidePersonalInfoPreference();
@@ -27,6 +29,7 @@ export function ProviderDetail({
     ? buildProviderDetailMarkdown(hidePersonalInfo ? redactPersonalInfo(detail) : detail, environment.appearance, {
         subtitle: getHeaderSubtitle(detail, isLoading, cacheStatus, relativeTimeNow),
         now: relativeTimeNow,
+        status,
       }).trim()
     : undefined;
   const markdown =

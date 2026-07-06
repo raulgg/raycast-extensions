@@ -492,4 +492,55 @@ describe("provider markdown", () => {
     expect(gapAboveDivider).toBeCloseTo(16.5);
     expect(gapBelowDivider).toBeCloseTo(16.5);
   });
+
+  it("renders a status row when a renderable incident status is provided", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        sections: [{ kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 61 }],
+      },
+      "light",
+      { status: { indicator: "minor", description: "Partial System Degradation" } },
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+    expect(svg).toContain("Status</text>");
+    expect(svg).toContain("Partial outage – Partial System Degradation</text>");
+  });
+
+  it("renders a header and status section when only a renderable status exists", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        sections: [],
+      },
+      "light",
+      { status: { indicator: "major", description: "Major Service Outage" } },
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+    expect(markdown).not.toBe("No data available");
+    expect(markdown).toContain("data:image/svg+xml;base64,");
+    expect(svg).toContain(">Codex<");
+    expect(svg).toContain("Status</text>");
+    expect(svg).toContain("Major outage – Major Service Outage</text>");
+    expect(svg).not.toContain(">No data available<");
+  });
+
+  it("omits the status row for operational status", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        sections: [{ kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 61 }],
+      },
+      "light",
+      { status: { indicator: "none", description: "All systems operational" } },
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+    expect(svg).not.toContain("Status</text>");
+  });
 });

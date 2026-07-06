@@ -1,6 +1,7 @@
-import { Action, ActionPanel, Icon, List } from "@raycast/api";
+import { Action, ActionPanel, Color, Icon, List } from "@raycast/api";
 import type { ProviderDetailCacheStatus } from "../hooks/useProviderDetails";
-import type { ConfiguredProvider, ProviderDetailData, ProviderUsageSection } from "../providers/types";
+import type { ConfiguredProvider, ProviderDetailData, ProviderStatus, ProviderUsageSection } from "../providers/types";
+import { formatProviderStatusSummary, isRenderableProviderStatusIndicator } from "../providers/status";
 import { buildTwoBarAccessoryIcon } from "../lib/twoBarAccessoryIcon";
 import { ProviderDetail } from "./ProviderDetail";
 
@@ -10,6 +11,7 @@ type ProviderListItemProps = {
   detailError?: Error;
   isDetailLoading: boolean;
   detailCacheStatus?: ProviderDetailCacheStatus;
+  status?: ProviderStatus;
   isSelected: boolean;
   relativeTimeNow?: number;
   onRefresh: () => void;
@@ -23,6 +25,7 @@ export function ProviderListItem({
   detailError,
   isDetailLoading,
   detailCacheStatus,
+  status,
   isSelected,
   relativeTimeNow,
   onRefresh,
@@ -30,6 +33,7 @@ export function ProviderListItem({
   onMoveDown,
 }: ProviderListItemProps) {
   const fetchCommand = `codexbar usage --provider ${provider.id}`;
+  const statusPageUrl = status && isRenderableProviderStatusIndicator(status.indicator) ? status.url : undefined;
 
   return (
     <List.Item
@@ -43,6 +47,7 @@ export function ProviderListItem({
         detailError,
         isDetailLoading,
         detailCacheStatus,
+        status,
       )}
       detail={
         <ProviderDetail
@@ -51,12 +56,16 @@ export function ProviderListItem({
           error={detailError}
           isLoading={isDetailLoading}
           cacheStatus={detailCacheStatus}
+          status={status}
           relativeTimeNow={isSelected ? relativeTimeNow : undefined}
         />
       }
       actions={
         <ActionPanel>
           <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={onRefresh} />
+          {statusPageUrl ? (
+            <Action.OpenInBrowser title="Open Status Page" icon={Icon.Globe} url={statusPageUrl} />
+          ) : null}
           {onMoveUp ? (
             <Action
               // eslint-disable-next-line @raycast/prefer-title-case
@@ -87,6 +96,52 @@ export function ProviderListItem({
 }
 
 export function buildProviderListItemAccessories(
+  providerId: string,
+  detail: ProviderDetailData | undefined,
+  error: Error | undefined,
+  isLoading: boolean,
+  cacheStatus?: ProviderDetailCacheStatus,
+  status?: ProviderStatus,
+): List.Item.Accessory[] | undefined {
+  const usageAccessories = buildProviderUsageAccessories(providerId, detail, error, isLoading, cacheStatus);
+  const statusAccessory = buildProviderStatusAccessory(status);
+  if (!statusAccessory) {
+    return usageAccessories;
+  }
+
+  // The status badge is additive and precedes the usage accessories; it never
+  // displaces the existing error/loading/stale accessories.
+  return usageAccessories ? [statusAccessory, ...usageAccessories] : [statusAccessory];
+}
+
+export function buildProviderStatusAccessory(status?: ProviderStatus): List.Item.Accessory | undefined {
+  if (!status || !isRenderableProviderStatusIndicator(status.indicator)) {
+    return undefined;
+  }
+
+  const { icon, tintColor } = getProviderStatusIconStyle(status);
+  return {
+    icon: { source: icon, tintColor },
+    tooltip: formatProviderStatusSummary(status),
+  };
+}
+
+function getProviderStatusIconStyle(status: ProviderStatus): { icon: Icon; tintColor: Color } {
+  switch (status.indicator) {
+    case "minor":
+      return { icon: Icon.Warning, tintColor: Color.Yellow };
+    case "major":
+      return { icon: Icon.Warning, tintColor: Color.Red };
+    case "critical":
+      return { icon: Icon.XMarkCircle, tintColor: Color.Red };
+    case "maintenance":
+      return { icon: Icon.Hammer, tintColor: Color.SecondaryText };
+    default:
+      return { icon: Icon.Warning, tintColor: Color.SecondaryText };
+  }
+}
+
+function buildProviderUsageAccessories(
   providerId: string,
   detail: ProviderDetailData | undefined,
   error: Error | undefined,

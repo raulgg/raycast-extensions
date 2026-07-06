@@ -6,6 +6,7 @@ import { getProviderDetailHeaderTimestamp } from "./ProviderDetail";
 import { ProviderListItem } from "./ProviderListItem";
 import { useCodexBarAvailability } from "../hooks/useCodexBarAvailability";
 import { useProviderDetails } from "../hooks/useProviderDetails";
+import { useProviderStatuses } from "../hooks/useProviderStatuses";
 import { useProviderDetailErrorToast } from "../hooks/useProviderDetailErrorToast";
 import { useRelativeUpdateTime } from "../hooks/useRelativeUpdateTime";
 import { useUsageOverview } from "../hooks/useUsageOverview";
@@ -42,6 +43,11 @@ export function UsageList() {
 
   const providerDetails = useProviderDetails(binary, configuredProviders.providers, selectedProviderId);
   const { isLoading: isProviderDetailLoading, refreshProvider, results: providerDetailResults } = providerDetails;
+  const statusProviderIds = useMemo(
+    () => configuredProviders.providers.map((provider) => provider.id),
+    [configuredProviders.providers],
+  );
+  const providerStatuses = useProviderStatuses(statusProviderIds);
   const selectedProviderDetail = selectedProviderId ? providerDetailResults[selectedProviderId] : undefined;
   const selectedProviderDetailHeaderTimestamp = getProviderDetailHeaderTimestamp(
     selectedProviderDetail?.detail,
@@ -144,6 +150,7 @@ export function UsageList() {
             detailError={providerDetail?.error}
             isDetailLoading={providerDetail?.isLoading ?? false}
             detailCacheStatus={providerDetail?.cacheStatus}
+            status={providerStatuses[provider.id]}
             isSelected={provider.id === selectedProviderId}
             relativeTimeNow={provider.id === selectedProviderId ? relativeTimeNow : undefined}
             onRefresh={() => refreshProvider(provider.id)}

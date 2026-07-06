@@ -21,12 +21,14 @@ import {
   getTextBottomY,
   type DetailAppearance,
 } from "../lib/detailMarkdown";
-import type { ProviderDetailData, ProviderInfoSection, ProviderSection } from "./types";
+import { formatProviderStatusSummary, isRenderableProviderStatusIndicator } from "./status";
+import type { ProviderDetailData, ProviderInfoSection, ProviderSection, ProviderStatus } from "./types";
 
 export type ProviderDetailAppearance = DetailAppearance;
 type ProviderDetailMarkdownOptions = {
   subtitle?: string;
   now?: number;
+  status?: ProviderStatus;
 };
 
 const TYPOGRAPHY = DETAIL_TYPOGRAPHY;
@@ -118,6 +120,21 @@ function splitRenderableSections(sections: ProviderSection[]): {
   const otherSections = sections.filter((section) => section.kind !== "usage" && section.kind !== "supplementalUsage");
 
   return { metricSections, otherSections };
+}
+
+// Renders the incident status as a single-row "Status" section: the label and
+// description on one line (e.g. "Partial outage – …"). Operational/unknown never
+// reach here. The status page URL is offered as a detail action, not drawn here.
+function buildStatusInfoSection(status?: ProviderStatus): ProviderInfoSection | undefined {
+  if (!status || !isRenderableProviderStatusIndicator(status.indicator)) {
+    return undefined;
+  }
+
+  return {
+    kind: "info",
+    title: "Status",
+    items: [{ label: formatProviderStatusSummary(status), value: "" }],
+  };
 }
 
 function buildProgressBar(
@@ -442,13 +459,17 @@ export function buildProviderDetailMarkdown(
   const sections = detail.sections.filter((section) => section.kind !== "info" || section.items.length > 0);
   const subtitle = options?.subtitle ?? getHeaderSubtitle(detail.updatedAt, options?.now);
   const hasHeaderContent = Boolean(subtitle || detail.accountEmail || detail.planText);
+  const statusSection = buildStatusInfoSection(options?.status);
 
-  if (sections.length === 0 && !hasHeaderContent) {
+  if (sections.length === 0 && !hasHeaderContent && !statusSection) {
     return "No data available";
   }
 
   const palette = PANEL_PALETTES[appearance];
   const { metricSections, otherSections } = splitRenderableSections(sections);
+  // Status leads the non-metric sections when present, mirroring how the app
+  // surfaces an incident above the usual detail rows.
+  const trailingSections = statusSection ? [statusSection, ...otherSections] : otherSections;
   const header = buildHeaderMarkup(
     detail.name,
     appearance,
@@ -471,7 +492,7 @@ export function buildProviderDetailMarkdown(
     currentY = rendered.contentBottomY;
   }
 
-  for (const section of otherSections) {
+  for (const section of trailingSections) {
     markup.push(buildSectionDivider(getSectionDividerY(currentY), palette.dividerStroke));
     currentY = getSectionTitleY(currentY);
 

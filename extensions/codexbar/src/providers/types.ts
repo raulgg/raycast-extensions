@@ -40,6 +40,18 @@ export type ProviderUsagePacing = {
   context?: ProviderUsagePacingContext;
 };
 
+// Provider incident status, mirroring the CodexBar CLI's `status` payload
+// (ProviderStatusPayload in CLIPayloads.swift). Sourced only from the CLI's
+// `usage --status` flag, never fetched by this extension directly.
+export type ProviderStatusIndicator = "none" | "minor" | "major" | "critical" | "maintenance" | "unknown";
+
+export type ProviderStatus = {
+  indicator: ProviderStatusIndicator;
+  description?: string;
+  updatedAt?: string;
+  url?: string;
+};
+
 export type ProviderUsageSectionTitle = "Primary" | "Secondary" | "Tertiary";
 
 export type ProviderUsageSection = {

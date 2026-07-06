@@ -124,9 +124,14 @@ function buildWindow(
   };
 }
 
-function buildStatus(description: string, url: string, now: Date): Record<string, unknown> {
+function buildStatus(
+  description: string,
+  url: string,
+  now: Date,
+  indicator: "none" | "minor" | "major" | "critical" | "maintenance" | "unknown" = "none",
+): Record<string, unknown> {
   return {
-    indicator: "none",
+    indicator,
     description,
     url,
     updatedAt: iso(now),
@@ -283,7 +288,7 @@ function buildCodex(now: Date): RawProviderPayload {
   return buildPayload("codex", {
     source: MOCK_SOURCES.codex,
     version: MOCK_VERSIONS.codex,
-    status: buildStatus("OpenAI Codex operational", "https://status.openai.com", now),
+    status: buildStatus("Partial System Degradation", "https://status.openai.com", now, "minor"),
     usage: buildUsage(
       now,
       buildWindow(now, 61, 90 * MINUTE, "Session"),

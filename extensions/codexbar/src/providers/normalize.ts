@@ -1,9 +1,11 @@
 import { calculateUsagePacing } from "./usagePacing";
 import { getProviderMetadata, getProviderUsageSectionDisplayTitle } from "./registry";
+import { parseProviderStatus } from "./status";
 import type {
   ProviderDetailData,
   ProviderSection,
   ProviderSectionItem,
+  ProviderStatus,
   ProviderUsagePacing,
   RawProviderPayload,
 } from "./types";
@@ -541,6 +543,27 @@ function getNestedErrorMessage(payload: RawProviderPayload): string | undefined 
   }
 
   return toString(error.message) ?? toString(error.detail);
+}
+
+// Pulls the `status` object out of a raw usage payload (from `usage --status`)
+// for the matching provider and normalizes it. Kept separate from the usage
+// sections so status never rides along in the provider-detail cache.
+export function extractProviderStatus(payload: unknown, providerId: string): ProviderStatus | undefined {
+  const candidates = collectCandidates(payload);
+  // Prefer the exact provider; otherwise fall back only to the first candidate
+  // that actually carries a status (mirroring extractProviderErrorMessage). A
+  // blind `candidates[0]` would surface a neighbouring provider's status for the
+  // requested one, while this still handles a single-provider payload keyed under
+  // a different id.
+  const candidate =
+    candidates.find((entry) => entry.id === providerId) ??
+    candidates.find((entry) => parseProviderStatus(entry.payload.status) !== undefined);
+  const source = candidate?.payload ?? toRecord(payload);
+  if (!source) {
+    return undefined;
+  }
+
+  return parseProviderStatus(source.status);
 }
 
 export function extractProviderErrorMessage(payload: unknown, providerId: string): string | undefined {

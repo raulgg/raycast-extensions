@@ -3,6 +3,7 @@ const { Action, ActionPanel, List } = vi.hoisted(() => {
   const action = vi.fn();
   Object.assign(action, {
     CopyToClipboard: vi.fn(),
+    OpenInBrowser: vi.fn(),
   });
 
   return {
@@ -19,6 +20,9 @@ vi.mock("@raycast/api", () => ({
   ActionPanel,
   Color: {
     PrimaryText: "raycast-primary-text",
+    SecondaryText: "raycast-secondary-text",
+    Yellow: "raycast-yellow",
+    Red: "raycast-red",
   },
   Icon: new Proxy(
     {},
@@ -35,12 +39,13 @@ vi.mock("./ProviderDetail", () => ({
 
 import {
   buildProviderListItemAccessories,
+  buildProviderStatusAccessory,
   formatProviderDetailErrorTooltip,
   formatProviderDetailStaleTooltip,
   ProviderListItem,
 } from "./ProviderListItem";
 import { getProviderProgressPalette } from "../providers/registry";
-import type { ProviderDetailData } from "../providers/types";
+import type { ProviderDetailData, ProviderStatus } from "../providers/types";
 
 function makeDetail(remainingPercent: number, secondaryRemainingPercent?: number): ProviderDetailData {
   return {
@@ -241,6 +246,88 @@ describe("ProviderListItem", () => {
       text: "82% • 0%",
       tooltip: "Session: 82% remaining • Weekly: 0% remaining",
     });
+  });
+
+  it("prepends a yellow warning badge before usage accessories for a minor incident", () => {
+    const status: ProviderStatus = {
+      indicator: "minor",
+      description: "Partial System Degradation",
+      url: "https://status.openai.com/",
+    };
+
+    const accessories = buildProviderListItemAccessories(
+      "codex",
+      makeDetail(82, 41),
+      undefined,
+      false,
+      undefined,
+      status,
+    );
+
+    expect(accessories?.[0]).toEqual({
+      icon: { source: "Warning", tintColor: "raycast-yellow" },
+      tooltip: "Partial outage – Partial System Degradation",
+    });
+    expect(accessories).toHaveLength(3);
+  });
+
+  it("shows only a status badge when there is no usage to render", () => {
+    const status: ProviderStatus = { indicator: "critical", url: "https://status.openai.com/" };
+
+    expect(buildProviderListItemAccessories("codex", undefined, undefined, false, undefined, status)).toEqual([
+      {
+        icon: { source: "XMarkCircle", tintColor: "raycast-red" },
+        tooltip: "Critical issue",
+      },
+    ]);
+  });
+
+  it("renders no badge for operational or unknown status", () => {
+    expect(buildProviderStatusAccessory({ indicator: "none", url: "https://status.openai.com/" })).toBeUndefined();
+    expect(buildProviderStatusAccessory({ indicator: "unknown", url: "https://status.openai.com/" })).toBeUndefined();
+    expect(buildProviderStatusAccessory(undefined)).toBeUndefined();
+  });
+
+  it("maps each incident indicator to its icon and tint", () => {
+    expect(buildProviderStatusAccessory({ indicator: "major" })).toMatchObject({
+      icon: { source: "Warning", tintColor: "raycast-red" },
+    });
+    expect(buildProviderStatusAccessory({ indicator: "maintenance" })).toMatchObject({
+      icon: { source: "Hammer", tintColor: "raycast-secondary-text" },
+    });
+  });
+
+  it("adds an Open Status Page action when a renderable status carries a url", () => {
+    const element = ProviderListItem({
+      provider: { id: "codex", name: "Codex", icon: { source: "provider-icons/codex.svg" } },
+      isDetailLoading: false,
+      isSelected: true,
+      status: { indicator: "minor", url: "https://status.openai.com/" },
+      onRefresh: vi.fn(),
+    });
+
+    const actions = element.props.actions.props.children.flat().filter(Boolean);
+    const statusAction = actions.find(
+      (action: { props: { title?: string } }) => action.props.title === "Open Status Page",
+    );
+
+    expect(statusAction?.props.url).toBe("https://status.openai.com/");
+  });
+
+  it("omits the Open Status Page action for operational status", () => {
+    const element = ProviderListItem({
+      provider: { id: "codex", name: "Codex", icon: { source: "provider-icons/codex.svg" } },
+      isDetailLoading: false,
+      isSelected: true,
+      status: { indicator: "none", url: "https://status.openai.com/" },
+      onRefresh: vi.fn(),
+    });
+
+    const actions = element.props.actions.props.children.flat().filter(Boolean);
+
+    expect(actions.some((action: { props: { title?: string } }) => action.props.title === "Open Status Page")).toBe(
+      false,
+    );
   });
 
   it("uses a generic error tooltip regardless of the underlying detail", () => {

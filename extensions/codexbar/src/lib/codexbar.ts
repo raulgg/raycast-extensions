@@ -5,8 +5,12 @@ import { homedir, userInfo } from "node:os";
 import { delimiter, join } from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { getProviderMetadata, isKnownProviderId, isProviderSelectorId, resolveProviderId } from "../providers/registry";
-import { extractProviderErrorMessage, normalizeProviderDetailPayload } from "../providers/normalize";
-import type { ConfiguredProvider, ProviderDetailData } from "../providers/types";
+import {
+  extractProviderErrorMessage,
+  extractProviderStatus,
+  normalizeProviderDetailPayload,
+} from "../providers/normalize";
+import type { ConfiguredProvider, ProviderDetailData, ProviderStatus } from "../providers/types";
 import { getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
 
 const CODEXBAR_TIMEOUT_MS = 60_000;
@@ -558,6 +562,51 @@ export async function fetchProviderDetailFromUsageCommand(
   return normalizeProviderDetailResponse(payload, normalizedProviderId);
 }
 
+export type ProviderUsageWithStatus = {
+  detail: ProviderDetailData;
+  status?: ProviderStatus;
+};
+
+// One-shot `usage --status` that yields both usage detail and provider status
+// from a single invocation. Used by the background refresh when there is no warm
+// serve daemon to fall back on, so one CLI call warms both caches.
+export async function fetchProviderUsageWithStatus(
+  binary: ResolvedCodexBarBinary,
+  providerId: string,
+): Promise<ProviderUsageWithStatus> {
+  const normalizedProviderId = assertFetchableProviderId(providerId);
+
+  if (binary.source === "mock" || isCodexBarMockMode()) {
+    const payload = getMockProviderPayload(normalizedProviderId);
+    return {
+      detail: normalizeProviderDetailPayload(payload, normalizedProviderId),
+      status: extractProviderStatus(payload, normalizedProviderId),
+    };
+  }
+
+  const payload = await executeCodexBar(
+    binary,
+    buildProviderUsageCommandArgs(normalizedProviderId, { includeStatus: true }),
+  );
+  const status = extractProviderStatus(payload, normalizedProviderId);
+  const detail = normalizeProviderDetailResponse(payload, normalizedProviderId);
+  return { detail, status };
+}
+
+// Status-only variant used when the background refresh already sourced usage
+// from the serve daemon (which never carries status). Upstream's serve mode does
+// not support status, so this extra one-shot is the only way to obtain it there.
+// Thin wrapper over fetchProviderUsageWithStatus that discards the detail; the
+// caller (fetchProviderStatusSafely) try/catches to undefined, so the extra
+// normalizeProviderDetailResponse throw on provider-error payloads is harmless
+// and keeps the "status must never fail the usage refresh" invariant true.
+export async function fetchProviderStatusFromUsageCommand(
+  binary: ResolvedCodexBarBinary,
+  providerId: string,
+): Promise<ProviderStatus | undefined> {
+  return (await fetchProviderUsageWithStatus(binary, providerId)).status;
+}
+
 function assertFetchableProviderId(providerId: string): string {
   const normalizedProviderId = providerId.trim();
   if (!normalizedProviderId || isProviderSelectorId(normalizedProviderId)) {
@@ -576,7 +625,7 @@ function normalizeProviderDetailResponse(payload: unknown, providerId: string): 
   return normalizeProviderDetailPayload(payload, providerId);
 }
 
-function buildProviderUsageCommandArgs(providerId: string): string[] {
+function buildProviderUsageCommandArgs(providerId: string, options?: { includeStatus?: boolean }): string[] {
   return [
     "usage",
     "--format",
@@ -585,6 +634,7 @@ function buildProviderUsageCommandArgs(providerId: string): string[] {
     "--json-output",
     "--web-timeout",
     `${CODEXBAR_WEB_TIMEOUT_MS / 1000}`,
+    ...(options?.includeStatus ? ["--status"] : []),
     "--provider",
     providerId,
     "--source",

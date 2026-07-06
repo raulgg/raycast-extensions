@@ -7,6 +7,9 @@ export const Icon = new Proxy(
 
 export const Color = {
   PrimaryText: "raycast-primary-text",
+  SecondaryText: "raycast-secondary-text",
+  Yellow: "raycast-yellow",
+  Red: "raycast-red",
 } as const;
 
 export const environment = {
