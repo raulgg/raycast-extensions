@@ -1,5 +1,6 @@
 import type { Image } from "@raycast/api";
 import { DETAIL_PALETTES } from "./detailMarkdown";
+import { renderedFillPercent } from "./svg";
 import { getProviderProgressPalette } from "../providers/registry";
 
 const ICON_SIZE_PT = 18;
@@ -118,7 +119,8 @@ function buildFillRect(
   remainingPercent: number,
   fillColor: string,
 ): string {
-  const fillWidth = Math.max(0, Math.min(rect.width, Math.round((rect.width * remainingPercent) / 100)));
+  const normalized = renderedFillPercent(remainingPercent);
+  const fillWidth = Math.max(0, Math.min(rect.width, Math.round((rect.width * normalized) / 100)));
   if (fillWidth <= 0) {
     return "";
   }

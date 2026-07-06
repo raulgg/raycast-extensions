@@ -133,7 +133,7 @@ export function buildSvgProgressBar({
   fill,
   marker,
 }: SvgProgressBarOptions): string {
-  const normalized = clampPercent(percent);
+  const normalized = renderedFillPercent(percent);
   const fillWidth = Math.round((normalized / 100) * width);
 
   return [
@@ -187,4 +187,26 @@ function buildSvgProgressMarker(
 
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
+}
+
+/**
+ * Aligns the rendered bar fill with the rounded percent label so the bar never
+ * shows a sliver when the label reads 0% or a gap when the label reads 100%.
+ *
+ * Mirrors upstream `UsageProgressBar.renderedFillPercent`
+ * (steipete/CodexBar, Sources/CodexBar/UsageProgressBar.swift:125-132).
+ */
+export function renderedFillPercent(percent: number): number {
+  const clamped = clampPercent(percent);
+  const rounded = Math.round(clamped);
+
+  if (rounded <= 0) {
+    return 0;
+  }
+
+  if (rounded >= 100) {
+    return 100;
+  }
+
+  return clamped;
 }
