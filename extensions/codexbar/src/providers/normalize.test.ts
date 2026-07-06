@@ -247,6 +247,22 @@ describe("provider normalization", () => {
     expect(detailSvg).toContain(">Gcloud<");
   });
 
+  it("prefers Claude subscription plan fields over generic oauth login methods", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "claude",
+        loginMethod: "oauth",
+        plan: "max",
+      },
+      "claude",
+    );
+    const [detailSvg] = extractSvgMarkup(detail.markdown);
+
+    expect(detail.planText).toBe("Max");
+    expect(detailSvg).toContain(">Max<");
+    expect(detailSvg).not.toContain(">OAuth<");
+  });
+
   it("extracts provider-specific errors from CLI payload arrays", () => {
     const message = extractProviderErrorMessage(
       [

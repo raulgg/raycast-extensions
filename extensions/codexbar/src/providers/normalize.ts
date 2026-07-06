@@ -417,12 +417,35 @@ function extractAccountEmail(payload: RawProviderPayload): string | undefined {
   );
 }
 
-function extractRawPlanText(payload: RawProviderPayload): string | undefined {
+function extractRawPlanText(providerId: string, payload: RawProviderPayload): string | undefined {
   const usage = toRecord(payload.usage);
   const usageIdentity = toRecord(usage?.identity);
   const identity = toRecord(payload.identity);
   const account = toRecord(payload.account);
   const dashboard = toRecord(payload.openaiDashboard);
+
+  if (providerId === "claude") {
+    const claudePlan = firstString(
+      payload.plan,
+      identity?.plan,
+      usage?.plan,
+      usageIdentity?.plan,
+      account?.plan,
+      payload.subscriptionType,
+      identity?.subscriptionType,
+      usage?.subscriptionType,
+      usageIdentity?.subscriptionType,
+      account?.subscriptionType,
+      payload.rateLimitTier,
+      identity?.rateLimitTier,
+      usage?.rateLimitTier,
+      usageIdentity?.rateLimitTier,
+      account?.rateLimitTier,
+    );
+    if (claudePlan) {
+      return claudePlan;
+    }
+  }
 
   return firstString(
     payload.loginMethod,
@@ -478,7 +501,7 @@ function extractKiloPass(rawPlanText: string): string | undefined {
 }
 
 function formatPlanText(providerId: string, payload: RawProviderPayload): string | undefined {
-  const rawPlanText = extractRawPlanText(payload);
+  const rawPlanText = extractRawPlanText(providerId, payload);
   if (!rawPlanText) {
     return undefined;
   }
