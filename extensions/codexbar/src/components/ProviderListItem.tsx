@@ -1,7 +1,6 @@
-import { Action, ActionPanel, Color, Icon, List } from "@raycast/api";
+import { Action, ActionPanel, Icon, List } from "@raycast/api";
 import type { ProviderDetailCacheStatus } from "../hooks/useProviderDetails";
 import type { ConfiguredProvider, ProviderDetailData, ProviderStatus, ProviderUsageSection } from "../providers/types";
-import { formatProviderStatusSummary, isRenderableProviderStatusIndicator } from "../providers/status";
 import { buildTwoBarAccessoryIcon } from "../lib/twoBarAccessoryIcon";
 import { getProviderMetadata, resolveDashboardUrl } from "../providers/registry";
 import { ProviderDetail } from "./ProviderDetail";
@@ -45,14 +44,7 @@ export function ProviderListItem({
       title={provider.name}
       keywords={provider.keywords}
       icon={provider.icon}
-      accessories={buildProviderListItemAccessories(
-        provider.id,
-        detail,
-        detailError,
-        isDetailLoading,
-        detailCacheStatus,
-        status,
-      )}
+      accessories={buildProviderListItemAccessories(provider.id, detail, detailError, isDetailLoading, detailCacheStatus)}
       detail={
         <ProviderDetail
           provider={provider}
@@ -112,53 +104,9 @@ export function ProviderListItem({
   );
 }
 
+// Incident status is intentionally absent here: it renders only inside the
+// detail panel (see markdown.ts), so the list accessories stay usage-only.
 export function buildProviderListItemAccessories(
-  providerId: string,
-  detail: ProviderDetailData | undefined,
-  error: Error | undefined,
-  isLoading: boolean,
-  cacheStatus?: ProviderDetailCacheStatus,
-  status?: ProviderStatus,
-): List.Item.Accessory[] | undefined {
-  const usageAccessories = buildProviderUsageAccessories(providerId, detail, error, isLoading, cacheStatus);
-  const statusAccessory = buildProviderStatusAccessory(status);
-  if (!statusAccessory) {
-    return usageAccessories;
-  }
-
-  // The status badge is additive and precedes the usage accessories; it never
-  // displaces the existing error/loading/stale accessories.
-  return usageAccessories ? [statusAccessory, ...usageAccessories] : [statusAccessory];
-}
-
-export function buildProviderStatusAccessory(status?: ProviderStatus): List.Item.Accessory | undefined {
-  if (!status || !isRenderableProviderStatusIndicator(status.indicator)) {
-    return undefined;
-  }
-
-  const { icon, tintColor } = getProviderStatusIconStyle(status);
-  return {
-    icon: { source: icon, tintColor },
-    tooltip: formatProviderStatusSummary(status),
-  };
-}
-
-function getProviderStatusIconStyle(status: ProviderStatus): { icon: Icon; tintColor: Color } {
-  switch (status.indicator) {
-    case "minor":
-      return { icon: Icon.Warning, tintColor: Color.Yellow };
-    case "major":
-      return { icon: Icon.Warning, tintColor: Color.Red };
-    case "critical":
-      return { icon: Icon.XMarkCircle, tintColor: Color.Red };
-    case "maintenance":
-      return { icon: Icon.Hammer, tintColor: Color.SecondaryText };
-    default:
-      return { icon: Icon.Warning, tintColor: Color.SecondaryText };
-  }
-}
-
-function buildProviderUsageAccessories(
   providerId: string,
   detail: ProviderDetailData | undefined,
   error: Error | undefined,

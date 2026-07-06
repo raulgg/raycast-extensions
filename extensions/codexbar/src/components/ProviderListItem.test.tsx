@@ -39,13 +39,12 @@ vi.mock("./ProviderDetail", () => ({
 
 import {
   buildProviderListItemAccessories,
-  buildProviderStatusAccessory,
   formatProviderDetailErrorTooltip,
   formatProviderDetailStaleTooltip,
   ProviderListItem,
 } from "./ProviderListItem";
 import { getProviderProgressPalette } from "../providers/registry";
-import type { ProviderDetailData, ProviderStatus } from "../providers/types";
+import type { ProviderDetailData } from "../providers/types";
 
 function makeDetail(remainingPercent: number, secondaryRemainingPercent?: number): ProviderDetailData {
   return {
@@ -297,52 +296,15 @@ describe("ProviderListItem", () => {
     });
   });
 
-  it("prepends a yellow warning badge before usage accessories for a minor incident", () => {
-    const status: ProviderStatus = {
-      indicator: "minor",
-      description: "Partial System Degradation",
-      url: "https://status.openai.com/",
-    };
+  it("keeps accessories usage-only during an incident; status renders in the detail panel instead", () => {
+    const accessories = buildProviderListItemAccessories("codex", makeDetail(82, 41), undefined, false);
 
-    const accessories = buildProviderListItemAccessories(
-      "codex",
-      makeDetail(82, 41),
-      undefined,
-      false,
-      undefined,
-      status,
-    );
-
-    expect(accessories?.[0]).toEqual({
-      icon: { source: "Warning", tintColor: "raycast-yellow" },
-      tooltip: "Partial outage – Partial System Degradation",
-    });
-    expect(accessories).toHaveLength(3);
-  });
-
-  it("shows only a status badge when there is no usage to render", () => {
-    const status: ProviderStatus = { indicator: "critical", url: "https://status.openai.com/" };
-
-    expect(buildProviderListItemAccessories("codex", undefined, undefined, false, undefined, status)).toEqual([
-      {
-        icon: { source: "XMarkCircle", tintColor: "raycast-red" },
-        tooltip: "Critical issue",
-      },
-    ]);
-  });
-
-  it("renders no badge for operational or unknown status", () => {
-    expect(buildProviderStatusAccessory({ indicator: "none", url: "https://status.openai.com/" })).toBeUndefined();
-    expect(buildProviderStatusAccessory({ indicator: "unknown", url: "https://status.openai.com/" })).toBeUndefined();
-    expect(buildProviderStatusAccessory(undefined)).toBeUndefined();
-  });
-
-  it("maps each incident indicator to its icon and tint", () => {
-    expect(buildProviderStatusAccessory({ indicator: "major" })).toMatchObject({
-      icon: { source: "Warning", tintColor: "raycast-red" },
-    });
-    expect(buildProviderStatusAccessory({ indicator: "maintenance" })).toMatchObject({
-      icon: { source: "Hammer", tintColor: "raycast-secondary-text" },
+    expect(accessories).toHaveLength(2);
+    expectProgressAccessories(accessories, "codex", {
+      primary: 82,
+      secondary: 41,
+      text: "82% • 41%",
+      tooltip: "Session: 82% remaining • Weekly: 41% remaining",
     });
   });
 
