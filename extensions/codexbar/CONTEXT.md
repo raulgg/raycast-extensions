@@ -46,8 +46,8 @@ The visual progress bar showing how much of a reset window remains.
 _Avoid_: Progress bar, gauge
 
 **Pacing**:
-A comparison of a reset window's actual usage against its expected usage — summarized as **on track** when close, otherwise **ahead** (consuming faster than the window's even pace) or **behind** (slower, leaving headroom). Note: this ahead/behind framing deliberately diverges from upstream's "on pace / in reserve" wording, chosen here for clarity and pending a later revisit.
-_Avoid_: On pace, in reserve, burn rate (internal)
+A comparison of a reset window's actual usage against its expected usage — summarized as **on pace** when close, otherwise **in deficit** (consuming faster than the window's even pace) or **in reserve** (slower, leaving headroom). Wording matches upstream (revisit resolved 2026-07: parity wins; "ahead" read as good when it means bad).
+_Avoid_: Ahead, behind, on track, burn rate (internal)
 
 **Expected usage**:
 The percentage of a window you would ideally have consumed by now if usage were spread evenly across the window — the benchmark Pacing measures against.

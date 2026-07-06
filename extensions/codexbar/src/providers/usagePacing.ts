@@ -149,14 +149,16 @@ function liveRunOutEtaSeconds(usagePacing: ProviderUsagePacing, now = Date.now()
   return Math.max(0, usagePacing.runOutEtaSeconds - (now - computedAtMs) / 1000);
 }
 
+// Label wording mirrors upstream UsagePaceText (detailLeftLabel / detailRightLabel).
+// "in deficit" = consuming faster than the window's even pace; "in reserve" = slower.
 export function formatUsagePacingLabels(usagePacing: ProviderUsagePacing, now = Date.now()): UsagePacingLabelSet {
   const roundedDeltaPercent = Math.round(Math.abs(usagePacing.usedVsIdealDeltaPercent));
   const leftLabel =
-    usagePacing.stage === "onTrack"
-      ? "On track"
+    usagePacing.stage === "onTrack" || roundedDeltaPercent === 0
+      ? "On pace"
       : usagePacing.usedVsIdealDeltaPercent >= 0
-        ? `${roundedDeltaPercent}% ahead`
-        : `${roundedDeltaPercent}% behind`;
+        ? `${roundedDeltaPercent}% in deficit`
+        : `${roundedDeltaPercent}% in reserve`;
 
   if (usagePacing.lastsUntilReset) {
     return {
@@ -171,6 +173,14 @@ export function formatUsagePacingLabels(usagePacing: ProviderUsagePacing, now = 
   }
 
   const etaText = durationText(runOutEtaSeconds);
+  // The session window projects an "empty" ETA; weekly/other windows "run out".
+  if (usagePacing.context === "session") {
+    return {
+      leftLabel,
+      rightLabel: etaText === "now" ? "Projected empty now" : `Projected empty in ${etaText}`,
+    };
+  }
+
   return {
     leftLabel,
     rightLabel: etaText === "now" ? "Runs out now" : `Runs out in ${etaText}`,

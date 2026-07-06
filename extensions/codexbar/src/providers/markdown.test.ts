@@ -236,9 +236,9 @@ describe("provider markdown", () => {
 
     expect(svg).toContain(">47% left<");
     expect(svg).toContain(">Resets in 11h 47m<");
-    expect(svg).toContain(">40% behind<");
+    expect(svg).toContain(">40% in reserve<");
     expect(svg).toContain(">Lasts until reset<");
-    expect(getTextY(svg, "40% behind")).toBeGreaterThan(getTextY(svg, "47% left"));
+    expect(getTextY(svg, "40% in reserve")).toBeGreaterThan(getTextY(svg, "47% left"));
     expect(getTextY(svg, "Lasts until reset")).toBeGreaterThan(getTextY(svg, "Resets in 11h 47m"));
     expect(getRectXs(svg, 3, 12)).toHaveLength(1);
     expect(getRectXs(svg, 3, 12)[0]).toBeGreaterThan(28);

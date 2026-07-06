@@ -24,6 +24,11 @@ export type ProviderUsagePacingStage =
   | "under"
   | "farUnder";
 
+// Selects the ETA phrasing, mirroring upstream UsagePaceText.DetailContext:
+// the session (primary) window says "Projected empty in …"; every other
+// window says "Runs out in …".
+export type ProviderUsagePacingContext = "session" | "window";
+
 export type ProviderUsagePacing = {
   stage: ProviderUsagePacingStage;
   usedVsIdealDeltaPercent: number;
@@ -32,6 +37,7 @@ export type ProviderUsagePacing = {
   runOutEtaSeconds?: number;
   lastsUntilReset: boolean;
   computedAt: string;
+  context?: ProviderUsagePacingContext;
 };
 
 export type ProviderUsageSectionTitle = "Primary" | "Secondary" | "Tertiary";

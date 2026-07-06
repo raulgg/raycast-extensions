@@ -11,8 +11,6 @@ export type ProviderUsageSectionLabels = {
   tertiary?: string;
 };
 
-export type ProviderUsagePacingSlot = "primary" | "secondary" | "tertiary";
-
 export type ProviderRegistryEntry = {
   id: string;
   name: string;
@@ -20,7 +18,6 @@ export type ProviderRegistryEntry = {
   brandColor: string;
   progressPalette: ProviderProgressPalette;
   usageSectionLabels: ProviderUsageSectionLabels;
-  usagePacingSlots?: ProviderUsagePacingSlot[];
 };
 
 type ProviderDefinition = Omit<ProviderRegistryEntry, "id" | "progressPalette">;
@@ -44,14 +41,12 @@ const PROVIDER_DEFINITIONS = {
     icon: providerIcon("codex", Icon.Terminal),
     brandColor: "#49A3B0",
     usageSectionLabels: { primary: "Session", secondary: "Weekly" },
-    usagePacingSlots: ["primary", "secondary"],
   },
   claude: {
     name: "Claude",
     icon: providerIcon("claude", Icon.Bubble),
     brandColor: "#CC7C5E",
     usageSectionLabels: { primary: "Session", secondary: "Weekly", tertiary: "Sonnet" },
-    usagePacingSlots: ["primary", "secondary"],
   },
   cursor: {
     name: "Cursor",
@@ -64,7 +59,6 @@ const PROVIDER_DEFINITIONS = {
     icon: providerIcon("opencode", Icon.Code),
     brandColor: "#3B82F6",
     usageSectionLabels: { primary: "5-hour", secondary: "Weekly" },
-    usagePacingSlots: ["secondary"],
   },
   opencodego: {
     name: "OpenCode Go",
@@ -167,7 +161,6 @@ const PROVIDER_DEFINITIONS = {
     icon: providerIcon("ollama", Icon.Box),
     brandColor: "#888888",
     usageSectionLabels: { primary: "Session", secondary: "Weekly" },
-    usagePacingSlots: ["primary", "secondary"],
   },
   synthetic: {
     name: "Synthetic",

@@ -154,7 +154,7 @@ describe("provider normalization", () => {
     ]);
     expect(detailSvg).toContain(">47% left<");
     expect(detailSvg).toContain(">Resets in 11h 47m<");
-    expect(detailSvg).toContain(">40% behind<");
+    expect(detailSvg).toContain(">40% in reserve<");
     expect(detailSvg).toContain(">Lasts until reset<");
   });
 
@@ -335,5 +335,98 @@ describe("provider normalization", () => {
         ],
       },
     ]);
+  });
+});
+
+describe("usage pacing gating", () => {
+  const NOW = Date.parse("2026-03-23T10:30:00Z");
+  // Session window resets 2.5h out (inside the 5h session cadence).
+  const SESSION_RESETS_AT = "2026-03-23T13:00:00Z";
+  // Weekly window resets 5d out (inside the 7d weekly cadence).
+  const WEEKLY_RESETS_AT = "2026-03-28T10:30:00Z";
+
+  function pace(provider: string, usage: Record<string, unknown>) {
+    return normalizeProviderDetailPayload({ provider, usage }, provider, NOW).sections;
+  }
+
+  it("paces the codex/claude session window with the 300-min default when windowMinutes is absent", () => {
+    for (const provider of ["codex", "claude"] as const) {
+      const [primary] = pace(provider, { primary: { usedPercent: 60, resetsAt: SESSION_RESETS_AT } });
+      expect(primary, provider).toMatchObject({
+        title: "Primary",
+        usagePacing: { stage: "over", context: "session" },
+      });
+    }
+  });
+
+  it("only paces the ollama session window when the payload carries an explicit windowMinutes", () => {
+    const [withoutWindow] = pace("ollama", { primary: { usedPercent: 60, resetsAt: SESSION_RESETS_AT } });
+    expect(withoutWindow.usagePacing).toBeUndefined();
+
+    const [withWindow] = pace("ollama", {
+      primary: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
+    });
+    expect(withWindow.usagePacing).toMatchObject({ context: "session" });
+  });
+
+  it("never paces the session window for providers outside the whitelist", () => {
+    const [primary] = pace("cursor", {
+      primary: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
+    });
+    expect(primary.usagePacing).toBeUndefined();
+  });
+
+  it("paces the codex secondary window with the 10080-min default when windowMinutes is absent", () => {
+    const [secondary] = pace("codex", { secondary: { usedPercent: 50, resetsAt: WEEKLY_RESETS_AT } });
+    expect(secondary).toMatchObject({
+      title: "Secondary",
+      usagePacing: { stage: "farOver", context: "window" },
+    });
+  });
+
+  it("does not extend the codex default-window fallback to the tertiary slot", () => {
+    const [tertiary] = pace("codex", { tertiary: { usedPercent: 50, resetsAt: WEEKLY_RESETS_AT } });
+    expect(tertiary.usagePacing).toBeUndefined();
+  });
+
+  it("only paces a generic provider's weekly window when windowMinutes is explicit", () => {
+    const [withoutWindow] = pace("factory", { secondary: { usedPercent: 50, resetsAt: WEEKLY_RESETS_AT } });
+    expect(withoutWindow.usagePacing).toBeUndefined();
+
+    const [withWindow] = pace("factory", {
+      secondary: { windowMinutes: 10_080, usedPercent: 50, resetsAt: WEEKLY_RESETS_AT },
+    });
+    expect(withWindow.usagePacing).toMatchObject({ context: "window" });
+  });
+
+  it("paces cursor billing-cycle windows that carry windowMinutes via the generic rule", () => {
+    const [secondary] = pace("cursor", {
+      secondary: { windowMinutes: 10_080, usedPercent: 50, resetsAt: WEEKLY_RESETS_AT },
+    });
+    expect(secondary.usagePacing).toMatchObject({ context: "window" });
+  });
+
+  it("paces named extra rate windows only when they carry windowMinutes", () => {
+    const withoutWindow = pace("codex", {
+      primary: { usedPercent: 40, resetsAt: SESSION_RESETS_AT },
+      extraRateWindows: [
+        { id: "codex-spark", title: "Codex Spark", window: { usedPercent: 60, resetsAt: SESSION_RESETS_AT } },
+      ],
+    });
+    expect(withoutWindow.find((section) => section.title === "Codex Spark")?.usagePacing).toBeUndefined();
+
+    const withWindow = pace("codex", {
+      primary: { usedPercent: 40, resetsAt: SESSION_RESETS_AT },
+      extraRateWindows: [
+        {
+          id: "codex-spark",
+          title: "Codex Spark",
+          window: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
+        },
+      ],
+    });
+    expect(withWindow.find((section) => section.title === "Codex Spark")?.usagePacing).toMatchObject({
+      context: "window",
+    });
   });
 });

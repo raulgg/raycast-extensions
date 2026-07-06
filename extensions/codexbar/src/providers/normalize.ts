@@ -1,6 +1,12 @@
 import { calculateUsagePacing } from "./usagePacing";
-import { getProviderMetadata, getProviderUsageSectionDisplayTitle, type ProviderUsagePacingSlot } from "./registry";
-import type { ProviderDetailData, ProviderSection, ProviderSectionItem, RawProviderPayload } from "./types";
+import { getProviderMetadata, getProviderUsageSectionDisplayTitle } from "./registry";
+import type {
+  ProviderDetailData,
+  ProviderSection,
+  ProviderSectionItem,
+  ProviderUsagePacing,
+  RawProviderPayload,
+} from "./types";
 import { buildProviderDetailMarkdown } from "./markdown";
 
 type ProviderCandidate = {
@@ -142,20 +148,77 @@ function buildWindowReset(
   return undefined;
 }
 
-// Session windows run on a 5h cadence; weekly/monthly windows on the 7d cadence.
-// Used only when the payload window omits an explicit `windowMinutes`.
-const USAGE_PACING_DEFAULT_WINDOW_MINUTES: Record<ProviderUsagePacingSlot, number> = {
-  primary: 300,
-  secondary: 10_080,
-  tertiary: 10_080,
+// Default window durations used only when a payload window omits an explicit
+// `windowMinutes`: session windows run on a 5h cadence, weekly on the 7d cadence.
+const SESSION_PACE_DEFAULT_WINDOW_MINUTES = 300;
+const WEEKLY_PACE_DEFAULT_WINDOW_MINUTES = 10_080;
+
+// Session (primary) pace is a hand-maintained whitelist, mirroring upstream
+// UsagePaceText.sessionPace(provider:): only codex, claude, and ollama get a
+// marker on the session bar. codex/claude fall back to the 300-min default when
+// the payload omits windowMinutes; ollama only paces when windowMinutes is
+// explicit. It is a rule, not registry data — no property of the payload tells
+// you a provider qualifies.
+const SESSION_PACE_PROVIDER_IDS = new Set(["codex", "claude", "ollama"]);
+const SESSION_PACE_EXPLICIT_WINDOW_PROVIDER_IDS = new Set(["ollama"]);
+
+type UsagePacingInput = {
+  usedPercent: number;
+  remainingPercent: number;
+  resetsAt: string;
+  windowMinutes?: number;
 };
 
-function usagePacingSlotForTitle(title: "Primary" | "Secondary" | "Tertiary"): ProviderUsagePacingSlot {
-  return title.toLowerCase() as ProviderUsagePacingSlot;
+function computeSessionUsagePacing(
+  providerId: string,
+  input: UsagePacingInput,
+  now: number,
+): ProviderUsagePacing | undefined {
+  if (!SESSION_PACE_PROVIDER_IDS.has(providerId)) {
+    return undefined;
+  }
+
+  if (SESSION_PACE_EXPLICIT_WINDOW_PROVIDER_IDS.has(providerId) && input.windowMinutes === undefined) {
+    return undefined;
+  }
+
+  const pacing = calculateUsagePacing(input, now, SESSION_PACE_DEFAULT_WINDOW_MINUTES);
+  return pacing ? { ...pacing, context: "session" } : undefined;
+}
+
+// Weekly/other windows (secondary, tertiary, extra rate windows) pace whenever
+// they carry an explicit windowMinutes, mirroring upstream UsageStore.weeklyPace.
+// The 10080-min fallback is only allowed for the codex secondary window — using
+// it everywhere would fabricate a weekly pace for non-weekly windows (e.g.
+// Factory monthly with only resetsAt).
+function computeWeeklyUsagePacing(
+  input: UsagePacingInput,
+  now: number,
+  allowDefaultWindowFallback: boolean,
+): ProviderUsagePacing | undefined {
+  if (input.windowMinutes === undefined && !allowDefaultWindowFallback) {
+    return undefined;
+  }
+
+  const pacing = calculateUsagePacing(input, now, WEEKLY_PACE_DEFAULT_WINDOW_MINUTES);
+  return pacing ? { ...pacing, context: "window" } : undefined;
+}
+
+function computeSlotUsagePacing(
+  providerId: string,
+  slotTitle: "Primary" | "Secondary" | "Tertiary",
+  input: UsagePacingInput,
+  now: number,
+): ProviderUsagePacing | undefined {
+  if (slotTitle === "Primary") {
+    return computeSessionUsagePacing(providerId, input, now);
+  }
+
+  const allowDefaultWindowFallback = providerId === "codex" && slotTitle === "Secondary";
+  return computeWeeklyUsagePacing(input, now, allowDefaultWindowFallback);
 }
 
 function buildUsageSections(providerId: string, payload: RawProviderPayload, now = Date.now()): ProviderSection[] {
-  const metadata = getProviderMetadata(providerId);
   const usage = toRecord(payload.usage);
   const sections: ProviderSection[] = [];
   const slotFallbacks = [
@@ -190,21 +253,19 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
     if (progressPercent !== undefined) {
       const resolvedUsedPercent = usedPercent ?? Math.max(0, 100 - progressPercent);
       const resolvedResetsAt = toString(record.resetsAt) ?? slot.resetTimestamp;
-      const pacingSlot = usagePacingSlotForTitle(slot.title);
-      const pacingEnabled = metadata.usagePacingSlots?.includes(pacingSlot) ?? false;
-      const usagePacing =
-        pacingEnabled && resolvedResetsAt
-          ? calculateUsagePacing(
-              {
-                usedPercent: resolvedUsedPercent,
-                remainingPercent: progressPercent,
-                resetsAt: resolvedResetsAt,
-                windowMinutes: toFiniteNumber(record.windowMinutes),
-              },
-              now,
-              USAGE_PACING_DEFAULT_WINDOW_MINUTES[pacingSlot],
-            )
-          : undefined;
+      const usagePacing = resolvedResetsAt
+        ? computeSlotUsagePacing(
+            providerId,
+            slot.title,
+            {
+              usedPercent: resolvedUsedPercent,
+              remainingPercent: progressPercent,
+              resetsAt: resolvedResetsAt,
+              windowMinutes: toFiniteNumber(record.windowMinutes),
+            },
+            now,
+          )
+        : undefined;
       sections.push({
         kind: "usage",
         title: slot.title,
@@ -238,11 +299,29 @@ function buildExtraRateWindowSections(payload: RawProviderPayload, now = Date.no
       continue;
     }
 
+    const remainingPercent = Math.max(0, 100 - usedPercent);
+    const resetsAt = toString(window.resetsAt);
+    // Named extra windows pace through the same generic weekly rule: only when
+    // the payload carries an explicit windowMinutes (no default fallback).
+    const usagePacing = resetsAt
+      ? computeWeeklyUsagePacing(
+          {
+            usedPercent,
+            remainingPercent,
+            resetsAt,
+            windowMinutes: toFiniteNumber(window.windowMinutes),
+          },
+          now,
+          false,
+        )
+      : undefined;
+
     sections.push({
       kind: "supplementalUsage",
       title,
-      remainingPercent: clampPercent(100 - usedPercent),
+      remainingPercent: clampPercent(remainingPercent),
       resetsIn: buildWindowReset(window, undefined, now),
+      usagePacing,
       nextRegenPercent: toFiniteNumber(window.nextRegenPercent),
     });
   }
