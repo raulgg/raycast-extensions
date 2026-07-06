@@ -154,6 +154,18 @@ describe("provider registry", () => {
     });
   });
 
+  it("harvests upstream dashboard URLs for providers that have one", () => {
+    expect(getProviderMetadata("codex").dashboardUrl).toBe("https://chatgpt.com/codex/settings/usage");
+    expect(getProviderMetadata("claude").dashboardUrl).toBe("https://console.anthropic.com/settings/billing");
+    expect(getProviderMetadata("cursor").dashboardUrl).toBe("https://cursor.com/dashboard?tab=usage");
+  });
+
+  it("omits dashboardUrl for providers where upstream has no dashboard", () => {
+    expect(getProviderMetadata("zed").dashboardUrl).toBeUndefined();
+    expect(getProviderMetadata("jetbrains").dashboardUrl).toBeUndefined();
+    expect(getProviderMetadata("synthetic").dashboardUrl).toBeUndefined();
+  });
+
   it("falls back to the semantic slot title when a label is missing", () => {
     expect(getProviderUsageSectionDisplayTitle("mistral", "Primary")).toBe("Monthly");
     expect(getProviderUsageSectionDisplayTitle("mistral", "Secondary")).toBe("Secondary");
@@ -174,6 +186,7 @@ describe("provider registry", () => {
         darkFill: "#8385F5",
       },
       usageSectionLabels: { primary: "Credits", secondary: "Usage" },
+      dashboardUrl: "https://openrouter.ai/settings/credits",
     });
   });
 
@@ -192,6 +205,7 @@ describe("provider registry", () => {
         darkFill: "#FF8833",
       },
       usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
+      dashboardUrl: "https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=coding-plan#/efm/coding_plan",
     });
   });
 
@@ -210,6 +224,7 @@ describe("provider registry", () => {
         darkFill: "#629BF8",
       },
       usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
+      dashboardUrl: "https://opencode.ai",
     });
   });
 

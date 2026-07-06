@@ -3,6 +3,7 @@ import type { ProviderDetailCacheStatus } from "../hooks/useProviderDetails";
 import type { ConfiguredProvider, ProviderDetailData, ProviderStatus, ProviderUsageSection } from "../providers/types";
 import { formatProviderStatusSummary, isRenderableProviderStatusIndicator } from "../providers/status";
 import { buildTwoBarAccessoryIcon } from "../lib/twoBarAccessoryIcon";
+import { getProviderMetadata } from "../providers/registry";
 import { ProviderDetail } from "./ProviderDetail";
 
 type ProviderListItemProps = {
@@ -34,6 +35,7 @@ export function ProviderListItem({
 }: ProviderListItemProps) {
   const fetchCommand = `codexbar usage --provider ${provider.id}`;
   const statusPageUrl = status && isRenderableProviderStatusIndicator(status.indicator) ? status.url : undefined;
+  const dashboardUrl = getProviderMetadata(provider.id).dashboardUrl;
 
   return (
     <List.Item
@@ -63,8 +65,21 @@ export function ProviderListItem({
       actions={
         <ActionPanel>
           <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={onRefresh} />
+          {dashboardUrl ? (
+            <Action.OpenInBrowser
+              title="Open Usage Dashboard"
+              icon={Icon.BarChart}
+              url={dashboardUrl}
+              shortcut={{ modifiers: ["cmd"], key: "o" }}
+            />
+          ) : null}
           {statusPageUrl ? (
-            <Action.OpenInBrowser title="Open Status Page" icon={Icon.Globe} url={statusPageUrl} />
+            <Action.OpenInBrowser
+              title="Open Status Page"
+              icon={Icon.Globe}
+              url={statusPageUrl}
+              shortcut={{ modifiers: ["cmd", "shift"], key: "o" }}
+            />
           ) : null}
           {onMoveUp ? (
             <Action

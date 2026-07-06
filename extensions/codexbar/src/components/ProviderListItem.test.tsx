@@ -100,10 +100,13 @@ describe("ProviderListItem", () => {
 
     const actions = element.props.actions.props.children.flat().filter(Boolean);
 
-    expect(actions).toHaveLength(2);
-    expect(actions[1].props.title).toBe("Copy CLI Command");
-    expect(actions[1].props.content).toBe("codexbar usage --provider codex");
-    expect(actions[1].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
+    expect(actions).toHaveLength(3);
+    expect(actions[1].props.title).toBe("Open Usage Dashboard");
+    expect(actions[1].props.url).toBe("https://chatgpt.com/codex/settings/usage");
+    expect(actions[1].props.shortcut).toEqual({ modifiers: ["cmd"], key: "o" });
+    expect(actions[2].props.title).toBe("Copy CLI Command");
+    expect(actions[2].props.content).toBe("codexbar usage --provider codex");
+    expect(actions[2].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
   });
 
   it("adds move actions with keyboard shortcuts when reordering is available", () => {
@@ -126,13 +129,14 @@ describe("ProviderListItem", () => {
 
     const actions = element.props.actions.props.children.flat().filter(Boolean);
 
-    expect(actions).toHaveLength(4);
-    expect(actions[1].props.title).toBe("Move Up");
-    expect(actions[1].props.shortcut).toEqual({ modifiers: ["cmd", "opt"], key: "arrowUp" });
-    expect(actions[2].props.title).toBe("Move Down");
-    expect(actions[2].props.shortcut).toEqual({ modifiers: ["cmd", "opt"], key: "arrowDown" });
-    expect(actions[3].props.title).toBe("Copy CLI Command");
-    expect(actions[3].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
+    expect(actions).toHaveLength(5);
+    expect(actions[1].props.title).toBe("Open Usage Dashboard");
+    expect(actions[2].props.title).toBe("Move Up");
+    expect(actions[2].props.shortcut).toEqual({ modifiers: ["cmd", "opt"], key: "arrowUp" });
+    expect(actions[3].props.title).toBe("Move Down");
+    expect(actions[3].props.shortcut).toEqual({ modifiers: ["cmd", "opt"], key: "arrowDown" });
+    expect(actions[4].props.title).toBe("Copy CLI Command");
+    expect(actions[4].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
   });
 
   it("shows both primary and secondary usage in text, tooltip, and icon", () => {
@@ -312,6 +316,7 @@ describe("ProviderListItem", () => {
     );
 
     expect(statusAction?.props.url).toBe("https://status.openai.com/");
+    expect(statusAction?.props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "o" });
   });
 
   it("omits the Open Status Page action for operational status", () => {
