@@ -166,6 +166,22 @@ describe("provider registry", () => {
     expect(getProviderMetadata("synthetic").dashboardUrl).toBeUndefined();
   });
 
+  it("harvests upstream status page URLs for providers that have one", () => {
+    expect(getProviderMetadata("claude").statusPageUrl).toBe("https://status.claude.com/");
+    expect(getProviderMetadata("cursor").statusPageUrl).toBe("https://status.cursor.com");
+    expect(getProviderMetadata("copilot").statusPageUrl).toBe("https://www.githubstatus.com/");
+    expect(getProviderMetadata("codex").statusPageUrl).toBe("https://status.openai.com/");
+    expect(getProviderMetadata("augment").statusPageUrl).toBe("https://status.augmentcode.com");
+    expect(getProviderMetadata("factory").statusPageUrl).toBe("https://status.factory.ai");
+    expect(getProviderMetadata("openai").statusPageUrl).toBe("https://status.openai.com");
+  });
+
+  it("omits statusPageUrl for providers where upstream has no status page", () => {
+    expect(getProviderMetadata("zed").statusPageUrl).toBeUndefined();
+    expect(getProviderMetadata("jetbrains").statusPageUrl).toBeUndefined();
+    expect(getProviderMetadata("synthetic").statusPageUrl).toBeUndefined();
+  });
+
   it("falls back to the semantic slot title when a label is missing", () => {
     expect(getProviderUsageSectionDisplayTitle("mistral", "Primary")).toBe("Monthly");
     expect(getProviderUsageSectionDisplayTitle("mistral", "Secondary")).toBe("Secondary");

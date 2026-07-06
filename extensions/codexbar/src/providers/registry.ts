@@ -19,6 +19,7 @@ export type ProviderRegistryEntry = {
   progressPalette: ProviderProgressPalette;
   usageSectionLabels: ProviderUsageSectionLabels;
   dashboardUrl?: string;
+  statusPageUrl?: string;
 };
 
 type ProviderDefinition = Omit<ProviderRegistryEntry, "id" | "progressPalette">;
@@ -43,6 +44,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#49A3B0",
     usageSectionLabels: { primary: "Session", secondary: "Weekly" },
     dashboardUrl: "https://chatgpt.com/codex/settings/usage",
+    statusPageUrl: "https://status.openai.com/",
   },
   claude: {
     name: "Claude",
@@ -50,6 +52,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#CC7C5E",
     usageSectionLabels: { primary: "Session", secondary: "Weekly", tertiary: "Sonnet" },
     dashboardUrl: "https://console.anthropic.com/settings/billing",
+    statusPageUrl: "https://status.claude.com/",
   },
   cursor: {
     name: "Cursor",
@@ -57,6 +60,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#00BFA5",
     usageSectionLabels: { primary: "Total", secondary: "Auto", tertiary: "API" },
     dashboardUrl: "https://cursor.com/dashboard?tab=usage",
+    statusPageUrl: "https://status.cursor.com",
   },
   opencode: {
     name: "OpenCode",
@@ -85,6 +89,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#FF6B35",
     usageSectionLabels: { primary: "Standard", secondary: "Premium" },
     dashboardUrl: "https://app.factory.ai/settings/billing",
+    statusPageUrl: "https://status.factory.ai",
   },
   gemini: {
     name: "Gemini",
@@ -105,6 +110,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#A855F7",
     usageSectionLabels: { primary: "Premium", secondary: "Chat" },
     dashboardUrl: "https://github.com/settings/copilot",
+    statusPageUrl: "https://www.githubstatus.com/",
   },
   zai: {
     name: "Z.ai",
@@ -154,6 +160,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#6366F1",
     usageSectionLabels: { primary: "Credits", secondary: "Usage" },
     dashboardUrl: "https://app.augmentcode.com/account/subscription",
+    statusPageUrl: "https://status.augmentcode.com",
   },
   jetbrains: {
     name: "JetBrains",
@@ -214,6 +221,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#0F826E",
     usageSectionLabels: { primary: "Spend", secondary: "Requests" },
     dashboardUrl: "https://platform.openai.com/usage",
+    statusPageUrl: "https://status.openai.com",
   },
   azureopenai: {
     name: "Azure OpenAI",

@@ -100,13 +100,16 @@ describe("ProviderListItem", () => {
 
     const actions = element.props.actions.props.children.flat().filter(Boolean);
 
-    expect(actions).toHaveLength(3);
+    expect(actions).toHaveLength(4);
     expect(actions[1].props.title).toBe("Open Usage Dashboard");
     expect(actions[1].props.url).toBe("https://chatgpt.com/codex/settings/usage");
     expect(actions[1].props.shortcut).toEqual({ modifiers: ["cmd"], key: "o" });
-    expect(actions[2].props.title).toBe("Copy CLI Command");
-    expect(actions[2].props.content).toBe("codexbar usage --provider codex");
-    expect(actions[2].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
+    expect(actions[2].props.title).toBe("Open Status Page");
+    expect(actions[2].props.url).toBe("https://status.openai.com/");
+    expect(actions[2].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "o" });
+    expect(actions[3].props.title).toBe("Copy CLI Command");
+    expect(actions[3].props.content).toBe("codexbar usage --provider codex");
+    expect(actions[3].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
   });
 
   it("adds move actions with keyboard shortcuts when reordering is available", () => {
@@ -129,14 +132,15 @@ describe("ProviderListItem", () => {
 
     const actions = element.props.actions.props.children.flat().filter(Boolean);
 
-    expect(actions).toHaveLength(5);
+    expect(actions).toHaveLength(6);
     expect(actions[1].props.title).toBe("Open Usage Dashboard");
-    expect(actions[2].props.title).toBe("Move Up");
-    expect(actions[2].props.shortcut).toEqual({ modifiers: ["cmd", "opt"], key: "arrowUp" });
-    expect(actions[3].props.title).toBe("Move Down");
-    expect(actions[3].props.shortcut).toEqual({ modifiers: ["cmd", "opt"], key: "arrowDown" });
-    expect(actions[4].props.title).toBe("Copy CLI Command");
-    expect(actions[4].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
+    expect(actions[2].props.title).toBe("Open Status Page");
+    expect(actions[3].props.title).toBe("Move Up");
+    expect(actions[3].props.shortcut).toEqual({ modifiers: ["cmd", "opt"], key: "arrowUp" });
+    expect(actions[4].props.title).toBe("Move Down");
+    expect(actions[4].props.shortcut).toEqual({ modifiers: ["cmd", "opt"], key: "arrowDown" });
+    expect(actions[5].props.title).toBe("Copy CLI Command");
+    expect(actions[5].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
   });
 
   it("shows both primary and secondary usage in text, tooltip, and icon", () => {
@@ -319,12 +323,61 @@ describe("ProviderListItem", () => {
     expect(statusAction?.props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "o" });
   });
 
-  it("omits the Open Status Page action for operational status", () => {
+  it("keeps the Open Status Page action for a provider with a registry status page even without an incident", () => {
     const element = ProviderListItem({
       provider: { id: "codex", name: "Codex", icon: { source: "provider-icons/codex.svg" } },
       isDetailLoading: false,
       isSelected: true,
       status: { indicator: "none", url: "https://status.openai.com/" },
+      onRefresh: vi.fn(),
+    });
+
+    const actions = element.props.actions.props.children.flat().filter(Boolean);
+    const statusAction = actions.find(
+      (action: { props: { title?: string } }) => action.props.title === "Open Status Page",
+    );
+
+    expect(statusAction?.props.url).toBe("https://status.openai.com/");
+  });
+
+  it("keeps the Open Status Page action when the status cache is cold, using the registry url", () => {
+    const element = ProviderListItem({
+      provider: { id: "codex", name: "Codex", icon: { source: "provider-icons/codex.svg" } },
+      isDetailLoading: false,
+      isSelected: true,
+      onRefresh: vi.fn(),
+    });
+
+    const actions = element.props.actions.props.children.flat().filter(Boolean);
+    const statusAction = actions.find(
+      (action: { props: { title?: string } }) => action.props.title === "Open Status Page",
+    );
+
+    expect(statusAction?.props.url).toBe("https://status.openai.com/");
+  });
+
+  it("falls back to the cached status url for a provider without a registry status page", () => {
+    const element = ProviderListItem({
+      provider: { id: "mistral", name: "Mistral", icon: { source: "provider-icons/mistral.svg" } },
+      isDetailLoading: false,
+      isSelected: true,
+      status: { indicator: "none", url: "https://status.mistral.ai/" },
+      onRefresh: vi.fn(),
+    });
+
+    const actions = element.props.actions.props.children.flat().filter(Boolean);
+    const statusAction = actions.find(
+      (action: { props: { title?: string } }) => action.props.title === "Open Status Page",
+    );
+
+    expect(statusAction?.props.url).toBe("https://status.mistral.ai/");
+  });
+
+  it("omits the Open Status Page action when there is no registry url and no cached status", () => {
+    const element = ProviderListItem({
+      provider: { id: "mistral", name: "Mistral", icon: { source: "provider-icons/mistral.svg" } },
+      isDetailLoading: false,
+      isSelected: true,
       onRefresh: vi.fn(),
     });
 

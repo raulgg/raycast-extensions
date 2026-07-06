@@ -34,7 +34,7 @@ export function ProviderListItem({
   onMoveDown,
 }: ProviderListItemProps) {
   const fetchCommand = `codexbar usage --provider ${provider.id}`;
-  const statusPageUrl = status && isRenderableProviderStatusIndicator(status.indicator) ? status.url : undefined;
+  const statusPageUrl = getProviderMetadata(provider.id).statusPageUrl ?? status?.url;
   const dashboardUrl = getProviderMetadata(provider.id).dashboardUrl;
 
   return (
