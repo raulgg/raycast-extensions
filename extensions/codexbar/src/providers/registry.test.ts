@@ -327,10 +327,15 @@ describe("provider registry", () => {
       expect(resolveDashboardUrl("claude", undefined)).toBe("https://console.anthropic.com/settings/billing");
     });
 
-    it("never swaps dashboards for non-Claude providers even with a subscription-like plan", () => {
-      expect(resolveDashboardUrl("devin", "Max")).toBe("https://app.devin.ai");
-      expect(resolveDashboardUrl("t3chat", "pro")).toBe("https://t3.chat/settings/customization");
-      expect(resolveDashboardUrl("elevenlabs", "team")).toBe("https://elevenlabs.io/app/developers/usage");
+    it("prefers the subscription dashboard for other dual-URL providers regardless of plan", () => {
+      expect(resolveDashboardUrl("devin", undefined)).toBe("https://app.devin.ai/settings/usage");
+      expect(resolveDashboardUrl("t3chat", "pro")).toBe("https://t3.chat/settings/subscription");
+      expect(resolveDashboardUrl("elevenlabs", undefined)).toBe("https://elevenlabs.io/app/subscription");
+      expect(resolveDashboardUrl("commandcode", undefined)).toBe("https://commandcode.ai/sixhobbits/settings/billing");
+    });
+
+    it("keeps the plain dashboard for providers without a subscription dashboard", () => {
+      expect(resolveDashboardUrl("cursor", "pro")).toBe("https://cursor.com/dashboard?tab=usage");
     });
 
     it("resolves Claude via alias ids as well", () => {

@@ -641,16 +641,21 @@ export function isClaudeSubscriptionLoginMethod(text: string | undefined): boole
   return plan === undefined ? false : CLAUDE_SUBSCRIPTION_PLANS.has(plan);
 }
 
-// Picks the "Open Usage Dashboard" target. Mirrors upstream
-// StatusItemController+Actions.swift:273-277 — only Claude swaps to the
-// subscription dashboard (falling back to the plain one) when the account's
-// login method is a subscription plan; every other provider keeps dashboardUrl.
+// Picks the "Open Usage Dashboard" target.
 export function resolveDashboardUrl(providerId: string, planText?: string): string | undefined {
   const metadata = getProviderMetadata(providerId);
-  if (resolveProviderId(providerId) === "claude" && isClaudeSubscriptionLoginMethod(planText)) {
-    return metadata.subscriptionDashboardUrl ?? metadata.dashboardUrl;
+  // Claude serves two audiences: API accounts get the console billing page, subscription
+  // plans get claude.ai usage (upstream StatusItemController+Actions.swift:273-277 plan switch).
+  if (resolveProviderId(providerId) === "claude") {
+    return isClaudeSubscriptionLoginMethod(planText)
+      ? (metadata.subscriptionDashboardUrl ?? metadata.dashboardUrl)
+      : metadata.dashboardUrl;
   }
-  return metadata.dashboardUrl;
+  // Other dual-URL providers (devin, t3chat, elevenlabs, commandcode) have no plan
+  // detection, and the usage this extension meters is their subscription usage — so the
+  // subscription dashboard is the better target when upstream provides one. Deliberate
+  // divergence from upstream, which only plan-switches Claude.
+  return metadata.subscriptionDashboardUrl ?? metadata.dashboardUrl;
 }
 
 export function getProviderUsageSectionDisplayTitle(providerId: string, sectionTitle: string): string {
