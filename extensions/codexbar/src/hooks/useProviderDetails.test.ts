@@ -6,6 +6,7 @@ import {
   cacheProviderDetail,
   cacheProviderDetailIfRicher,
   preserveInFlightProviderResults,
+  resolveProviderRefreshMode,
   runProviderDetailFetches,
   shouldRefreshProviderAutomatically,
   shouldRefreshSelectedProvider,
@@ -154,6 +155,30 @@ describe("runProviderDetailFetches", () => {
 
     expect(shouldRefreshProviderAutomatically(result, undefined, 1, freshNow)).toBe(false);
     expect(shouldRefreshProviderAutomatically(result, undefined, 1, staleNow)).toBe(true);
+  });
+
+  it("forces the first manual-open refresh even when cached detail is fresh", () => {
+    const now = Date.parse("2026-04-15T12:05:00Z");
+    const result = {
+      detail: makeDetail("claude", "2026-04-15T12:00:00Z"),
+      isLoading: false,
+    };
+
+    expect(
+      resolveProviderRefreshMode(result, undefined, 1, {
+        forceInitialRefresh: true,
+        forceInitialRefreshCompleted: false,
+        now,
+      }),
+    ).toBe("force");
+
+    expect(
+      resolveProviderRefreshMode(result, undefined, 1, {
+        forceInitialRefresh: true,
+        forceInitialRefreshCompleted: true,
+        now,
+      }),
+    ).toBeUndefined();
   });
 
   it("preserves in-flight provider state across batch resets", () => {

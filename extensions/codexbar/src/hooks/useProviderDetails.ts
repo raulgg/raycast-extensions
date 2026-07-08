@@ -22,6 +22,10 @@ export type ProviderDetailResults = Record<string, ProviderDetailState | undefin
 
 type FetchProviderDetail = (providerId: string) => Promise<void>;
 
+type FetchProviderOptions = {
+  force?: boolean;
+};
+
 type RunProviderDetailFetchesOptions = {
   providerIds: string[];
   concurrency?: number;
@@ -29,10 +33,14 @@ type RunProviderDetailFetchesOptions = {
   shouldSkip?: (providerId: string) => boolean;
 };
 
+type UseProviderDetailsOptions = {
+  forceInitialRefresh?: boolean;
+};
+
 type UseProviderDetailsResult = {
   results: ProviderDetailResults;
   isLoading: boolean;
-  refreshProvider: (providerId: string, options?: { force?: boolean }) => void;
+  refreshProvider: (providerId: string, options?: FetchProviderOptions) => void;
 };
 
 export type InFlightProviderFetch = {
@@ -45,8 +53,10 @@ export function useProviderDetails(
   binary: ResolvedCodexBarBinary | undefined,
   providers: ConfiguredProvider[],
   selectedProviderId?: string,
+  options?: UseProviderDetailsOptions,
 ): UseProviderDetailsResult {
   const binaryKey = buildProviderDetailBinaryKey(binary);
+  const forceInitialRefresh = options?.forceInitialRefresh === true;
   const providerIds = useMemo(() => providers.map((provider) => provider.id), [providers]);
   const providerIdsKey = providerIds.join("\0");
   const providerIdSet = useMemo(() => new Set(providerIds), [providerIdsKey]);
@@ -61,6 +71,8 @@ export function useProviderDetails(
   const providerIdsRef = useRef(providerIdSet);
   const inFlightRef = useRef(new Map<string, InFlightProviderFetch>());
   const completedRef = useRef(new Map<string, number>());
+  const forcedInitialRefreshProviderIdsRef = useRef(new Set<string>());
+  const forcedInitialRefreshBinaryKeyRef = useRef("");
   const generationRef = useRef(0);
   const nextFetchIdRef = useRef(0);
 
@@ -74,7 +86,7 @@ export function useProviderDetails(
   }, [displayedResults]);
 
   const fetchOneProvider = useCallback(
-    async (providerId: string, generation: number, options?: { force?: boolean }) => {
+    async (providerId: string, generation: number, options?: FetchProviderOptions) => {
       const currentBinary = binaryRef.current;
       const currentBinaryKey = binaryKeyRef.current;
       if (!currentBinary || !currentBinaryKey || !providerId) {
@@ -164,10 +176,38 @@ export function useProviderDetails(
     [],
   );
 
+  const fetchProviderIfNeeded = useCallback(
+    async (providerId: string, generation: number) => {
+      const refreshMode = resolveProviderRefreshMode(
+        resultsRef.current[providerId],
+        completedRef.current.get(providerId),
+        generation,
+        {
+          forceInitialRefresh,
+          forceInitialRefreshCompleted: forcedInitialRefreshProviderIdsRef.current.has(providerId),
+        },
+      );
+      if (!refreshMode) {
+        return;
+      }
+
+      if (refreshMode === "force") {
+        forcedInitialRefreshProviderIdsRef.current.add(providerId);
+      }
+
+      await fetchOneProvider(providerId, generation, { force: refreshMode === "force" });
+    },
+    [fetchOneProvider, forceInitialRefresh],
+  );
+
   useEffect(() => {
     const generation = generationRef.current + 1;
     generationRef.current = generation;
     completedRef.current.clear();
+    if (forcedInitialRefreshBinaryKeyRef.current !== binaryKey) {
+      forcedInitialRefreshProviderIdsRef.current.clear();
+      forcedInitialRefreshBinaryKeyRef.current = binaryKey;
+    }
     const currentProviderIds = providerIdsKey ? providerIdsKey.split("\0") : [];
     setResults((current) => preserveInFlightProviderResults(current, inFlightRef.current));
 
@@ -180,37 +220,24 @@ export function useProviderDetails(
     void runProviderDetailFetches({
       providerIds: currentProviderIds,
       concurrency: PROVIDER_DETAIL_CONCURRENCY,
-      fetchProvider: (providerId) => fetchOneProvider(providerId, generation),
-      shouldSkip: (providerId) => {
-        return !shouldRefreshProviderAutomatically(
-          resultsRef.current[providerId],
-          completedRef.current.get(providerId),
-          generation,
-        );
-      },
+      fetchProvider: (providerId) => fetchProviderIfNeeded(providerId, generation),
     }).finally(() => {
       if (generationRef.current === generation) {
         setIsBatchLoading(false);
       }
     });
-  }, [binaryKey, fetchOneProvider, providerIdsKey]);
+  }, [binaryKey, fetchProviderIfNeeded, providerIdsKey]);
 
   useEffect(() => {
     if (!binaryKey || !selectedProviderId) {
       return;
     }
 
-    const result = resultsRef.current[selectedProviderId];
-    const completedGeneration = completedRef.current.get(selectedProviderId);
-    if (!shouldRefreshSelectedProvider(result, completedGeneration, generationRef.current)) {
-      return;
-    }
-
-    void fetchOneProvider(selectedProviderId, generationRef.current);
-  }, [binaryKey, fetchOneProvider, selectedProviderId]);
+    void fetchProviderIfNeeded(selectedProviderId, generationRef.current);
+  }, [binaryKey, fetchProviderIfNeeded, selectedProviderId]);
 
   const refreshProvider = useCallback(
-    (providerId: string, options?: { force?: boolean }) => {
+    (providerId: string, options?: FetchProviderOptions) => {
       if (!providerId) {
         return;
       }
@@ -344,6 +371,25 @@ export function shouldRefreshSelectedProvider(
   now = Date.now(),
 ): boolean {
   return shouldRefreshProviderAutomatically(result, completedGeneration, currentGeneration, now);
+}
+
+export function resolveProviderRefreshMode(
+  result: ProviderDetailState | undefined,
+  completedGeneration: number | undefined,
+  currentGeneration: number,
+  options?: {
+    forceInitialRefresh?: boolean;
+    forceInitialRefreshCompleted?: boolean;
+    now?: number;
+  },
+): "auto" | "force" | undefined {
+  if (options?.forceInitialRefresh && !options.forceInitialRefreshCompleted) {
+    return "force";
+  }
+
+  return shouldRefreshProviderAutomatically(result, completedGeneration, currentGeneration, options?.now)
+    ? "auto"
+    : undefined;
 }
 
 export function shouldRefreshProviderAutomatically(
