@@ -1,7 +1,8 @@
-import { Icon, List, showToast, Toast } from "@raycast/api";
+import { ActionPanel, Icon, List, showToast, Toast } from "@raycast/api";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CommandErrorDetail } from "./CommandErrorDetail";
 import { InstallHelpDetail } from "./InstallHelpDetail";
+import { ManageProvidersAction } from "./ManageProvidersAction";
 import { getProviderDetailHeaderTimestamp } from "./ProviderDetail";
 import { ProviderListItem } from "./ProviderListItem";
 import { useCodexBarAvailability } from "../hooks/useCodexBarAvailability";
@@ -135,8 +136,13 @@ export function UsageList() {
       {configuredProviders.providers.length === 0 && !configuredProviders.isLoading ? (
         <List.EmptyView
           title="No Supported Providers"
-          description="Enable a supported provider in CodexBar and reopen this command."
+          description="Enable a provider from Manage Providers, or in CodexBar, and reopen this command."
           icon={Icon.Circle}
+          actions={
+            <ActionPanel>
+              <ManageProvidersAction binary={binary} onProvidersChanged={configuredProviders.revalidate} />
+            </ActionPanel>
+          }
         />
       ) : null}
       {configuredProviders.providers.map((provider, index) => {
@@ -153,6 +159,8 @@ export function UsageList() {
             status={providerStatuses[provider.id]}
             isSelected={provider.id === selectedProviderId}
             relativeTimeNow={provider.id === selectedProviderId ? relativeTimeNow : undefined}
+            binary={binary}
+            onProvidersChanged={configuredProviders.revalidate}
             onRefresh={() => refreshProvider(provider.id)}
             onMoveUp={index > 0 ? () => void moveProvider(provider.id, "up") : undefined}
             onMoveDown={

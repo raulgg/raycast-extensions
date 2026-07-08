@@ -10,8 +10,8 @@ import {
   extractProviderStatus,
   normalizeProviderDetailPayload,
 } from "../providers/normalize";
-import type { ConfiguredProvider, ProviderDetailData, ProviderStatus } from "../providers/types";
-import { getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
+import type { AvailableProvider, ConfiguredProvider, ProviderDetailData, ProviderStatus } from "../providers/types";
+import { getMockAvailableProviders, getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
 
 const CODEXBAR_TIMEOUT_MS = 60_000;
 const CODEXBAR_WEB_TIMEOUT_MS = 5_000;
@@ -83,6 +83,14 @@ type CodexBarConfig = {
 type CodexBarConfigProvider = {
   id?: string;
   enabled?: boolean;
+};
+
+// Shape of a single entry from `codexbar config providers --json`.
+type CodexBarConfigProvidersEntry = {
+  provider?: string;
+  displayName?: string;
+  enabled?: boolean;
+  defaultEnabled?: boolean;
 };
 
 export type ProviderMoveDirection = "up" | "down";
@@ -661,6 +669,96 @@ export async function readConfiguredProvidersFromConfig(): Promise<ConfiguredPro
 
     throw new Error(`Failed to read CodexBar config at ${CONFIG_PATH}.`);
   }
+}
+
+// Lists every Available Provider the installed CLI knows about, joined to the
+// extension registry for display (icon and, when the registry knows the id, its
+// canonical name). Sourced from the CLI so new upstream providers appear without
+// an extension release. Off the hot path (Manage Providers subview only), so the
+// process spawn cost is acceptable. Throws when the installed CLI is too old to
+// expose the `config providers` subcommand — callers treat that as "capability
+// unavailable" and degrade gracefully.
+export async function listAvailableProviders(binary: ResolvedCodexBarBinary): Promise<AvailableProvider[]> {
+  if (binary.source === "mock" || isCodexBarMockMode()) {
+    return getMockAvailableProviders();
+  }
+
+  const payload = await executeCodexBar(binary, ["config", "providers", "--format", "json", "--json-only"]);
+  return normalizeAvailableProviders(payload);
+}
+
+export function normalizeAvailableProviders(payload: unknown): AvailableProvider[] {
+  if (!Array.isArray(payload)) {
+    throw new CodexBarCliError("invalid-json", "CodexBar returned unexpected output for `config providers`.");
+  }
+
+  const seenProviderIds = new Set<string>();
+  const providers: AvailableProvider[] = [];
+
+  for (const entry of payload) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    const record = entry as CodexBarConfigProvidersEntry;
+    const cliProvider = typeof record.provider === "string" ? record.provider.trim() : "";
+    if (!cliProvider || isProviderSelectorId(cliProvider)) {
+      continue;
+    }
+
+    const canonicalId = resolveProviderId(cliProvider);
+    if (seenProviderIds.has(canonicalId)) {
+      continue;
+    }
+    seenProviderIds.add(canonicalId);
+
+    const metadata = getProviderMetadata(cliProvider);
+    const cliDisplayName =
+      typeof record.displayName === "string" && record.displayName.trim() ? record.displayName.trim() : undefined;
+
+    providers.push({
+      id: metadata.id,
+      cliProvider,
+      // Prefer the registry's curated name; fall back to the CLI's displayName
+      // for providers the registry doesn't know yet (registry returns a derived
+      // fallback name for those).
+      name: isKnownProviderId(cliProvider) ? metadata.name : (cliDisplayName ?? metadata.name),
+      icon: metadata.icon,
+      enabled: record.enabled === true,
+      defaultEnabled: record.defaultEnabled === true,
+    });
+  }
+
+  return providers;
+}
+
+// Enables or disables an Available Provider through the CLI (`config enable` /
+// `config disable`), the app-sanctioned write path. The CLI flips the entry's
+// `enabled` flag in place without changing array order, so this never disturbs
+// the Configured Provider order that reorder and the Usage Overview depend on.
+export async function setProviderEnabled(
+  binary: ResolvedCodexBarBinary,
+  cliProvider: string,
+  enabled: boolean,
+): Promise<void> {
+  const normalizedProvider = cliProvider.trim();
+  if (!normalizedProvider) {
+    throw new CodexBarCliError("execution", "Cannot toggle a provider without an id.");
+  }
+
+  if (binary.source === "mock" || isCodexBarMockMode()) {
+    return;
+  }
+
+  await executeCodexBar(binary, [
+    "config",
+    enabled ? "enable" : "disable",
+    "--provider",
+    normalizedProvider,
+    "--format",
+    "json",
+    "--json-only",
+  ]);
 }
 
 export async function moveConfiguredProviderInConfig(

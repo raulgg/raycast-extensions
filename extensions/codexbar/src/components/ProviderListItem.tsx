@@ -3,6 +3,8 @@ import type { ProviderDetailCacheStatus } from "../hooks/useProviderDetails";
 import type { ConfiguredProvider, ProviderDetailData, ProviderStatus, ProviderUsageSection } from "../providers/types";
 import { buildTwoBarAccessoryIcon } from "../lib/twoBarAccessoryIcon";
 import { getProviderMetadata, resolveDashboardUrl } from "../providers/registry";
+import type { ResolvedCodexBarBinary } from "../lib/codexbar";
+import { ManageProvidersAction } from "./ManageProvidersAction";
 import { ProviderDetail } from "./ProviderDetail";
 
 type ProviderListItemProps = {
@@ -14,9 +16,11 @@ type ProviderListItemProps = {
   status?: ProviderStatus;
   isSelected: boolean;
   relativeTimeNow?: number;
+  binary?: ResolvedCodexBarBinary;
   onRefresh: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  onProvidersChanged?: () => void;
 };
 
 export function ProviderListItem({
@@ -28,9 +32,11 @@ export function ProviderListItem({
   status,
   isSelected,
   relativeTimeNow,
+  binary,
   onRefresh,
   onMoveUp,
   onMoveDown,
+  onProvidersChanged,
 }: ProviderListItemProps) {
   const fetchCommand = `codexbar usage --provider ${provider.id}`;
   const statusPageUrl = getProviderMetadata(provider.id).statusPageUrl ?? status?.url;
@@ -98,6 +104,7 @@ export function ProviderListItem({
               onAction={onMoveDown}
             />
           ) : null}
+          <ManageProvidersAction binary={binary} onProvidersChanged={onProvidersChanged} />
           <Action.CopyToClipboard
             title="Copy CLI Command"
             content={fetchCommand}

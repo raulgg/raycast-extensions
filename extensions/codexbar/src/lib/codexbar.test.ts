@@ -35,10 +35,14 @@ import {
   extractJsonPayload,
   fetchProviderDetail,
   getCodexBarAvailability,
+  listAvailableProviders,
   moveConfiguredProviderInConfig,
   moveConfiguredProviderInRawConfig,
+  normalizeAvailableProviders,
   readConfiguredProvidersFromConfig,
   resolveCodexBarBinary,
+  setProviderEnabled,
+  type ResolvedCodexBarBinary,
 } from "./codexbar";
 import { refreshUsageCache } from "./backgroundRefresh";
 import { buildCachedProviderResults } from "../hooks/useProviderDetails";
@@ -527,5 +531,84 @@ describe("codexbar runtime helpers", () => {
 
     expect(thrownError).toBeInstanceOf(CodexBarCliError);
     expect(thrownError).toMatchObject({ kind: "invalid-json" });
+  });
+});
+
+describe("available providers", () => {
+  const binary: ResolvedCodexBarBinary = { command: "codexbar", source: "path" };
+
+  beforeEach(() => {
+    execFileMock.mockReset();
+  });
+
+  it("normalizes `config providers` output, joining the registry and resolving aliases", () => {
+    const providers = normalizeAvailableProviders([
+      { provider: "claude", displayName: "Claude", enabled: true, defaultEnabled: false },
+      { provider: "codex", displayName: "Codex", enabled: false, defaultEnabled: true },
+      { provider: "groqcloud", displayName: "Groq", enabled: false, defaultEnabled: false },
+    ]);
+
+    expect(providers).toEqual([
+      expect.objectContaining({ id: "claude", cliProvider: "claude", name: "Claude", enabled: true }),
+      expect.objectContaining({ id: "codex", cliProvider: "codex", enabled: false, defaultEnabled: true }),
+      // `groqcloud` resolves to the canonical `groq` registry id for display.
+      expect.objectContaining({ id: "groq", cliProvider: "groqcloud", name: "Groq", enabled: false }),
+    ]);
+  });
+
+  it("falls back to the CLI displayName for providers the registry does not know", () => {
+    const providers = normalizeAvailableProviders([
+      { provider: "someunknownprovider", displayName: "Some New Provider", enabled: false },
+    ]);
+
+    expect(providers[0].name).toBe("Some New Provider");
+  });
+
+  it("skips selector ids, malformed entries, and alias duplicates", () => {
+    const providers = normalizeAvailableProviders([
+      { provider: "all", enabled: true },
+      { provider: "  ", enabled: true },
+      null,
+      { provider: "groq", enabled: true },
+      { provider: "groqcloud", enabled: false },
+    ]);
+
+    expect(providers.map((provider) => provider.id)).toEqual(["groq"]);
+  });
+
+  it("lists available providers from the CLI", async () => {
+    mockExecSuccess(JSON.stringify([{ provider: "codex", displayName: "Codex", enabled: true, defaultEnabled: true }]));
+
+    const providers = await listAvailableProviders(binary);
+
+    expect(providers).toEqual([
+      expect.objectContaining({ id: "codex", cliProvider: "codex", enabled: true, defaultEnabled: true }),
+    ]);
+    expect(execFileMock).toHaveBeenCalledWith(
+      "codexbar",
+      ["config", "providers", "--format", "json", "--json-only"],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it("enables and disables a provider through the CLI", async () => {
+    mockExecSuccess(JSON.stringify({ provider: "grok", enabled: true }));
+    await setProviderEnabled(binary, "grok", true);
+    expect(execFileMock).toHaveBeenLastCalledWith(
+      "codexbar",
+      ["config", "enable", "--provider", "grok", "--format", "json", "--json-only"],
+      expect.anything(),
+      expect.any(Function),
+    );
+
+    mockExecSuccess(JSON.stringify({ provider: "grok", enabled: false }));
+    await setProviderEnabled(binary, "grok", false);
+    expect(execFileMock).toHaveBeenLastCalledWith(
+      "codexbar",
+      ["config", "disable", "--provider", "grok", "--format", "json", "--json-only"],
+      expect.anything(),
+      expect.any(Function),
+    );
   });
 });

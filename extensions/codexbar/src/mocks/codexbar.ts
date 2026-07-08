@@ -1,6 +1,6 @@
 import { environment } from "@raycast/api";
 import { getProviderMetadata, PROVIDER_IDS } from "../providers/registry";
-import type { ConfiguredProvider, RawProviderPayload } from "../providers/types";
+import type { AvailableProvider, ConfiguredProvider, RawProviderPayload } from "../providers/types";
 
 // TODO: add CODEXBAR_MOCK_ERROR fixtures later.
 
@@ -868,6 +868,20 @@ if (missingMockProviderIds.length > 0) {
 
 export function getMockConfiguredProviders(): ConfiguredProvider[] {
   return PROVIDER_IDS.map((providerId) => getProviderMetadata(providerId));
+}
+
+export function getMockAvailableProviders(): AvailableProvider[] {
+  return PROVIDER_IDS.map((providerId, index) => {
+    const metadata = getProviderMetadata(providerId);
+    return {
+      id: metadata.id,
+      cliProvider: providerId,
+      name: metadata.name,
+      icon: metadata.icon,
+      enabled: index < 5,
+      defaultEnabled: providerId === "codex",
+    };
+  });
 }
 
 export function getMockProviderPayload(providerId: string, now: Date = new Date()): RawProviderPayload {

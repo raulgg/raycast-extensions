@@ -9,6 +9,20 @@ export type ConfiguredProvider = {
   keywords?: string[];
 };
 
+// A Provider the installed CodexBar CLI knows about and can toggle on/off, as
+// reported by `codexbar config providers`. The full roster from which
+// ConfiguredProviders (enabled === true) are drawn. `id` is the alias-resolved
+// canonical id used for registry lookups; `cliProvider` is the raw id the CLI
+// reported, which is what enable/disable commands are addressed to.
+export type AvailableProvider = {
+  id: string;
+  cliProvider: string;
+  name: string;
+  icon: Image.ImageLike;
+  enabled: boolean;
+  defaultEnabled: boolean;
+};
+
 export type ProviderSectionItem = {
   label: string;
   value: string;

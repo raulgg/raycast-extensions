@@ -37,6 +37,10 @@ vi.mock("./ProviderDetail", () => ({
   ProviderDetail: vi.fn(() => null),
 }));
 
+vi.mock("./ManageProvidersAction", () => ({
+  ManageProvidersAction: vi.fn(() => null),
+}));
+
 import {
   buildProviderListItemAccessories,
   formatProviderDetailErrorTooltip,
@@ -99,16 +103,17 @@ describe("ProviderListItem", () => {
 
     const actions = element.props.actions.props.children.flat().filter(Boolean);
 
-    expect(actions).toHaveLength(4);
+    expect(actions).toHaveLength(5);
     expect(actions[1].props.title).toBe("Open Usage Dashboard");
     expect(actions[1].props.url).toBe("https://chatgpt.com/codex/settings/usage");
     expect(actions[1].props.shortcut).toEqual({ modifiers: ["cmd"], key: "o" });
     expect(actions[2].props.title).toBe("Open Status Page");
     expect(actions[2].props.url).toBe("https://status.openai.com/");
     expect(actions[2].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "o" });
-    expect(actions[3].props.title).toBe("Copy CLI Command");
-    expect(actions[3].props.content).toBe("codexbar usage --provider codex");
-    expect(actions[3].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
+    // actions[3] is the Manage Providers action (mocked to render null in this test).
+    expect(actions[4].props.title).toBe("Copy CLI Command");
+    expect(actions[4].props.content).toBe("codexbar usage --provider codex");
+    expect(actions[4].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
   });
 
   it("opens the Claude subscription dashboard when the loaded plan is a subscription", () => {
@@ -172,15 +177,16 @@ describe("ProviderListItem", () => {
 
     const actions = element.props.actions.props.children.flat().filter(Boolean);
 
-    expect(actions).toHaveLength(6);
+    expect(actions).toHaveLength(7);
     expect(actions[1].props.title).toBe("Open Usage Dashboard");
     expect(actions[2].props.title).toBe("Open Status Page");
     expect(actions[3].props.title).toBe("Move Up");
     expect(actions[3].props.shortcut).toEqual({ modifiers: ["cmd", "opt"], key: "arrowUp" });
     expect(actions[4].props.title).toBe("Move Down");
     expect(actions[4].props.shortcut).toEqual({ modifiers: ["cmd", "opt"], key: "arrowDown" });
-    expect(actions[5].props.title).toBe("Copy CLI Command");
-    expect(actions[5].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
+    // actions[5] is the Manage Providers action (mocked to render null in this test).
+    expect(actions[6].props.title).toBe("Copy CLI Command");
+    expect(actions[6].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
   });
 
   it("shows both primary and secondary usage in text, tooltip, and icon", () => {
