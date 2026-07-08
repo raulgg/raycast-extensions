@@ -39,6 +39,7 @@ import {
   moveConfiguredProviderInConfig,
   moveConfiguredProviderInRawConfig,
   normalizeAvailableProviders,
+  orderEnabledProvidersByConfig,
   readConfiguredProvidersFromConfig,
   resolveCodexBarBinary,
   setProviderEnabled,
@@ -539,6 +540,7 @@ describe("available providers", () => {
 
   beforeEach(() => {
     execFileMock.mockReset();
+    readFileMock.mockReset();
   });
 
   it("normalizes `config providers` output, joining the registry and resolving aliases", () => {
@@ -626,5 +628,59 @@ describe("available providers", () => {
   it("refuses to toggle a provider without an id and never spawns the CLI", async () => {
     await expect(setProviderEnabled(binary, "  ", true)).rejects.toMatchObject({ kind: "execution" });
     expect(execFileMock).not.toHaveBeenCalled();
+  });
+
+  it("marks providers the registry does not know as unsupported", () => {
+    const providers = normalizeAvailableProviders([
+      { provider: "codex", enabled: true },
+      { provider: "someunknownprovider", displayName: "New", enabled: true },
+    ]);
+
+    expect(providers.find((provider) => provider.id === "codex")?.supported).toBe(true);
+    expect(providers.find((provider) => provider.cliProvider === "someunknownprovider")?.supported).toBe(false);
+  });
+
+  it("orders enabled providers by config order and keeps disabled ones after", () => {
+    const providers = normalizeAvailableProviders([
+      { provider: "codex", enabled: true },
+      { provider: "claude", enabled: true },
+      { provider: "grok", enabled: false },
+    ]);
+
+    const ordered = orderEnabledProvidersByConfig(providers, ["claude", "codex"]);
+
+    expect(ordered.map((provider) => provider.id)).toEqual(["claude", "codex", "grok"]);
+  });
+
+  it("keeps registry-unknown enabled providers after the config-ordered ones", () => {
+    const providers = normalizeAvailableProviders([
+      { provider: "someunknownprovider", displayName: "New", enabled: true },
+      { provider: "codex", enabled: true },
+    ]);
+
+    const ordered = orderEnabledProvidersByConfig(providers, ["codex"]);
+
+    expect(ordered.map((provider) => provider.cliProvider)).toEqual(["codex", "someunknownprovider"]);
+  });
+
+  it("orders the enabled roster from the CLI to match the config file order", async () => {
+    mockExecSuccess(
+      JSON.stringify([
+        { provider: "codex", enabled: true },
+        { provider: "claude", enabled: true },
+      ]),
+    );
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        providers: [
+          { id: "claude", enabled: true },
+          { id: "codex", enabled: true },
+        ],
+      }),
+    );
+
+    const providers = await listAvailableProviders(binary);
+
+    expect(providers.map((provider) => provider.id)).toEqual(["claude", "codex"]);
   });
 });

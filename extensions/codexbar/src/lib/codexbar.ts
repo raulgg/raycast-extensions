@@ -683,7 +683,45 @@ export async function listAvailableProviders(binary: ResolvedCodexBarBinary): Pr
   }
 
   const payload = await executeCodexBar(binary, ["config", "providers", "--format", "json", "--json-only"]);
-  return normalizeAvailableProviders(payload);
+  const providers = normalizeAvailableProviders(payload);
+  // The CLI roster order is not the config-file array order the Usage Overview
+  // renders. Re-order the enabled subset to match config order so Manage
+  // Providers and the Overview agree — reorder gating in the view derives its
+  // adjacency from this order, and the move writes the config array directly.
+  return orderEnabledProvidersByConfig(providers, await readConfiguredProviderOrder());
+}
+
+// Best-effort read of the enabled provider order from the shared config file.
+// Returns [] when the config can't be read; callers then keep the CLI roster
+// order rather than fail the whole roster load.
+async function readConfiguredProviderOrder(): Promise<string[]> {
+  try {
+    const configured = await readConfiguredProvidersFromConfig();
+    return configured.map((provider) => provider.id);
+  } catch {
+    return [];
+  }
+}
+
+// Sorts the enabled providers to match `enabledOrder` (config-file array order,
+// canonical ids), leaving disabled providers after them in roster order.
+// Providers missing from the order (e.g. registry-unknown, which the config read
+// filters out) keep their relative roster order via the stable sort.
+export function orderEnabledProvidersByConfig(
+  providers: AvailableProvider[],
+  enabledOrder: string[],
+): AvailableProvider[] {
+  const orderIndex = new Map(enabledOrder.map((id, index) => [id, index]));
+  const enabled = providers.filter((provider) => provider.enabled);
+  const disabled = providers.filter((provider) => !provider.enabled);
+
+  const orderedEnabled = [...enabled].sort((a, b) => {
+    const aIndex = orderIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+    const bIndex = orderIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+    return aIndex - bIndex;
+  });
+
+  return [...orderedEnabled, ...disabled];
 }
 
 export function normalizeAvailableProviders(payload: unknown): AvailableProvider[] {
@@ -724,6 +762,7 @@ export function normalizeAvailableProviders(payload: unknown): AvailableProvider
       name: isKnownProviderId(cliProvider) ? metadata.name : (cliDisplayName ?? metadata.name),
       icon: metadata.icon,
       enabled: record.enabled === true,
+      supported: isKnownProviderId(cliProvider),
     });
   }
 

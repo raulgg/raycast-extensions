@@ -91,19 +91,32 @@ export function ManageProviders({ binary, onProvidersChanged }: ManageProvidersP
   const enabledProviders = available.providers.filter((provider) => provider.enabled);
   const disabledProviders = available.providers.filter((provider) => !provider.enabled);
 
+  // Only registry-supported providers are reorderable, and the move writes the
+  // config array (which excludes unsupported entries). Gate Move Up/Down on the
+  // provider's index within this supported subset — in config order, thanks to
+  // listAvailableProviders — so the UI and the write agree on adjacency.
+  const reorderableProviders = enabledProviders.filter((provider) => provider.supported);
+  const reorderIndexById = new Map(reorderableProviders.map((provider, index) => [provider.id, index]));
+
   return (
     <List isLoading={available.isLoading} navigationTitle="Manage Providers" searchBarPlaceholder="Filter providers">
       <List.Section title="Enabled" subtitle={enabledProviders.length ? `${enabledProviders.length}` : undefined}>
-        {enabledProviders.map((provider, index) => (
-          <ProviderToggleItem
-            key={provider.id}
-            provider={provider}
-            isPending={pendingProviderId === provider.id}
-            onToggle={() => void toggleProvider(provider)}
-            onMoveUp={index > 0 ? () => void moveProvider(provider.id, "up") : undefined}
-            onMoveDown={index < enabledProviders.length - 1 ? () => void moveProvider(provider.id, "down") : undefined}
-          />
-        ))}
+        {enabledProviders.map((provider) => {
+          const reorderIndex = reorderIndexById.get(provider.id);
+          const canMoveUp = reorderIndex !== undefined && reorderIndex > 0;
+          const canMoveDown = reorderIndex !== undefined && reorderIndex < reorderableProviders.length - 1;
+
+          return (
+            <ProviderToggleItem
+              key={provider.id}
+              provider={provider}
+              isPending={pendingProviderId === provider.id}
+              onToggle={() => void toggleProvider(provider)}
+              onMoveUp={canMoveUp ? () => void moveProvider(provider.id, "up") : undefined}
+              onMoveDown={canMoveDown ? () => void moveProvider(provider.id, "down") : undefined}
+            />
+          );
+        })}
       </List.Section>
       <List.Section title="Disabled" subtitle={disabledProviders.length ? `${disabledProviders.length}` : undefined}>
         {disabledProviders.map((provider) => (

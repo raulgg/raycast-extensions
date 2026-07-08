@@ -13,13 +13,16 @@ export type ConfiguredProvider = {
 // reported by `codexbar config providers`. The full roster from which
 // ConfiguredProviders (enabled === true) are drawn. `id` is the alias-resolved
 // canonical id used for registry lookups; `cliProvider` is the raw id the CLI
-// reported, which is what enable/disable commands are addressed to.
+// reported, which is what enable/disable commands are addressed to. `supported`
+// is true when the extension registry recognizes the provider — only supported
+// providers render in the Usage Overview and are reorderable there.
 export type AvailableProvider = {
   id: string;
   cliProvider: string;
   name: string;
   icon: Image.ImageLike;
   enabled: boolean;
+  supported: boolean;
 };
 
 export type ProviderSectionItem = {
