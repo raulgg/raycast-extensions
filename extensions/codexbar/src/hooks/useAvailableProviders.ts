@@ -6,7 +6,9 @@ type UseAvailableProvidersResult = {
   providers: AvailableProvider[];
   isLoading: boolean;
   error?: Error;
-  revalidate: () => void;
+  // Awaitable so callers can wait for the refreshed roster before clearing UI
+  // state (e.g. a pending indicator) and avoid a flash of stale data.
+  revalidate: () => Promise<void>;
 };
 
 // Loads the full Available Provider roster for the Manage Providers subview.
@@ -32,6 +34,8 @@ export function useAvailableProviders(binary?: ResolvedCodexBarBinary): UseAvail
     providers: data ?? [],
     isLoading,
     error,
-    revalidate,
+    revalidate: async () => {
+      await revalidate();
+    },
   };
 }

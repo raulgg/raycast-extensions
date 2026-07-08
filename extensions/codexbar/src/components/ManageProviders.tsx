@@ -44,7 +44,9 @@ export function ManageProviders({ binary, onProvidersChanged }: ManageProvidersP
           title: nextEnabled ? `Enabled ${provider.name}` : `Disabled ${provider.name}`,
           message: nextEnabled && !provider.supported ? NOT_IN_OVERVIEW_HINT : undefined,
         });
-        available.revalidate();
+        // Await the refreshed roster before clearing the pending indicator so the
+        // row moves to its new section without a flash of its pre-toggle state.
+        await available.revalidate();
         onProvidersChanged?.();
       } catch (error) {
         await showToast({
