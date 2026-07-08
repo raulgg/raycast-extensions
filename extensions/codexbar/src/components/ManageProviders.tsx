@@ -35,11 +35,7 @@ export function ManageProviders({ binary, onProvidersChanged }: ManageProvidersP
       setPendingProviderId(provider.id);
       try {
         await setProviderEnabled(binary, provider.cliProvider, nextEnabled);
-        await showToast({
-          style: Toast.Style.Success,
-          title: nextEnabled ? `Enabled ${provider.name}` : `Disabled ${provider.name}`,
-          message: nextEnabled && !provider.supported ? NOT_IN_OVERVIEW_HINT : undefined,
-        });
+        await showToast({ style: Toast.Style.Success, ...buildToggleSuccessToast(provider, nextEnabled) });
         // Await the refreshed roster before clearing the pending indicator so the
         // row moves to its new section without a flash of its pre-toggle state.
         await available.revalidate();
@@ -84,21 +80,13 @@ export function ManageProviders({ binary, onProvidersChanged }: ManageProvidersP
 
   const enabledProviders = available.providers.filter((provider) => provider.enabled);
   const disabledProviders = available.providers.filter((provider) => !provider.enabled);
-
-  // Only registry-supported providers are reorderable, and the move writes the
-  // config array (which excludes unsupported entries). Gate Move Up/Down on the
-  // provider's index within this supported subset — in config order, thanks to
-  // listAvailableProviders — so the UI and the write agree on adjacency.
-  const reorderableProviders = enabledProviders.filter((provider) => provider.supported);
-  const reorderIndexById = new Map(reorderableProviders.map((provider, index) => [provider.id, index]));
+  const moveGating = getProviderMoveGating(enabledProviders);
 
   return (
     <List isLoading={available.isLoading} navigationTitle="Manage Providers" searchBarPlaceholder="Filter providers">
       <List.Section title="Enabled" subtitle={enabledProviders.length ? `${enabledProviders.length}` : undefined}>
         {enabledProviders.map((provider) => {
-          const reorderIndex = reorderIndexById.get(provider.id);
-          const canMoveUp = reorderIndex !== undefined && reorderIndex > 0;
-          const canMoveDown = reorderIndex !== undefined && reorderIndex < reorderableProviders.length - 1;
+          const gating = moveGating.get(provider.id);
 
           return (
             <ProviderToggleItem
@@ -106,8 +94,8 @@ export function ManageProviders({ binary, onProvidersChanged }: ManageProvidersP
               provider={provider}
               isPending={pendingProviderId === provider.id}
               onToggle={() => void toggleProvider(provider)}
-              onMoveUp={canMoveUp ? () => void moveProvider(provider.id, "up") : undefined}
-              onMoveDown={canMoveDown ? () => void moveProvider(provider.id, "down") : undefined}
+              onMoveUp={gating?.canMoveUp ? () => void moveProvider(provider.id, "up") : undefined}
+              onMoveDown={gating?.canMoveDown ? () => void moveProvider(provider.id, "down") : undefined}
             />
           );
         })}
@@ -155,11 +143,45 @@ function ProviderToggleItem({ provider, isPending, onToggle, onMoveUp, onMoveDow
   );
 }
 
+// Move Up/Down eligibility keyed by provider id, computed over the enabled set.
+// Only registry-supported providers are reorderable (the move writes the config
+// array, which excludes unsupported entries), and gating is by index within that
+// supported subset — in config order, thanks to listAvailableProviders — so the
+// UI adjacency and the config write agree. Unsupported providers are absent from
+// the map and get no move actions.
+export function getProviderMoveGating(
+  enabledProviders: AvailableProvider[],
+): Map<string, { canMoveUp: boolean; canMoveDown: boolean }> {
+  const reorderable = enabledProviders.filter((provider) => provider.supported);
+  const gating = new Map<string, { canMoveUp: boolean; canMoveDown: boolean }>();
+
+  reorderable.forEach((provider, index) => {
+    gating.set(provider.id, {
+      canMoveUp: index > 0,
+      canMoveDown: index < reorderable.length - 1,
+    });
+  });
+
+  return gating;
+}
+
+// Success toast copy for a toggle. Enabling an unsupported provider adds a hint
+// that it won't show in the Usage Overview yet.
+export function buildToggleSuccessToast(
+  provider: AvailableProvider,
+  nextEnabled: boolean,
+): { title: string; message?: string } {
+  return {
+    title: nextEnabled ? `Enabled ${provider.name}` : `Disabled ${provider.name}`,
+    message: nextEnabled && !provider.supported ? NOT_IN_OVERVIEW_HINT : undefined,
+  };
+}
+
 // Maps a roster-load failure to user-facing copy. Only "unavailable" (CLI can't
 // launch) and "timeout" get their own message; every other failure is treated as
 // "the installed CLI is too old to know `config providers`", which is the common
 // case for this capability probe.
-function describeManageProvidersError(error: Error): { title: string; description: string } {
+export function describeManageProvidersError(error: Error): { title: string; description: string } {
   const kind = error instanceof CodexBarCliError ? error.kind : undefined;
 
   if (kind === "unavailable") {
@@ -182,7 +204,7 @@ function describeManageProvidersError(error: Error): { title: string; descriptio
   };
 }
 
-function buildToggleAccessories(provider: AvailableProvider, isPending: boolean): List.Item.Accessory[] {
+export function buildToggleAccessories(provider: AvailableProvider, isPending: boolean): List.Item.Accessory[] {
   const accessories: List.Item.Accessory[] = [];
 
   // The Usage Overview only renders registry-supported providers, so enabling an
