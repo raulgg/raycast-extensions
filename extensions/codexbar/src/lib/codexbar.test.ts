@@ -48,7 +48,7 @@ import {
   setProviderEnabled,
 } from "./providerConfig";
 import { refreshUsageCache } from "./backgroundRefresh";
-import { readProviderStatus } from "./providerStatusCache";
+import { cacheProviderStatus, readProviderStatus } from "./providerStatusCache";
 import { buildCachedProviderResults } from "../hooks/useProviderDetails";
 
 function mockAccessForPaths(paths: string[]) {
@@ -302,7 +302,126 @@ describe("codexbar runtime helpers", () => {
   it("refreshes the provider detail cache from the background path after starting serve", async () => {
     vi.stubEnv("PATH", "/usr/local/bin");
     mockAccessForPaths(["/usr/local/bin/codexbar"]);
+    execFileMock.mockImplementation(
+      (
+        _command: string,
+        args: string[],
+        _options: unknown,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        if (args[0] === "--version") {
+          callback(null, "CodexBar\n", "");
+          return;
+        }
+
+        callback(
+          null,
+          JSON.stringify({
+            provider: "codex",
+            usage: { primary: { usedPercent: 99 } },
+            status: { indicator: "major", description: "Major outage" },
+          }),
+          "",
+        );
+      },
+    );
+    readFileMock.mockResolvedValue(JSON.stringify({ providers: [{ id: "codex", enabled: true }] }));
+    spawnMock.mockReturnValue(makeMockChildProcess());
+    mockServeResponses(
+      new Error("connect ECONNREFUSED"),
+      { status: "ok" },
+      { provider: "codex", usage: { primary: { usedPercent: 20 } } },
+    );
+
+    await expect(refreshUsageCache()).resolves.toMatchObject({
+      status: "completed",
+      providerCount: 1,
+      refreshedCount: 1,
+      errorCount: 0,
+      usedServe: true,
+    });
+
+    // Serve-sourced detail stays primary even when a status one-shot also runs.
+    expect(buildCachedProviderResults(["codex"])).toMatchObject({
+      codex: {
+        detail: {
+          id: "codex",
+          sections: [{ kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 80 }],
+        },
+        cacheStatus: "fresh",
+        isLoading: false,
+      },
+    });
+    expect(execFileMock).toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      ["--version"],
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(execFileMock).toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      expect.arrayContaining(["usage", "--status", "--provider", "codex"]),
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(readProviderStatus("codex")).toMatchObject({
+      indicator: "major",
+      description: "Major outage",
+    });
+  });
+
+  it("skips status one-shot when serve supplies detail and status cache is still fresh", async () => {
+    vi.stubEnv("PATH", "/usr/local/bin");
+    mockAccessForPaths(["/usr/local/bin/codexbar"]);
     mockExecSuccess("CodexBar\n");
+    readFileMock.mockResolvedValue(JSON.stringify({ providers: [{ id: "codex", enabled: true }] }));
+    spawnMock.mockReturnValue(makeMockChildProcess());
+    cacheProviderStatus("codex", { indicator: "minor", description: "Partial outage" });
+    mockServeResponses(
+      new Error("connect ECONNREFUSED"),
+      { status: "ok" },
+      { provider: "codex", usage: { primary: { usedPercent: 20 } } },
+    );
+
+    await expect(refreshUsageCache()).resolves.toMatchObject({
+      status: "completed",
+      providerCount: 1,
+      refreshedCount: 1,
+      errorCount: 0,
+      usedServe: true,
+    });
+
+    expect(execFileMock).toHaveBeenCalledTimes(1);
+    expect(execFileMock).toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      ["--version"],
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(readProviderStatus("codex")).toMatchObject({
+      indicator: "minor",
+      description: "Partial outage",
+    });
+  });
+
+  it("keeps serve detail when a status one-shot fails after serve success", async () => {
+    vi.stubEnv("PATH", "/usr/local/bin");
+    mockAccessForPaths(["/usr/local/bin/codexbar"]);
+    execFileMock.mockImplementation(
+      (
+        _command: string,
+        args: string[],
+        _options: unknown,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        if (args[0] === "--version") {
+          callback(null, "CodexBar\n", "");
+          return;
+        }
+
+        callback(new Error("status one-shot failed"), "", "status one-shot failed");
+      },
+    );
     readFileMock.mockResolvedValue(JSON.stringify({ providers: [{ id: "codex", enabled: true }] }));
     spawnMock.mockReturnValue(makeMockChildProcess());
     mockServeResponses(
@@ -329,13 +448,6 @@ describe("codexbar runtime helpers", () => {
         isLoading: false,
       },
     });
-    expect(execFileMock).toHaveBeenCalledTimes(1);
-    expect(execFileMock).toHaveBeenCalledWith(
-      "/usr/local/bin/codexbar",
-      ["--version"],
-      expect.any(Object),
-      expect.any(Function),
-    );
     expect(readProviderStatus("codex")).toBeUndefined();
   });
 

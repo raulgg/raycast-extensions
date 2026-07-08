@@ -91,7 +91,8 @@ These surprise people. Each has an ADR with the full reasoning; the short versio
   extension. → **ADR-0002**.
 - **Status comes only from the CLI, only in the background.** Incident badges are sourced from
   `usage --status` and cached separately (`provider-status:<id>`, 30-min TTL). Serve mode can't
-  produce status, so a serve-sourced refresh pays one extra `usage --status` per provider. If the
+  produce status, so when serve supplies detail the background path issues a status one-shot only
+  if that provider's status cache is missing or past TTL — not on every 5-minute refresh. If the
   background refresh is disabled, badges simply don't appear — graceful absence, no error, no lazy
   foreground fetch. → **ADR-0003**.
 - **The shared config is written two ways.** Enable/disable goes through `codexbar config

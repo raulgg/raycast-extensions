@@ -1,7 +1,7 @@
 import { getMockConfiguredProviders, isCodexBarMockMode } from "../mocks/codexbar";
 import type { ConfiguredProvider } from "../providers/types";
 import { cacheProviderDetailIfRicher, runProviderDetailFetches } from "../hooks/useProviderDetails";
-import { cacheProviderStatus } from "./providerStatusCache";
+import { cacheProviderStatus, readProviderStatus } from "./providerStatusCache";
 import {
   ensureCodexBarServe,
   fetchProviderDetailFromServe,
@@ -129,7 +129,8 @@ async function readBackgroundConfiguredProviders(binary: ResolvedCodexBarBinary)
   return readConfiguredProvidersFromConfig();
 }
 
-// Serve-preferred (ADR-0002) for detail; status layered only on non-serve path.
+// Serve-preferred (ADR-0002) for detail; status is CLI-only (ADR-0003) and
+// refreshed only when the dedicated status cache is empty or past TTL.
 async function fetchProviderDetailAndStatusForBackground(
   binary: ResolvedCodexBarBinary,
   providerId: string,
@@ -138,13 +139,31 @@ async function fetchProviderDetailAndStatusForBackground(
   if (preferServe) {
     try {
       const detail = await fetchProviderDetailFromServe(binary, providerId);
-      return { detail, status: undefined };
+      return attachStatusWhenStale(binary, providerId, detail);
     } catch {
       return fetchProviderUsageWithStatusOrDetailOnly(binary, providerId);
     }
   }
 
   return fetchProviderUsageWithStatusOrDetailOnly(binary, providerId);
+}
+
+// Keep serve-sourced detail primary; a failed status one-shot must not drop it.
+async function attachStatusWhenStale(
+  binary: ResolvedCodexBarBinary,
+  providerId: string,
+  detail: ProviderUsageWithStatus["detail"],
+): Promise<ProviderUsageWithStatus> {
+  if (readProviderStatus(providerId)) {
+    return { detail, status: undefined };
+  }
+
+  try {
+    const { status } = await fetchProviderUsageWithStatus(binary, providerId);
+    return { detail, status };
+  } catch {
+    return { detail, status: undefined };
+  }
 }
 
 // Combined --status may fail on old CLIs; fall back to plain detail so status errors never drop usage.
