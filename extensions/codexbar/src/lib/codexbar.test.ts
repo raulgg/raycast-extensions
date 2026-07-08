@@ -48,6 +48,7 @@ import {
   setProviderEnabled,
 } from "./providerConfig";
 import { refreshUsageCache } from "./backgroundRefresh";
+import { readProviderStatus } from "./providerStatusCache";
 import { buildCachedProviderResults } from "../hooks/useProviderDetails";
 
 function mockAccessForPaths(paths: string[]) {
@@ -133,6 +134,7 @@ describe("codexbar runtime helpers", () => {
     spawnMock.mockReset();
     httpRequestMock.mockReset();
     new Cache({ namespace: "provider-details" }).clear();
+    new Cache({ namespace: "provider-status" }).clear();
     readFileMock.mockRejectedValue(new Error("missing"));
     writeFileMock.mockResolvedValue(undefined);
     spawnMock.mockImplementation(() => {
@@ -247,6 +249,26 @@ describe("codexbar runtime helpers", () => {
     );
   });
 
+  it("bypasses CodexBar serve for forced provider detail fetches", async () => {
+    mockExecSuccess('{"provider":"codex","usage":{"primary":{"usedPercent":20}}}');
+    mockServeResponses({ status: "ok" }, { provider: "codex", usage: { primary: { usedPercent: 99 } } });
+
+    await expect(
+      fetchProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "codex", { mode: "force" }),
+    ).resolves.toMatchObject({
+      id: "codex",
+      sections: [{ kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 80 }],
+    });
+
+    expect(httpRequestMock).not.toHaveBeenCalled();
+    expect(execFileMock).toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      expect.arrayContaining(["usage", "--provider", "codex", "--source", "auto"]),
+      expect.any(Object),
+      expect.any(Function),
+    );
+  });
+
   it("starts CodexBar serve only when the background path explicitly ensures it", async () => {
     spawnMock.mockReturnValue(makeMockChildProcess());
     mockServeResponses(new Error("connect ECONNREFUSED"), { status: "ok" });
@@ -255,7 +277,7 @@ describe("codexbar runtime helpers", () => {
 
     expect(spawnMock).toHaveBeenCalledWith(
       "/usr/local/bin/codexbar",
-      ["serve", "--port", "17653", "--refresh-interval", "60", "--request-timeout", "30"],
+      ["serve", "--port", "17653", "--refresh-interval", "600", "--request-timeout", "30"],
       expect.objectContaining({
         detached: true,
         stdio: "ignore",
@@ -306,6 +328,62 @@ describe("codexbar runtime helpers", () => {
         cacheStatus: "fresh",
         isLoading: false,
       },
+    });
+    expect(execFileMock).toHaveBeenCalledTimes(1);
+    expect(execFileMock).toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      ["--version"],
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(readProviderStatus("codex")).toBeUndefined();
+  });
+
+  it("refreshes usage and status with one combined one-shot when background serve is unavailable", async () => {
+    vi.stubEnv("PATH", "/usr/local/bin");
+    mockAccessForPaths(["/usr/local/bin/codexbar"]);
+    readFileMock.mockResolvedValue(JSON.stringify({ providers: [{ id: "codex", enabled: true }] }));
+    execFileMock.mockImplementation(
+      (
+        _command: string,
+        args: string[],
+        _options: unknown,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        if (args[0] === "--version") {
+          callback(null, "CodexBar\n", "");
+          return;
+        }
+
+        callback(
+          null,
+          JSON.stringify({
+            provider: "codex",
+            usage: { primary: { usedPercent: 20 } },
+            status: { indicator: "major", description: "Major outage" },
+          }),
+          "",
+        );
+      },
+    );
+
+    await expect(refreshUsageCache()).resolves.toMatchObject({
+      status: "completed",
+      providerCount: 1,
+      refreshedCount: 1,
+      errorCount: 0,
+      usedServe: false,
+    });
+
+    expect(execFileMock).toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      expect.arrayContaining(["usage", "--status", "--provider", "codex"]),
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(readProviderStatus("codex")).toMatchObject({
+      indicator: "major",
+      description: "Major outage",
     });
   });
 
@@ -585,9 +663,7 @@ describe("available providers", () => {
 
     const providers = await listAvailableProviders(binary);
 
-    expect(providers).toEqual([
-      expect.objectContaining({ id: "codex", cliProvider: "codex", enabled: true }),
-    ]);
+    expect(providers).toEqual([expect.objectContaining({ id: "codex", cliProvider: "codex", enabled: true })]);
     expect(execFileMock).toHaveBeenCalledWith(
       "codexbar",
       ["config", "providers", "--format", "json", "--json-only"],

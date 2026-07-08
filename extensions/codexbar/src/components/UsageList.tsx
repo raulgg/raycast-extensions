@@ -20,21 +20,13 @@ export function UsageList() {
   const configuredProviders = useUsageOverview(binary);
 
   useEffect(() => {
-    if (configuredProviders.providers.length === 0) {
-      if (selectedProviderId) {
-        setSelectedProviderId(undefined);
-      }
+    const providers = configuredProviders.providers;
+    if (providers.length === 0) {
+      if (selectedProviderId) setSelectedProviderId(undefined);
       return;
     }
-
-    const currentSelectionStillExists = configuredProviders.providers.some(
-      (provider) => provider.id === selectedProviderId,
-    );
-    if (currentSelectionStillExists) {
-      return;
-    }
-
-    setSelectedProviderId(configuredProviders.providers[0].id);
+    if (providers.some((p) => p.id === selectedProviderId)) return;
+    setSelectedProviderId(providers[0].id);
   }, [configuredProviders.providers, selectedProviderId]);
 
   const selectedProvider = useMemo(
@@ -60,7 +52,7 @@ export function UsageList() {
   );
   const refreshSelectedProvider = useCallback(() => {
     if (selectedProviderId) {
-      refreshProvider(selectedProviderId);
+      refreshProvider(selectedProviderId, { force: true });
     }
   }, [refreshProvider, selectedProviderId]);
 
@@ -152,7 +144,7 @@ export function UsageList() {
             relativeTimeNow={provider.id === selectedProviderId ? relativeTimeNow : undefined}
             binary={binary}
             onProvidersChanged={configuredProviders.revalidate}
-            onRefresh={() => refreshProvider(provider.id)}
+            onRefresh={() => refreshProvider(provider.id, { force: true })}
             onMoveUp={index > 0 ? () => void moveProvider(provider.id, "up") : undefined}
             onMoveDown={
               index < configuredProviders.providers.length - 1

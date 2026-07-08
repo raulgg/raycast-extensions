@@ -7,6 +7,7 @@ import {
   cacheProviderDetailIfRicher,
   preserveInFlightProviderResults,
   runProviderDetailFetches,
+  shouldRefreshProviderAutomatically,
   shouldRefreshSelectedProvider,
   shouldReplaceProviderDetail,
   type InFlightProviderFetch,
@@ -87,7 +88,7 @@ describe("runProviderDetailFetches", () => {
   });
 
   it("hydrates stale cached provider details up to one hour old", () => {
-    const now = Date.parse("2026-04-15T12:05:01Z");
+    const now = Date.parse("2026-04-15T12:10:01Z");
     cacheProviderDetail(makeDetail("claude", "2026-04-15T12:00:00Z"));
 
     expect(buildCachedProviderResults(["claude"], now)).toMatchObject({
@@ -106,8 +107,8 @@ describe("runProviderDetailFetches", () => {
     expect(buildCachedProviderResults(["cursor"], now)).toEqual({});
   });
 
-  it("refreshes selected providers when detail is older than one minute", () => {
-    const now = Date.parse("2026-04-15T12:01:01Z");
+  it("refreshes selected providers when detail is older than ten minutes", () => {
+    const now = Date.parse("2026-04-15T12:10:01Z");
 
     expect(
       shouldRefreshSelectedProvider(
@@ -122,8 +123,8 @@ describe("runProviderDetailFetches", () => {
     ).toBe(true);
   });
 
-  it("keeps selected provider data when detail is one minute old or newer", () => {
-    const now = Date.parse("2026-04-15T12:01:00Z");
+  it("keeps selected provider data when detail is ten minutes old or newer", () => {
+    const now = Date.parse("2026-04-15T12:10:00Z");
 
     expect(
       shouldRefreshSelectedProvider(
@@ -141,6 +142,18 @@ describe("runProviderDetailFetches", () => {
   it("fetches selected providers with no data unless current generation already completed", () => {
     expect(shouldRefreshSelectedProvider(undefined, undefined, 1)).toBe(true);
     expect(shouldRefreshSelectedProvider(undefined, 1, 1)).toBe(false);
+  });
+
+  it("uses the same ten-minute threshold for automatic foreground refreshes", () => {
+    const freshNow = Date.parse("2026-04-15T12:10:00Z");
+    const staleNow = Date.parse("2026-04-15T12:10:01Z");
+    const result = {
+      detail: makeDetail("claude", "2026-04-15T12:00:00Z"),
+      isLoading: false,
+    };
+
+    expect(shouldRefreshProviderAutomatically(result, undefined, 1, freshNow)).toBe(false);
+    expect(shouldRefreshProviderAutomatically(result, undefined, 1, staleNow)).toBe(true);
   });
 
   it("preserves in-flight provider state across batch resets", () => {

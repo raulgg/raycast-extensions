@@ -4,9 +4,8 @@ import { fetchProviderDetail, type ResolvedCodexBarBinary } from "../lib/codexba
 import type { ConfiguredProvider, ProviderDetailData, ProviderSection } from "../providers/types";
 
 const PROVIDER_DETAIL_CONCURRENCY = 4;
-const PROVIDER_DETAIL_FRESHNESS_WINDOW_MS = 5 * 60 * 1000;
+const PROVIDER_DETAIL_FRESHNESS_WINDOW_MS = 10 * 60 * 1000;
 const PROVIDER_DETAIL_STALE_WINDOW_MS = 60 * 60 * 1000;
-const SELECTED_PROVIDER_REFRESH_STALE_MS = 60 * 1000;
 const PROVIDER_DETAIL_SCHEMA_VERSION = "provider-details-v4";
 const providerDetailCache = new Cache({ namespace: "provider-details" });
 
@@ -33,7 +32,7 @@ type RunProviderDetailFetchesOptions = {
 type UseProviderDetailsResult = {
   results: ProviderDetailResults;
   isLoading: boolean;
-  refreshProvider: (providerId: string) => void;
+  refreshProvider: (providerId: string, options?: { force?: boolean }) => void;
 };
 
 export type InFlightProviderFetch = {
@@ -74,91 +73,96 @@ export function useProviderDetails(
     resultsRef.current = displayedResults;
   }, [displayedResults]);
 
-  const fetchOneProvider = useCallback(async (providerId: string, generation: number) => {
-    const currentBinary = binaryRef.current;
-    const currentBinaryKey = binaryKeyRef.current;
-    if (!currentBinary || !currentBinaryKey || !providerId) {
-      return;
-    }
-
-    const inFlightFetch = inFlightRef.current.get(providerId);
-    if (inFlightFetch) {
-      if (inFlightFetch.binaryKey === currentBinaryKey) {
-        inFlightFetch.generation = generation;
+  const fetchOneProvider = useCallback(
+    async (providerId: string, generation: number, options?: { force?: boolean }) => {
+      const currentBinary = binaryRef.current;
+      const currentBinaryKey = binaryKeyRef.current;
+      if (!currentBinary || !currentBinaryKey || !providerId) {
+        return;
       }
+
+      const inFlightFetch = inFlightRef.current.get(providerId);
+      if (inFlightFetch) {
+        if (inFlightFetch.binaryKey === currentBinaryKey) {
+          inFlightFetch.generation = generation;
+        }
+
+        setProviderLoading(providerId, setResults, optimisticResultsRef.current);
+        return;
+      }
+
+      nextFetchIdRef.current += 1;
+      const fetchId = nextFetchIdRef.current;
+      inFlightRef.current.set(providerId, {
+        binaryKey: currentBinaryKey,
+        fetchId,
+        generation,
+      });
 
       setProviderLoading(providerId, setResults, optimisticResultsRef.current);
-      return;
-    }
 
-    nextFetchIdRef.current += 1;
-    const fetchId = nextFetchIdRef.current;
-    inFlightRef.current.set(providerId, {
-      binaryKey: currentBinaryKey,
-      fetchId,
-      generation,
-    });
+      try {
+        const detail = await fetchProviderDetail(currentBinary, providerId, {
+          mode: options?.force ? "force" : "auto",
+        });
+        const completedFetch = inFlightRef.current.get(providerId);
+        if (
+          !canApplyProviderFetchResult({
+            binaryKey: currentBinaryKey,
+            currentBinaryKey: binaryKeyRef.current,
+            currentProviderIds: providerIdsRef.current,
+            fetchId,
+            inFlightFetch: completedFetch,
+            providerId,
+          })
+        ) {
+          clearProviderLoading(providerId, fetchId, inFlightRef.current, setResults);
+          return;
+        }
 
-    setProviderLoading(providerId, setResults, optimisticResultsRef.current);
+        completedRef.current.set(providerId, completedFetch.generation);
+        const previousResult = resultsRef.current[providerId];
+        const shouldReplaceDetail = shouldReplaceProviderDetail(previousResult?.detail, detail);
 
-    try {
-      const detail = await fetchProviderDetail(currentBinary, providerId);
-      const completedFetch = inFlightRef.current.get(providerId);
-      if (
-        !canApplyProviderFetchResult({
-          binaryKey: currentBinaryKey,
-          currentBinaryKey: binaryKeyRef.current,
-          currentProviderIds: providerIdsRef.current,
-          fetchId,
-          inFlightFetch: completedFetch,
-          providerId,
-        })
-      ) {
-        clearProviderLoading(providerId, fetchId, inFlightRef.current, setResults);
-        return;
+        if (shouldReplaceDetail) {
+          cacheProviderDetail(detail);
+        }
+
+        setResults((current) => ({
+          ...current,
+          [providerId]: shouldReplaceDetail
+            ? { detail, isLoading: false, cacheStatus: "fresh" }
+            : { ...previousResult, error: undefined, isLoading: false },
+        }));
+      } catch (error) {
+        const completedFetch = inFlightRef.current.get(providerId);
+        if (
+          !canApplyProviderFetchResult({
+            binaryKey: currentBinaryKey,
+            currentBinaryKey: binaryKeyRef.current,
+            currentProviderIds: providerIdsRef.current,
+            fetchId,
+            inFlightFetch: completedFetch,
+            providerId,
+          })
+        ) {
+          clearProviderLoading(providerId, fetchId, inFlightRef.current, setResults);
+          return;
+        }
+
+        completedRef.current.set(providerId, completedFetch.generation);
+        setResults((current) => ({
+          ...current,
+          [providerId]: { ...current[providerId], error: toError(error), isLoading: false },
+        }));
+      } finally {
+        if (inFlightRef.current.get(providerId)?.fetchId === fetchId) {
+          inFlightRef.current.delete(providerId);
+        }
       }
-
-      completedRef.current.set(providerId, completedFetch.generation);
-      const previousResult = resultsRef.current[providerId];
-      const shouldReplaceDetail = shouldReplaceProviderDetail(previousResult?.detail, detail);
-
-      if (shouldReplaceDetail) {
-        cacheProviderDetail(detail);
-      }
-
-      setResults((current) => ({
-        ...current,
-        [providerId]: shouldReplaceDetail
-          ? { detail, isLoading: false, cacheStatus: "fresh" }
-          : { ...previousResult, error: undefined, isLoading: false },
-      }));
-    } catch (error) {
-      const completedFetch = inFlightRef.current.get(providerId);
-      if (
-        !canApplyProviderFetchResult({
-          binaryKey: currentBinaryKey,
-          currentBinaryKey: binaryKeyRef.current,
-          currentProviderIds: providerIdsRef.current,
-          fetchId,
-          inFlightFetch: completedFetch,
-          providerId,
-        })
-      ) {
-        clearProviderLoading(providerId, fetchId, inFlightRef.current, setResults);
-        return;
-      }
-
-      completedRef.current.set(providerId, completedFetch.generation);
-      setResults((current) => ({
-        ...current,
-        [providerId]: { ...current[providerId], error: toError(error), isLoading: false },
-      }));
-    } finally {
-      if (inFlightRef.current.get(providerId)?.fetchId === fetchId) {
-        inFlightRef.current.delete(providerId);
-      }
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     const generation = generationRef.current + 1;
@@ -178,7 +182,11 @@ export function useProviderDetails(
       concurrency: PROVIDER_DETAIL_CONCURRENCY,
       fetchProvider: (providerId) => fetchOneProvider(providerId, generation),
       shouldSkip: (providerId) => {
-        return completedRef.current.get(providerId) === generation;
+        return !shouldRefreshProviderAutomatically(
+          resultsRef.current[providerId],
+          completedRef.current.get(providerId),
+          generation,
+        );
       },
     }).finally(() => {
       if (generationRef.current === generation) {
@@ -202,12 +210,12 @@ export function useProviderDetails(
   }, [binaryKey, fetchOneProvider, selectedProviderId]);
 
   const refreshProvider = useCallback(
-    (providerId: string) => {
+    (providerId: string, options?: { force?: boolean }) => {
       if (!providerId) {
         return;
       }
 
-      void fetchOneProvider(providerId, generationRef.current);
+      void fetchOneProvider(providerId, generationRef.current, options);
     },
     [fetchOneProvider],
   );
@@ -335,6 +343,15 @@ export function shouldRefreshSelectedProvider(
   currentGeneration: number,
   now = Date.now(),
 ): boolean {
+  return shouldRefreshProviderAutomatically(result, completedGeneration, currentGeneration, now);
+}
+
+export function shouldRefreshProviderAutomatically(
+  result: ProviderDetailState | undefined,
+  completedGeneration: number | undefined,
+  currentGeneration: number,
+  now = Date.now(),
+): boolean {
   if (!result) {
     return completedGeneration !== currentGeneration;
   }
@@ -347,7 +364,7 @@ export function shouldRefreshSelectedProvider(
     return completedGeneration !== currentGeneration;
   }
 
-  return isProviderDetailOlderThan(result.detail, SELECTED_PROVIDER_REFRESH_STALE_MS, now);
+  return isProviderDetailOlderThan(result.detail, PROVIDER_DETAIL_FRESHNESS_WINDOW_MS, now);
 }
 
 export function buildCachedProviderResults(providerIds: string[], now = Date.now()): ProviderDetailResults {

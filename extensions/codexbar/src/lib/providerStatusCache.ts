@@ -2,10 +2,7 @@ import { Cache } from "@raycast/api";
 import { isProviderStatusFresh } from "../providers/status";
 import type { ProviderStatus } from "../providers/types";
 
-// Provider status lives in its own cache namespace, distinct from the
-// provider-detail (usage) cache. Serve-sourced usage writes never carry status,
-// so keeping the two apart stops a usage refresh from clobbering status (and
-// vice versa). See docs/adr/0003-provider-status-cli-only.md.
+// Separate status cache (ADR-0003): serve usage writes carry no status.
 const PROVIDER_STATUS_SCHEMA_VERSION = "provider-status-v1";
 const providerStatusCache = new Cache({ namespace: "provider-status" });
 
@@ -34,9 +31,7 @@ export function readProviderStatus(providerId: string, now = Date.now()): Provid
       return undefined;
     }
 
-    // cacheProviderStatus only ever stores an already-normalized ProviderStatus
-    // under a schema-versioned key, so the value is returned as-is — re-parsing
-    // it would be redundant work on the hot foreground read path.
+    // Already normalized on write; return as-is.
     return cached.status;
   } catch {
     providerStatusCache.remove(buildProviderStatusCacheKey(providerId));
