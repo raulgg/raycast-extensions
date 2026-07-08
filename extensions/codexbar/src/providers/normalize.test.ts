@@ -120,6 +120,58 @@ describe("provider normalization", () => {
     expect(detailSvg).toContain(">Resets in 1d 1h<");
   });
 
+  it("relabels grok's primary bar by window length like the upstream GUI", () => {
+    const now = Date.parse("2026-03-23T10:30:00Z");
+    const usageTitles = (usage: Record<string, unknown>) =>
+      normalizeProviderDetailPayload({ provider: "grok", usage }, "grok", now)
+        .sections.filter((section) => section.kind === "usage")
+        .map((section) => (section.kind === "usage" ? section.displayTitle : section.title));
+
+    // Explicit weekly window wins over the static "Credits" label.
+    expect(usageTitles({ primary: { windowMinutes: 10_080, usedPercent: 40 } })).toEqual(["Weekly"]);
+    // Without windowMinutes, the distance to resetsAt decides: ~30 days → Monthly.
+    expect(usageTitles({ primary: { usedPercent: 40, resetsAt: "2026-04-22T10:30:00Z" } })).toEqual(["Monthly"]);
+    // Short or absent windows keep the static label.
+    expect(usageTitles({ primary: { windowMinutes: 30, usedPercent: 40 } })).toEqual(["Credits"]);
+    expect(usageTitles({ primary: { usedPercent: 40 } })).toEqual(["Credits"]);
+    // In-between lengths (~2 weeks) match neither range and keep the static label.
+    expect(usageTitles({ primary: { usedPercent: 40, resetsAt: "2026-04-06T10:30:00Z" } })).toEqual(["Credits"]);
+  });
+
+  it("relabels doubao's primary bar as Requests for windowless request-style payloads", () => {
+    const now = Date.parse("2026-03-23T10:30:00Z");
+    const usageTitles = (usage: Record<string, unknown>) =>
+      normalizeProviderDetailPayload({ provider: "doubao", usage }, "doubao", now)
+        .sections.filter((section) => section.kind === "usage")
+        .map((section) => (section.kind === "usage" ? section.displayTitle : section.title));
+
+    // No window + request-style reset detail → pay-as-you-go account.
+    expect(usageTitles({ primary: { usedPercent: 40, resetDescription: "1,200 requests left" } })).toEqual([
+      "Requests",
+    ]);
+    // An explicit window means the regular 5h plan window, whatever the detail says.
+    expect(
+      usageTitles({ primary: { windowMinutes: 300, usedPercent: 40, resetDescription: "1,200 requests left" } }),
+    ).toEqual(["5-hour"]);
+    expect(usageTitles({ primary: { usedPercent: 40 } })).toEqual(["5-hour"]);
+  });
+
+  it("relabels factory windows as 5-hour/Weekly/Monthly when a tertiary window is present", () => {
+    const now = Date.parse("2026-03-23T10:30:00Z");
+    const usageTitles = (usage: Record<string, unknown>) =>
+      normalizeProviderDetailPayload({ provider: "factory", usage }, "factory", now)
+        .sections.filter((section) => section.kind === "usage")
+        .map((section) => (section.kind === "usage" ? section.displayTitle : section.title));
+
+    expect(
+      usageTitles({ primary: { usedPercent: 10 }, secondary: { usedPercent: 20 }, tertiary: { usedPercent: 30 } }),
+    ).toEqual(["5-hour", "Weekly", "Monthly"]);
+    expect(usageTitles({ primary: { usedPercent: 10 }, secondary: { usedPercent: 20 } })).toEqual([
+      "Standard",
+      "Premium",
+    ]);
+  });
+
   it("attaches raw usage pacing to supported weekly sections and renders GUI-style footers", () => {
     const detail = normalizeProviderDetailPayload(
       {

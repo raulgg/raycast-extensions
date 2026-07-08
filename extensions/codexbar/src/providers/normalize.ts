@@ -220,6 +220,80 @@ function computeSlotUsagePacing(
   return computeWeeklyUsagePacing(input, now, allowDefaultWindowFallback);
 }
 
+type SlotTitle = "Primary" | "Secondary" | "Tertiary";
+
+// Mirrors GrokProviderDescriptor.primaryLabel(duration:): Grok's primary window is a
+// generic credits pool whose cadence depends on the plan, so upstream relabels the bar
+// by billing-window length — "Weekly" for ~4-12 day windows, "Monthly" for ~20-45 days —
+// and keeps the static "Credits" label for anything else (short, unknown, or in-between).
+function resolveGrokPrimaryDisplayTitle(durationMs: number): string | undefined {
+  if (!Number.isFinite(durationMs) || durationMs <= 60 * 60 * 1000) {
+    return undefined;
+  }
+
+  const days = Math.round(durationMs / (24 * 60 * 60 * 1000));
+  if (days >= 4 && days <= 12) {
+    return "Weekly";
+  }
+
+  if (days >= 20 && days <= 45) {
+    return "Monthly";
+  }
+
+  return undefined;
+}
+
+// Upstream MenuDescriptor.rateWindowLabels layers dynamic overrides on top of the
+// static registry labels: Factory switches to 5-hour/Weekly/Monthly whenever a tertiary
+// window is present, Grok relabels its primary bar by billing-window length
+// (windowMinutes when the payload carries it, otherwise the distance to resetsAt), and
+// Doubao relabels a windowless "requests"-style primary as "Requests".
+function resolveSlotDisplayTitle(
+  providerId: string,
+  slotTitle: SlotTitle,
+  options: {
+    windowMinutes?: number;
+    resetsAt?: string;
+    resetDescription?: string;
+    factoryHasTertiary: boolean;
+    now: number;
+  },
+): string {
+  if (providerId === "factory" && options.factoryHasTertiary) {
+    return slotTitle === "Primary" ? "5-hour" : slotTitle === "Secondary" ? "Weekly" : "Monthly";
+  }
+
+  // Deliberate widening vs upstream: options.resetsAt includes the payload-level
+  // sessionResetsAt/resetsAt fallbacks, while GrokProviderDescriptor.primaryLabel reads
+  // only the primary window's own resetsAt. Real CLI payloads carry no top-level reset
+  // fields, and the label should agree with whatever countdown the section renders.
+  if (providerId === "grok" && slotTitle === "Primary") {
+    const durationMs =
+      options.windowMinutes !== undefined
+        ? options.windowMinutes * 60 * 1000
+        : options.resetsAt
+          ? Date.parse(options.resetsAt) - options.now
+          : Number.NaN;
+    const dynamicTitle = resolveGrokPrimaryDisplayTitle(durationMs);
+    if (dynamicTitle) {
+      return dynamicTitle;
+    }
+  }
+
+  // Mirrors DoubaoProviderDescriptor.primaryLabel: pay-as-you-go Doubao accounts have no
+  // 5h window — the payload carries a "requests"-style resetDescription instead.
+  if (
+    providerId === "doubao" &&
+    slotTitle === "Primary" &&
+    options.windowMinutes === undefined &&
+    options.resetDescription?.toLowerCase().includes("request")
+  ) {
+    return "Requests";
+  }
+
+  return getProviderUsageSectionDisplayTitle(providerId, slotTitle);
+}
+
 function buildUsageSections(providerId: string, payload: RawProviderPayload, now = Date.now()): ProviderSection[] {
   const usage = toRecord(payload.usage);
   const sections: ProviderSection[] = [];
@@ -246,6 +320,9 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
       resetTimestamp: undefined,
     },
   ];
+  // Mirrors upstream's `snapshot.tertiary != nil` check for the Factory relabel: the
+  // extension's equivalent of a present tertiary window is one that will render.
+  const factoryHasTertiary = toFiniteNumber(toRecord(usage?.tertiary)?.usedPercent) !== undefined;
 
   for (const slot of slotFallbacks) {
     const record = slot.record ?? {};
@@ -271,7 +348,13 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
       sections.push({
         kind: "usage",
         title: slot.title,
-        displayTitle: getProviderUsageSectionDisplayTitle(providerId, slot.title),
+        displayTitle: resolveSlotDisplayTitle(providerId, slot.title, {
+          windowMinutes: toFiniteNumber(record.windowMinutes),
+          resetsAt: resolvedResetsAt,
+          resetDescription: toTrimmedString(record.resetDescription),
+          factoryHasTertiary,
+          now,
+        }),
         remainingPercent: clampPercent(progressPercent),
         resetsIn: buildWindowReset(record, slot.resetTimestamp, now),
         usagePacing,
