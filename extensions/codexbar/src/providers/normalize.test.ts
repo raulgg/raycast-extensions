@@ -404,6 +404,140 @@ describe("provider normalization", () => {
       },
     ]);
   });
+
+  it("filters unavailable and expired Codex reset credits", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "codex",
+        usage: {
+          codexResetCredits: {
+            credits: [
+              {
+                status: "available",
+                reset_type: "weekly",
+                granted_at: "2026-03-22T10:30:00Z",
+                expires_at: "2026-03-24T10:30:00Z",
+              },
+              {
+                status: "redeemed",
+                reset_type: "weekly",
+                granted_at: "2026-03-22T10:30:00Z",
+                expires_at: "2026-03-25T10:30:00Z",
+              },
+              {
+                status: "available",
+                reset_type: "weekly",
+                granted_at: "2026-03-22T10:30:00Z",
+                expires_at: "2026-03-23T10:29:00Z",
+              },
+              {
+                status: "unknown",
+                reset_type: "weekly",
+                granted_at: "2026-03-22T10:30:00Z",
+                expires_at: "2026-03-26T10:30:00Z",
+              },
+            ],
+          },
+        },
+      },
+      "codex",
+      Date.parse("2026-03-23T10:30:00Z"),
+    );
+
+    expect(detail.sections).toContainEqual({
+      kind: "info",
+      title: "Limit Reset Credits",
+      items: [
+        { label: "Available", value: "1 available" },
+        { label: "Next expiry", value: "1d" },
+      ],
+    });
+  });
+
+  it("sorts Codex reset credits by expiry with no-expiry credits last", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "codex",
+        usage: {
+          codexResetCredits: {
+            credits: [
+              { status: "available" },
+              { status: "available", expires_at: "2026-03-25T10:30:00Z" },
+              { status: "available", expires_at: "2026-03-24T10:30:00Z" },
+            ],
+          },
+        },
+      },
+      "codex",
+      Date.parse("2026-03-23T10:30:00Z"),
+    );
+
+    expect(detail.sections).toContainEqual({
+      kind: "info",
+      title: "Limit Reset Credits",
+      items: [
+        { label: "Available", value: "3 available" },
+        { label: "Next expiry", value: "1d" },
+        { label: "Expiries", value: "1d, 2d, No expiry" },
+      ],
+    });
+  });
+
+  it("renders no Codex reset credit section when inventory is empty or non-Codex", () => {
+    const emptyCodex = normalizeProviderDetailPayload(
+      {
+        provider: "codex",
+        usage: {
+          codexResetCredits: {
+            credits: [
+              { status: "redeemed", expires_at: "2026-03-24T10:30:00Z" },
+              { status: "available", expires_at: "2026-03-23T10:29:00Z" },
+            ],
+          },
+        },
+      },
+      "codex",
+      Date.parse("2026-03-23T10:30:00Z"),
+    );
+    const claudeWithCredits = normalizeProviderDetailPayload(
+      {
+        provider: "claude",
+        usage: {
+          codexResetCredits: {
+            credits: [{ status: "available", expires_at: "2026-03-24T10:30:00Z" }],
+          },
+        },
+      },
+      "claude",
+      Date.parse("2026-03-23T10:30:00Z"),
+    );
+
+    expect(emptyCodex.sections.some((section) => section.title === "Limit Reset Credits")).toBe(false);
+    expect(claudeWithCredits.sections.some((section) => section.title === "Limit Reset Credits")).toBe(false);
+  });
+
+  it("renders Codex reset credit info in the detail markdown", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "codex",
+        usage: {
+          primary: { usedPercent: 40 },
+          codexResetCredits: {
+            credits: [{ status: "available", expires_at: "2026-03-24T10:30:00Z" }],
+          },
+        },
+      },
+      "codex",
+      Date.parse("2026-03-23T10:30:00Z"),
+    );
+    const [detailSvg] = extractSvgMarkup(detail.markdown);
+
+    expect(detailSvg).toContain(">Limit Reset Credits<");
+    expect(detailSvg).toContain(">Available<");
+    expect(detailSvg).toContain(">1 available<");
+    expect(detailSvg).toContain(">Next expiry<");
+    expect(detailSvg).toContain(">1d<");
+  });
 });
 
 describe("usage pacing gating", () => {

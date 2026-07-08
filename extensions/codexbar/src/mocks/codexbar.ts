@@ -302,6 +302,37 @@ function buildCodex(now: Date): RawProviderPayload {
             window: buildWindow(now, 12, 5 * HOUR, null),
           },
         ],
+        codexResetCredits: {
+          credits: [
+            {
+              id: "reset-credit-1",
+              status: "available",
+              reset_type: "weekly",
+              granted_at: offsetIso(now, -DAY),
+              expires_at: offsetIso(now, 2 * DAY),
+            },
+            {
+              id: "reset-credit-2",
+              status: "available",
+              reset_type: "weekly",
+              granted_at: offsetIso(now, -DAY),
+            },
+            {
+              id: "reset-credit-3",
+              status: "redeemed",
+              reset_type: "weekly",
+              granted_at: offsetIso(now, -2 * DAY),
+              expires_at: offsetIso(now, DAY),
+            },
+            {
+              id: "reset-credit-4",
+              status: "available",
+              reset_type: "weekly",
+              granted_at: offsetIso(now, -2 * DAY),
+              expires_at: offsetIso(now, -HOUR),
+            },
+          ],
+        },
         ...buildIdentity("codex", "dev@example.com", null, "pro"),
       },
     ),

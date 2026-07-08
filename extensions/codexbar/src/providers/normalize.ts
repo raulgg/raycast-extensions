@@ -466,6 +466,91 @@ function buildProviderSpecificUsageSections(payload: RawProviderPayload, now = D
   return sections;
 }
 
+type CodexResetCredit = {
+  expiresAt?: string;
+  expiresAtMs?: number;
+};
+
+function normalizeCodexResetCredits(payload: RawProviderPayload, now = Date.now()): CodexResetCredit[] {
+  const usage = toRecord(payload.usage);
+  const codexResetCredits = toRecord(usage?.codexResetCredits);
+  const credits = Array.isArray(codexResetCredits?.credits) ? codexResetCredits.credits : [];
+  const availableCredits: CodexResetCredit[] = [];
+
+  for (const credit of credits) {
+    const record = toRecord(credit);
+    if (!record || record.status !== "available") {
+      continue;
+    }
+
+    const expiresAt = firstString(record.expires_at, record.expiresAt);
+    if (!expiresAt) {
+      availableCredits.push({});
+      continue;
+    }
+
+    const expiresAtMs = Date.parse(expiresAt);
+    if (Number.isNaN(expiresAtMs) || expiresAtMs <= now) {
+      continue;
+    }
+
+    availableCredits.push({ expiresAt, expiresAtMs });
+  }
+
+  return availableCredits.sort((left, right) => {
+    if (left.expiresAtMs === undefined && right.expiresAtMs === undefined) {
+      return 0;
+    }
+
+    if (left.expiresAtMs === undefined) {
+      return 1;
+    }
+
+    if (right.expiresAtMs === undefined) {
+      return -1;
+    }
+
+    return left.expiresAtMs - right.expiresAtMs;
+  });
+}
+
+function formatCodexResetCreditCount(count: number): string {
+  return count === 1 ? "1 available" : `${count} available`;
+}
+
+function formatCodexResetCreditExpiry(credit: CodexResetCredit, now: number): string {
+  return credit.expiresAt ? (formatCountdown(credit.expiresAt, now) ?? "No expiry") : "No expiry";
+}
+
+function buildCodexResetCreditSection(
+  providerId: string,
+  payload: RawProviderPayload,
+  now = Date.now(),
+): ProviderSection[] {
+  if (providerId !== "codex") {
+    return [];
+  }
+
+  const credits = normalizeCodexResetCredits(payload, now);
+  if (credits.length === 0) {
+    return [];
+  }
+
+  const items: ProviderSectionItem[] = [
+    { label: "Available", value: formatCodexResetCreditCount(credits.length) },
+    { label: "Next expiry", value: formatCodexResetCreditExpiry(credits[0], now) },
+  ];
+
+  if (credits.length > 1) {
+    items.push({
+      label: "Expiries",
+      value: credits.map((credit) => formatCodexResetCreditExpiry(credit, now)).join(", "),
+    });
+  }
+
+  return [{ kind: "info", title: "Limit Reset Credits", items }];
+}
+
 function buildSupplementalUsageSections(payload: RawProviderPayload, now = Date.now()): ProviderSection[] {
   const dashboard = toRecord(payload.openaiDashboard);
   const sections: ProviderSection[] = [];
@@ -692,6 +777,7 @@ function normalizePayload(providerId: string, payload: RawProviderPayload, now =
     ...buildExtraRateWindowSections(payload, now),
     ...buildSupplementalUsageSections(payload, now),
     ...buildProviderSpecificUsageSections(payload, now),
+    ...buildCodexResetCreditSection(metadata.id, payload, now),
   ];
 
   const detail = {
