@@ -9,7 +9,6 @@ import type {
   ProviderUsagePacing,
   RawProviderPayload,
 } from "./types";
-import { buildProviderDetailMarkdown } from "./markdown";
 
 type ProviderCandidate = {
   id?: string;
@@ -780,20 +779,14 @@ function normalizePayload(providerId: string, payload: RawProviderPayload, now =
     ...buildCodexResetCreditSection(metadata.id, payload, now),
   ];
 
-  const detail = {
+  return {
     id: metadata.id,
     name: metadata.name,
-    raw: payload,
     fetchedAt,
     updatedAt,
     accountEmail,
     planText,
     sections,
-  };
-
-  return {
-    ...detail,
-    markdown: buildProviderDetailMarkdown(detail, undefined, { now }),
   };
 }
 

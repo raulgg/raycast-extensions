@@ -100,11 +100,9 @@ export type ProviderSection = ProviderUsageSection | ProviderSupplementalUsageSe
 export type ProviderDetailData = {
   id: string;
   name: string;
-  raw: RawProviderPayload;
   fetchedAt: string;
   updatedAt?: string;
   accountEmail?: string;
   planText?: string;
   sections: ProviderSection[];
-  markdown: string;
 };

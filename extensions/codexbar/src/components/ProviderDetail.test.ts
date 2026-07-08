@@ -48,12 +48,10 @@ function makeDetail(): ProviderDetailData {
   return {
     id: "codex",
     name: "Codex",
-    raw: {},
     fetchedAt: "2026-04-05T17:11:00Z",
     updatedAt: "2026-04-05T17:11:00Z",
     accountEmail: "dev@example.com",
     planText: "Pro",
-    markdown: "stale cached markdown",
     sections: [
       {
         kind: "usage",
@@ -89,7 +87,6 @@ describe("ProviderDetail", () => {
       isLoading: false,
     });
 
-    expect(element.props.markdown).not.toContain(detail.markdown);
     expect(element.props.markdown).toContain("data:image/svg+xml;base64,");
     const svg = decodeFirstSvg(element.props.markdown);
     expect(svg).toContain('fill="#111827"');

@@ -507,7 +507,6 @@ describe("codexbar runtime helpers", () => {
     ).resolves.toMatchObject({
       id: "codex",
       sections: [{ kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 80 }],
-      markdown: expect.stringContaining("![Codex detail]"),
     });
 
     expect(execFileMock).toHaveBeenCalledWith(

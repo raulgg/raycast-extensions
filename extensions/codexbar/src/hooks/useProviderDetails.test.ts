@@ -19,7 +19,6 @@ function makeDetail(providerId: string, fetchedAt: string, sections?: ProviderSe
   return {
     id: providerId,
     name: providerId,
-    raw: {},
     fetchedAt,
     sections: sections ?? [
       {
@@ -29,7 +28,6 @@ function makeDetail(providerId: string, fetchedAt: string, sections?: ProviderSe
         remainingPercent: 82,
       },
     ],
-    markdown: `# ${providerId}`,
   };
 }
 

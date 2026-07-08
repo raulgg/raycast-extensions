@@ -54,7 +54,6 @@ function makeDetail(remainingPercent: number, secondaryRemainingPercent?: number
   return {
     id: "codex",
     name: "Codex",
-    raw: {},
     fetchedAt: "2026-04-15T12:00:00Z",
     sections: [
       {
@@ -74,7 +73,6 @@ function makeDetail(remainingPercent: number, secondaryRemainingPercent?: number
             },
           ]),
     ],
-    markdown: "# Codex",
   };
 }
 
@@ -122,11 +120,9 @@ describe("ProviderListItem", () => {
       detail: {
         id: "claude",
         name: "Claude",
-        raw: {},
         fetchedAt: "2026-04-15T12:00:00Z",
         planText: "Claude Max",
         sections: [],
-        markdown: "# Claude",
       },
       isDetailLoading: false,
       isSelected: true,

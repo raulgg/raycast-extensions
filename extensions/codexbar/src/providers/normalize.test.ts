@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extractSvgMarkup } from "../../test/svg-markdown";
+import { buildProviderDetailMarkdown } from "./markdown";
 import { extractProviderErrorMessage, normalizeProviderDetailPayload } from "./normalize";
 
 const codexPayload = {
@@ -29,8 +30,10 @@ const codexPayload = {
 
 describe("provider normalization", () => {
   it("normalizes generic provider detail sections", () => {
-    const detail = normalizeProviderDetailPayload(codexPayload, "codex", Date.parse("2026-03-23T10:30:00Z"));
-    const [detailSvg] = extractSvgMarkup(detail.markdown);
+    const now = Date.parse("2026-03-23T10:30:00Z");
+    const detail = normalizeProviderDetailPayload(codexPayload, "codex", now);
+    const markdown = buildProviderDetailMarkdown(detail, undefined, { now });
+    const [detailSvg] = extractSvgMarkup(markdown);
     const expectedHeaderUpdated = "1h ago";
 
     expect(detail.id).toBe("codex");
@@ -59,11 +62,11 @@ describe("provider normalization", () => {
         remainingPercent: 78,
       },
     ]);
-    expect(detail.markdown).toContain("data:image/svg+xml;base64,");
-    expect(detail.markdown).not.toContain("prefers-color-scheme");
+    expect(markdown).toContain("data:image/svg+xml;base64,");
+    expect(markdown).not.toContain("prefers-color-scheme");
     expect(detailSvg).not.toContain("dominant-baseline");
-    expect(detail.markdown).not.toContain("## Primary");
-    expect(detail.markdown).not.toContain("- **Remaining:**");
+    expect(markdown).not.toContain("## Primary");
+    expect(markdown).not.toContain("- **Remaining:**");
     expect(detailSvg).toContain("<title>Codex detail</title>");
     expect(detailSvg).toContain(">Codex<");
     expect(detailSvg).toContain(">dev@example.com<");
@@ -83,6 +86,7 @@ describe("provider normalization", () => {
   });
 
   it("falls back to session and weekly fields when usage windows are absent", () => {
+    const now = Date.parse("2026-03-23T10:30:00Z");
     const detail = normalizeProviderDetailPayload(
       {
         provider: "claude",
@@ -92,9 +96,10 @@ describe("provider normalization", () => {
         weeklyResetsAt: "2026-03-24T12:00:00Z",
       },
       "claude",
-      Date.parse("2026-03-23T10:30:00Z"),
+      now,
     );
-    const [detailSvg] = extractSvgMarkup(detail.markdown);
+    const markdown = buildProviderDetailMarkdown(detail, undefined, { now });
+    const [detailSvg] = extractSvgMarkup(markdown);
 
     expect(detail.sections).toMatchObject([
       {
@@ -112,7 +117,7 @@ describe("provider normalization", () => {
         resetsIn: "1d 1h",
       },
     ]);
-    expect(detail.markdown).toContain("data:image/svg+xml;base64,");
+    expect(markdown).toContain("data:image/svg+xml;base64,");
     expect(detailSvg).toContain(">Session<");
     expect(detailSvg).toContain(">Weekly<");
     expect(detailSvg).toContain(">80% left<");
@@ -173,6 +178,7 @@ describe("provider normalization", () => {
   });
 
   it("attaches raw usage pacing to supported weekly sections and renders GUI-style footers", () => {
+    const now = Date.parse("2026-04-16T12:30:00Z");
     const detail = normalizeProviderDetailPayload(
       {
         provider: "codex",
@@ -185,9 +191,9 @@ describe("provider normalization", () => {
         },
       },
       "codex",
-      Date.parse("2026-04-16T12:30:00Z"),
+      now,
     );
-    const [detailSvg] = extractSvgMarkup(detail.markdown);
+    const [detailSvg] = extractSvgMarkup(buildProviderDetailMarkdown(detail, undefined, { now }));
 
     expect(detail.sections).toMatchObject([
       {
@@ -274,7 +280,7 @@ describe("provider normalization", () => {
 
     expect(detail.id).toBe("warp");
     expect(detail.sections).toEqual([]);
-    expect(detail.markdown).toBe("No data available");
+    expect(buildProviderDetailMarkdown(detail)).toBe("No data available");
   });
 
   it("renders header-only details when account metadata exists without usage sections", () => {
@@ -288,12 +294,13 @@ describe("provider normalization", () => {
       },
       "vertexai",
     );
-    const [detailSvg] = extractSvgMarkup(detail.markdown);
+    const markdown = buildProviderDetailMarkdown(detail);
+    const [detailSvg] = extractSvgMarkup(markdown);
 
     expect(detail.sections).toEqual([]);
     expect(detail.accountEmail).toBe("dev@example.com");
     expect(detail.planText).toBe("Gcloud");
-    expect(detail.markdown).toContain("data:image/svg+xml;base64,");
+    expect(markdown).toContain("data:image/svg+xml;base64,");
     expect(detailSvg).toContain(">Vertex AI<");
     expect(detailSvg).toContain(">dev@example.com<");
     expect(detailSvg).toContain(">Gcloud<");
@@ -308,7 +315,7 @@ describe("provider normalization", () => {
       },
       "claude",
     );
-    const [detailSvg] = extractSvgMarkup(detail.markdown);
+    const [detailSvg] = extractSvgMarkup(buildProviderDetailMarkdown(detail));
 
     expect(detail.planText).toBe("Max");
     expect(detailSvg).toContain(">Max<");
@@ -359,6 +366,7 @@ describe("provider normalization", () => {
   });
 
   it("passes nextRegenPercent through slot windows and renders the regen footer", () => {
+    const now = Date.parse("2026-03-23T10:30:00Z");
     const detail = normalizeProviderDetailPayload(
       {
         provider: "claude",
@@ -367,9 +375,9 @@ describe("provider normalization", () => {
         },
       },
       "claude",
-      Date.parse("2026-03-23T10:30:00Z"),
+      now,
     );
-    const [detailSvg] = extractSvgMarkup(detail.markdown);
+    const [detailSvg] = extractSvgMarkup(buildProviderDetailMarkdown(detail, undefined, { now }));
 
     expect(detail.sections[0]).toMatchObject({ kind: "usage", nextRegenPercent: 4 });
     expect(detailSvg).toContain(">Regenerates 4% next tick<");
@@ -517,6 +525,7 @@ describe("provider normalization", () => {
   });
 
   it("renders Codex reset credit info in the detail markdown", () => {
+    const now = Date.parse("2026-03-23T10:30:00Z");
     const detail = normalizeProviderDetailPayload(
       {
         provider: "codex",
@@ -528,9 +537,9 @@ describe("provider normalization", () => {
         },
       },
       "codex",
-      Date.parse("2026-03-23T10:30:00Z"),
+      now,
     );
-    const [detailSvg] = extractSvgMarkup(detail.markdown);
+    const [detailSvg] = extractSvgMarkup(buildProviderDetailMarkdown(detail, undefined, { now }));
 
     expect(detailSvg).toContain(">Limit Reset Credits<");
     expect(detailSvg).toContain(">Available<");

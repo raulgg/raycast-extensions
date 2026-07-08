@@ -6,7 +6,7 @@ import type { ConfiguredProvider, ProviderDetailData, ProviderSection } from "..
 const PROVIDER_DETAIL_CONCURRENCY = 4;
 const PROVIDER_DETAIL_FRESHNESS_WINDOW_MS = 10 * 60 * 1000;
 const PROVIDER_DETAIL_STALE_WINDOW_MS = 60 * 60 * 1000;
-const PROVIDER_DETAIL_SCHEMA_VERSION = "provider-details-v4";
+const PROVIDER_DETAIL_SCHEMA_VERSION = "provider-details-v5";
 const providerDetailCache = new Cache({ namespace: "provider-details" });
 
 export type ProviderDetailCacheStatus = "fresh" | "stale";
