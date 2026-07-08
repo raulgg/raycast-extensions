@@ -1,5 +1,5 @@
 import { Action, ActionPanel, Color, Icon, List, showToast, Toast } from "@raycast/api";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useAvailableProviders } from "../hooks/useAvailableProviders";
 import {
   moveConfiguredProviderInConfig,
@@ -19,9 +19,19 @@ type ManageProvidersProps = {
 export function ManageProviders({ binary, onProvidersChanged }: ManageProvidersProps) {
   const available = useAvailableProviders(binary);
   const [pendingProviderId, setPendingProviderId] = useState<string>();
+  // Each toggle/reorder is an independent read-modify-write of the shared config
+  // (CLI subprocess or direct file write). Serialize them with this guard so an
+  // overlapping mutation can't read a stale config and clobber the other's
+  // update. The in-flight row's Hourglass accessory signals the busy state.
+  const isMutatingRef = useRef(false);
 
   const toggleProvider = useCallback(
     async (provider: AvailableProvider) => {
+      if (isMutatingRef.current) {
+        return;
+      }
+      isMutatingRef.current = true;
+
       const nextEnabled = !provider.enabled;
       setPendingProviderId(provider.id);
       try {
@@ -40,6 +50,7 @@ export function ManageProviders({ binary, onProvidersChanged }: ManageProvidersP
         });
       } finally {
         setPendingProviderId(undefined);
+        isMutatingRef.current = false;
       }
     },
     [available, binary, onProvidersChanged],
@@ -52,6 +63,11 @@ export function ManageProviders({ binary, onProvidersChanged }: ManageProvidersP
   // providers are not rendered there.
   const moveProvider = useCallback(
     async (providerId: string, direction: ProviderMoveDirection) => {
+      if (isMutatingRef.current) {
+        return;
+      }
+      isMutatingRef.current = true;
+
       try {
         const didMove = await moveConfiguredProviderInConfig(providerId, direction);
         if (!didMove) {
@@ -66,6 +82,8 @@ export function ManageProviders({ binary, onProvidersChanged }: ManageProvidersP
           title: "Failed to Reorder Providers",
           message: error instanceof Error ? error.message : String(error),
         });
+      } finally {
+        isMutatingRef.current = false;
       }
     },
     [available, onProvidersChanged],
