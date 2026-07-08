@@ -6,8 +6,11 @@ import {
   cacheProviderDetail,
   cacheProviderDetailIfRicher,
   preserveInFlightProviderResults,
+  requestForceOnInFlightProviderFetch,
   resolveProviderRefreshMode,
   runProviderDetailFetches,
+  shouldApplyFetchedProviderDetail,
+  shouldChainForceProviderFetch,
   shouldRefreshProviderAutomatically,
   shouldRefreshSelectedProvider,
   shouldReplaceProviderDetail,
@@ -181,7 +184,7 @@ describe("runProviderDetailFetches", () => {
 
   it("preserves in-flight provider state across batch resets", () => {
     const inFlightFetches = new Map<string, InFlightProviderFetch>([
-      ["claude", { binaryKey: "path\0codexbar", fetchId: 1, generation: 2 }],
+      ["claude", { binaryKey: "path\0codexbar", fetchId: 1, generation: 2, mode: "auto", forceRequested: false }],
     ]);
 
     expect(
@@ -198,7 +201,13 @@ describe("runProviderDetailFetches", () => {
   });
 
   it("accepts only current in-flight provider fetch results", () => {
-    const inFlightFetch = { binaryKey: "path\0codexbar", fetchId: 1, generation: 2 };
+    const inFlightFetch: InFlightProviderFetch = {
+      binaryKey: "path\0codexbar",
+      fetchId: 1,
+      generation: 2,
+      mode: "auto",
+      forceRequested: false,
+    };
     const currentProviderIds = new Set(["claude"]);
 
     expect(
@@ -382,5 +391,73 @@ describe("runProviderDetailFetches", () => {
         },
       },
     });
+  });
+
+  it("marks forceRequested when force arrives during an auto in-flight fetch", () => {
+    const inFlightFetch: InFlightProviderFetch = {
+      binaryKey: "path\0codexbar",
+      fetchId: 1,
+      generation: 1,
+      mode: "auto",
+      forceRequested: false,
+    };
+
+    requestForceOnInFlightProviderFetch(inFlightFetch, false);
+    expect(inFlightFetch.forceRequested).toBe(false);
+
+    requestForceOnInFlightProviderFetch(inFlightFetch, true);
+    expect(inFlightFetch.forceRequested).toBe(true);
+    expect(shouldChainForceProviderFetch(inFlightFetch, 1)).toBe(true);
+  });
+
+  it("does not chain a force fetch when force is already in flight", () => {
+    const inFlightFetch: InFlightProviderFetch = {
+      binaryKey: "path\0codexbar",
+      fetchId: 2,
+      generation: 3,
+      mode: "force",
+      forceRequested: false,
+    };
+
+    requestForceOnInFlightProviderFetch(inFlightFetch, true);
+    expect(inFlightFetch.forceRequested).toBe(false);
+    expect(shouldChainForceProviderFetch(inFlightFetch, 2)).toBe(false);
+  });
+
+  it("force success replaces even a lower-quality payload", () => {
+    const richDetail = makeDetail("claude", "2026-04-15T12:00:00Z", [
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Session",
+        remainingPercent: 82,
+        resetsIn: "2h",
+      },
+      {
+        kind: "usage",
+        title: "Secondary",
+        displayTitle: "Weekly",
+        remainingPercent: 76,
+        resetsIn: "4d",
+      },
+      {
+        kind: "supplementalUsage",
+        title: "Model",
+        remainingPercent: 91,
+        resetsIn: "4d",
+      },
+    ]);
+    const poorDetail = makeDetail("claude", "2026-04-15T12:01:00Z", [
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Session",
+        remainingPercent: 82,
+      },
+    ]);
+
+    expect(shouldReplaceProviderDetail(richDetail, poorDetail)).toBe(false);
+    expect(shouldApplyFetchedProviderDetail(richDetail, poorDetail)).toBe(false);
+    expect(shouldApplyFetchedProviderDetail(richDetail, poorDetail, { force: true })).toBe(true);
   });
 });

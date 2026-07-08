@@ -47,6 +47,8 @@ export type InFlightProviderFetch = {
   binaryKey: string;
   fetchId: number;
   generation: number;
+  mode: "auto" | "force";
+  forceRequested: boolean;
 };
 
 export function useProviderDetails(
@@ -93,10 +95,12 @@ export function useProviderDetails(
         return;
       }
 
+      const force = options?.force === true;
       const inFlightFetch = inFlightRef.current.get(providerId);
       if (inFlightFetch) {
         if (inFlightFetch.binaryKey === currentBinaryKey) {
           inFlightFetch.generation = generation;
+          requestForceOnInFlightProviderFetch(inFlightFetch, force);
         }
 
         setProviderLoading(providerId, setResults, optimisticResultsRef.current);
@@ -109,13 +113,15 @@ export function useProviderDetails(
         binaryKey: currentBinaryKey,
         fetchId,
         generation,
+        mode: force ? "force" : "auto",
+        forceRequested: false,
       });
 
       setProviderLoading(providerId, setResults, optimisticResultsRef.current);
 
       try {
         const detail = await fetchProviderDetail(currentBinary, providerId, {
-          mode: options?.force ? "force" : "auto",
+          mode: force ? "force" : "auto",
         });
         const completedFetch = inFlightRef.current.get(providerId);
         if (
@@ -134,7 +140,10 @@ export function useProviderDetails(
 
         completedRef.current.set(providerId, completedFetch.generation);
         const previousResult = resultsRef.current[providerId];
-        const shouldReplaceDetail = shouldReplaceProviderDetail(previousResult?.detail, detail);
+        // Force refresh always applies; auto/background keep the quality gate.
+        const shouldReplaceDetail = shouldApplyFetchedProviderDetail(previousResult?.detail, detail, {
+          force,
+        });
 
         if (shouldReplaceDetail) {
           cacheProviderDetail(detail);
@@ -168,8 +177,16 @@ export function useProviderDetails(
           [providerId]: { ...current[providerId], error: toError(error), isLoading: false },
         }));
       } finally {
-        if (inFlightRef.current.get(providerId)?.fetchId === fetchId) {
+        const completedFetch = inFlightRef.current.get(providerId);
+        const chainForce = shouldChainForceProviderFetch(completedFetch, fetchId);
+        const chainGeneration = completedFetch?.generation ?? generation;
+
+        if (completedFetch?.fetchId === fetchId) {
           inFlightRef.current.delete(providerId);
+        }
+
+        if (chainForce) {
+          void fetchOneProvider(providerId, chainGeneration, { force: true });
         }
       }
     },
@@ -281,6 +298,36 @@ export function canApplyProviderFetchResult({
     binaryKey === currentBinaryKey &&
     currentProviderIds.has(providerId)
   );
+}
+
+/** Mark forceRequested when a force refresh arrives while a non-force fetch is in flight. */
+export function requestForceOnInFlightProviderFetch(inFlightFetch: InFlightProviderFetch, force: boolean): void {
+  if (force && inFlightFetch.mode !== "force") {
+    inFlightFetch.forceRequested = true;
+  }
+}
+
+/** After a non-force fetch completes, chain a force fetch if one was requested while in flight. */
+export function shouldChainForceProviderFetch(
+  inFlightFetch: InFlightProviderFetch | undefined,
+  fetchId: number,
+): boolean {
+  return (
+    inFlightFetch?.fetchId === fetchId && inFlightFetch.forceRequested === true && inFlightFetch.mode !== "force"
+  );
+}
+
+/** Force success always applies; auto/background still use the quality gate. */
+export function shouldApplyFetchedProviderDetail(
+  currentDetail: ProviderDetailData | undefined,
+  nextDetail: ProviderDetailData,
+  options?: { force?: boolean },
+): boolean {
+  if (options?.force === true) {
+    return true;
+  }
+
+  return shouldReplaceProviderDetail(currentDetail, nextDetail);
 }
 
 export function preserveInFlightProviderResults(
