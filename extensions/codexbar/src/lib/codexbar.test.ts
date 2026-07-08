@@ -611,4 +611,20 @@ describe("available providers", () => {
       expect.any(Function),
     );
   });
+
+  it("throws when `config providers` output is not an array", () => {
+    let thrownError: unknown;
+    try {
+      normalizeAvailableProviders({ providers: [] });
+    } catch (error) {
+      thrownError = error;
+    }
+
+    expect(thrownError).toMatchObject({ kind: "invalid-json" });
+  });
+
+  it("refuses to toggle a provider without an id and never spawns the CLI", async () => {
+    await expect(setProviderEnabled(binary, "  ", true)).rejects.toMatchObject({ kind: "execution" });
+    expect(execFileMock).not.toHaveBeenCalled();
+  });
 });
