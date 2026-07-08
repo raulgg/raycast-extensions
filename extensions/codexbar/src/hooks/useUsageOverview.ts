@@ -1,5 +1,6 @@
 import { useCachedPromise } from "@raycast/utils";
-import { readConfiguredProvidersFromConfig, type ResolvedCodexBarBinary } from "../lib/codexbar";
+import type { ResolvedCodexBarBinary } from "../lib/codexbar";
+import { readConfiguredProvidersFromConfig } from "../lib/providerConfig";
 import { getMockConfiguredProviders, isCodexBarMockMode } from "../mocks/codexbar";
 import type { ConfiguredProvider } from "../providers/types";
 

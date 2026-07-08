@@ -1,5 +1,6 @@
 import { useCachedPromise } from "@raycast/utils";
-import { listAvailableProviders, type ResolvedCodexBarBinary } from "../lib/codexbar";
+import type { ResolvedCodexBarBinary } from "../lib/codexbar";
+import { listAvailableProviders } from "../lib/providerConfig";
 import type { AvailableProvider } from "../providers/types";
 
 type UseAvailableProvidersResult = {

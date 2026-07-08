@@ -9,10 +9,10 @@ import {
   fetchProviderStatusFromUsageCommand,
   fetchProviderUsageWithStatus,
   getCodexBarAvailability,
-  readConfiguredProvidersFromConfig,
   type ProviderUsageWithStatus,
   type ResolvedCodexBarBinary,
 } from "./codexbar";
+import { readConfiguredProvidersFromConfig } from "./providerConfig";
 
 const BACKGROUND_PROVIDER_DETAIL_CONCURRENCY = 4;
 

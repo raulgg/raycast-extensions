@@ -1,6 +1,6 @@
 import { showToast, Toast } from "@raycast/api";
 import { useCallback, useRef } from "react";
-import { moveConfiguredProviderInConfig, type ProviderMoveDirection } from "../lib/codexbar";
+import { moveConfiguredProviderInConfig, type ProviderMoveDirection } from "../lib/providerConfig";
 
 // Shared reorder handler over the CodexBar config. Serializes calls through a
 // busy ref so overlapping writes can't clobber each other; pass a shared ref to

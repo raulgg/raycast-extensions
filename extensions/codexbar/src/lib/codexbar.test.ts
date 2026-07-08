@@ -35,16 +35,18 @@ import {
   extractJsonPayload,
   fetchProviderDetail,
   getCodexBarAvailability,
+  resolveCodexBarBinary,
+  type ResolvedCodexBarBinary,
+} from "./codexbar";
+import {
   listAvailableProviders,
   moveConfiguredProviderInConfig,
   moveConfiguredProviderInRawConfig,
   normalizeAvailableProviders,
   orderEnabledProvidersByConfig,
   readConfiguredProvidersFromConfig,
-  resolveCodexBarBinary,
   setProviderEnabled,
-  type ResolvedCodexBarBinary,
-} from "./codexbar";
+} from "./providerConfig";
 import { refreshUsageCache } from "./backgroundRefresh";
 import { buildCachedProviderResults } from "../hooks/useProviderDetails";
 
