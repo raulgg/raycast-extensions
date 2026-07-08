@@ -139,9 +139,11 @@ export function UsageList() {
           description="Enable a provider from Manage Providers, or in CodexBar, and reopen this command."
           icon={Icon.Circle}
           actions={
-            <ActionPanel>
-              <ManageProvidersAction binary={binary} onProvidersChanged={configuredProviders.revalidate} />
-            </ActionPanel>
+            binary ? (
+              <ActionPanel>
+                <ManageProvidersAction binary={binary} onProvidersChanged={configuredProviders.revalidate} />
+              </ActionPanel>
+            ) : undefined
           }
         />
       ) : null}
