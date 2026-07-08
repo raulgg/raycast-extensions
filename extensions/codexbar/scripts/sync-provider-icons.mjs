@@ -5,18 +5,17 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { optimize } from "svgo";
+import { createUpstreamSource } from "./lib/upstream.mjs";
+import { parseRegistryEntries } from "./lib/upstream-metadata.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, "..");
 const REGISTRY_PATH = path.join(ROOT, "src/providers/registry.ts");
 const ASSETS_DIR = path.join(ROOT, "assets/provider-icons");
-const CODEXBAR_REF = process.env.CODEXBAR_REF || "main";
 const CONCURRENCY = 6;
 const CHECK_ONLY = process.argv.includes("--check");
 
-const REGISTRY_BLOCK_REGEX =
-  /(\w+):\s*{[\s\S]*?\n\s*icon:\s*([^\n,]+(?:\([^)\n]*\))?)[\s\S]*?\n\s*},?/g;
 const PROVIDER_ICON_REGEX = /^providerIcon\("([^"]+)"/;
 
 function ensureTrailingNewline(value) {
@@ -31,21 +30,17 @@ function normalizeSvgRootDimensions(svg) {
   });
 }
 
-function parseRegistryEntries(source) {
+function collectIconSlugs(source) {
   const slugs = [];
   const skippedProviders = [];
 
-  for (const match of source.matchAll(REGISTRY_BLOCK_REGEX)) {
-    const providerId = match[1];
-    const iconExpression = match[2].trim();
-    const iconMatch = iconExpression.match(PROVIDER_ICON_REGEX);
-
+  for (const [providerId, entry] of parseRegistryEntries(source)) {
+    const iconMatch = entry.icon?.match(PROVIDER_ICON_REGEX);
     if (iconMatch) {
       slugs.push({ providerId, slug: iconMatch[1] });
-      continue;
+    } else {
+      skippedProviders.push({ providerId, iconExpression: entry.icon });
     }
-
-    skippedProviders.push({ providerId, iconExpression });
   }
 
   return { slugs, skippedProviders };
@@ -65,15 +60,8 @@ async function readLocalIcon(slug) {
   }
 }
 
-async function fetchUpstreamIcon(slug) {
-  const url = `https://raw.githubusercontent.com/steipete/CodexBar/${CODEXBAR_REF}/Sources/CodexBar/Resources/ProviderIcon-${slug}.svg`;
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${slug} from ${url}: ${response.status} ${response.statusText}`);
-  }
-
-  return response.text();
+async function fetchUpstreamIcon(source, slug) {
+  return source.readFile(`Sources/CodexBar/Resources/ProviderIcon-${slug}.svg`);
 }
 
 function optimizeSvg(svg, slug) {
@@ -103,8 +91,8 @@ async function fileExists(filePath) {
   }
 }
 
-async function syncOne(slug) {
-  const upstream = await fetchUpstreamIcon(slug);
+async function syncOne(source, slug) {
+  const upstream = await fetchUpstreamIcon(source, slug);
   const optimized = optimizeSvg(upstream, slug);
   const local = await readLocalIcon(slug);
   const changed = local !== optimized;
@@ -134,7 +122,7 @@ async function mapWithConcurrency(items, concurrency, mapper) {
 
 async function main() {
   const registrySource = await readFile(REGISTRY_PATH, "utf8");
-  const { slugs, skippedProviders } = parseRegistryEntries(registrySource);
+  const { slugs, skippedProviders } = collectIconSlugs(registrySource);
 
   if (slugs.length === 0) {
     throw new Error("No providerIcon(...) entries found in registry.ts");
@@ -144,8 +132,9 @@ async function main() {
     await mkdir(ASSETS_DIR, { recursive: true });
   }
 
+  const source = await createUpstreamSource();
   const uniqueSlugs = [...new Set(slugs.map(({ slug }) => slug))].sort();
-  const results = await mapWithConcurrency(uniqueSlugs, CONCURRENCY, syncOne);
+  const results = await mapWithConcurrency(uniqueSlugs, CONCURRENCY, (slug) => syncOne(source, slug));
   const changed = results.filter((result) => result.changed).map((result) => result.slug);
   const unchanged = results.filter((result) => !result.changed).map((result) => result.slug);
 
@@ -156,13 +145,13 @@ async function main() {
     .map((match) => match[1]);
   const staleSlugs = localSlugs.filter((slug) => !uniqueSlugs.includes(slug)).sort();
 
-  console.log(`Synced ${uniqueSlugs.length} provider icons from CodexBar ref "${CODEXBAR_REF}".`);
+  console.log(`Synced ${uniqueSlugs.length} provider icons from ${source.label}.`);
 
   if (changed.length > 0) {
     console.log(
       CHECK_ONLY
         ? `Out of sync icons (${changed.length}): ${changed.join(", ")}`
-        : `Updated icons (${changed.length}): ${changed.join(", ")}`
+        : `Updated icons (${changed.length}): ${changed.join(", ")}`,
     );
   }
 
@@ -174,7 +163,7 @@ async function main() {
     console.warn(
       `Providers without providerIcon(...) (${skippedProviders.length}): ${skippedProviders
         .map(({ providerId }) => providerId)
-        .join(", ")}`
+        .join(", ")}`,
     );
   }
 
