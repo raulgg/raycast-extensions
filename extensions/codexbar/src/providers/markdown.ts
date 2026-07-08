@@ -24,13 +24,7 @@ import {
   type DetailAppearance,
 } from "../lib/detailMarkdown";
 import { getProviderStatusLabel, isRenderableProviderStatusIndicator } from "./status";
-import type {
-  ProviderDetailData,
-  ProviderInfoSection,
-  ProviderSection,
-  ProviderStatus,
-  ProviderStatusIndicator,
-} from "./types";
+import type { ProviderDetailData, ProviderInfoSection, ProviderSection, ProviderStatus } from "./types";
 
 export type ProviderDetailAppearance = DetailAppearance;
 type ProviderDetailMarkdownOptions = {
@@ -78,7 +72,21 @@ const GENERIC_SECTION_LAYOUT = {
   rowGap: 20,
 } as const;
 
+const STATUS_FOOTER_LAYOUT = {
+  textTopSpacing: 12,
+  lineGap: 17,
+  maxLineLength: 68,
+  iconSize: 12,
+  iconToTextGap: 6,
+  iconTopAboveBaseline: 12,
+} as const;
+
 const PANEL_PALETTES = DETAIL_PALETTES;
+
+const STATUS_FOOTER_ICON_FILL: Record<DetailAppearance, string> = {
+  light: "#F59E0B",
+  dark: "#FBBF24",
+};
 
 function formatPercent(value: number): string {
   return `${Math.max(0, Math.min(100, Math.round(value)))}%`;
@@ -130,118 +138,63 @@ function splitRenderableSections(sections: ProviderSection[]): {
   return { metricSections, otherSections };
 }
 
-const STATUS_BANNER_LAYOUT = {
-  topSpacing: 16,
-  paddingX: 12,
-  paddingY: 12,
-  radius: 8,
-  iconSize: 14,
-  iconToLabelGap: 7,
-  // Distance from the label baseline up to the icon's top edge. Empirically
-  // tuned against Raycast's rendered detail panel (not qlmanage/browser
-  // previews — Raycast draws SVG text ~2px higher relative to path
-  // coordinates) so the glyph's visual center matches the label's cap center.
-  iconTopAboveLabelBaseline: 13.4,
-  labelToDescriptionOffset: 19,
-  descriptionLineGap: 17,
-  // Description column width ≈ panel width minus banner + text padding; at the
-  // 12px row font this holds roughly 62 characters per line.
-  descriptionMaxLineLength: 62,
-} as const;
-
-type StatusBannerTone = "danger" | "warning" | "neutral";
-
-const STATUS_BANNER_PALETTES: Record<
-  DetailAppearance,
-  Record<StatusBannerTone, { fill: string; fillOpacity: number; iconFill: string; labelFill: string }>
-> = {
-  light: {
-    danger: { fill: "#EF4444", fillOpacity: 0.1, iconFill: "#EF4444", labelFill: "#B91C1C" },
-    warning: { fill: "#F59E0B", fillOpacity: 0.12, iconFill: "#F59E0B", labelFill: "#B45309" },
-    neutral: { fill: "#6B7280", fillOpacity: 0.1, iconFill: "#6B7280", labelFill: "#4B5563" },
-  },
-  dark: {
-    danger: { fill: "#EF4444", fillOpacity: 0.16, iconFill: "#F87171", labelFill: "#FCA5A5" },
-    warning: { fill: "#F59E0B", fillOpacity: 0.16, iconFill: "#FBBF24", labelFill: "#FCD34D" },
-    neutral: { fill: "#9CA3AF", fillOpacity: 0.14, iconFill: "#9CA3AF", labelFill: "#D1D5DB" },
-  },
-};
-
-function getStatusBannerTone(indicator: ProviderStatusIndicator): StatusBannerTone {
-  switch (indicator) {
-    case "major":
-    case "critical":
-      return "danger";
-    case "minor":
-      return "warning";
-    default:
-      return "neutral";
+function formatStatusUpdatedTime(updatedAt?: string): string | undefined {
+  if (!updatedAt) {
+    return undefined;
   }
+
+  const timestamp = Date.parse(updatedAt);
+  if (Number.isNaN(timestamp)) {
+    return undefined;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(timestamp));
 }
 
-// Renders the incident status as a tinted banner directly under the header: a
-// rounded severity-colored panel with a status dot, the indicator label, and
-// the wrapped incident description. Operational/unknown never reach here. The
-// status page URL is offered as a detail action, not drawn here.
-function renderStatusBanner(
+function formatStatusFooterText(status: ProviderStatus): string {
+  const incidentText = status.description ?? getProviderStatusLabel(status.indicator);
+  const updatedTime = formatStatusUpdatedTime(status.updatedAt);
+
+  return updatedTime ? `${incidentText} - Updated ${updatedTime}` : incidentText;
+}
+
+function renderStatusFooter(
   status: ProviderStatus,
   appearance: ProviderDetailAppearance,
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
-  const tonePalette = STATUS_BANNER_PALETTES[appearance][getStatusBannerTone(status.indicator)];
   const palette = PANEL_PALETTES[appearance];
-  const textX = getLeftContentX() + STATUS_BANNER_LAYOUT.paddingX;
-  const labelBaselineY = getTextBaselineY(startY + STATUS_BANNER_LAYOUT.paddingY, TYPOGRAPHY.sectionTitleSize);
+  const lines = wrapText(formatStatusFooterText(status), STATUS_FOOTER_LAYOUT.maxLineLength);
   const markup: string[] = [];
+  let currentY = getTextBaselineY(startY + STATUS_FOOTER_LAYOUT.textTopSpacing, TYPOGRAPHY.rowLabelSize);
+  const textX = getLeftContentX() + STATUS_FOOTER_LAYOUT.iconSize + STATUS_FOOTER_LAYOUT.iconToTextGap;
+  const iconY = currentY - STATUS_FOOTER_LAYOUT.iconTopAboveBaseline;
 
-  const iconTopY = labelBaselineY - STATUS_BANNER_LAYOUT.iconTopAboveLabelBaseline;
   markup.push(
     buildSvgWarningIcon({
-      x: textX,
-      y: iconTopY,
-      size: STATUS_BANNER_LAYOUT.iconSize,
-      fill: tonePalette.iconFill,
+      x: getLeftContentX(),
+      y: iconY,
+      size: STATUS_FOOTER_LAYOUT.iconSize,
+      fill: STATUS_FOOTER_ICON_FILL[appearance],
     }),
-    buildText(
-      getProviderStatusLabel(status.indicator),
-      textX + STATUS_BANNER_LAYOUT.iconSize + STATUS_BANNER_LAYOUT.iconToLabelGap,
-      labelBaselineY,
-      tonePalette.labelFill,
-      TYPOGRAPHY.sectionTitleSize,
-      FONT_WEIGHT.bold,
-    ),
   );
 
-  let lastBaselineY = labelBaselineY;
-  let lastFontSize: number = TYPOGRAPHY.sectionTitleSize;
-
-  if (status.description) {
-    const lines = wrapText(status.description, STATUS_BANNER_LAYOUT.descriptionMaxLineLength);
-    let lineY = labelBaselineY + STATUS_BANNER_LAYOUT.labelToDescriptionOffset;
-
-    for (const line of lines) {
-      markup.push(buildText(line, textX, lineY, palette.valueFill, TYPOGRAPHY.rowLabelSize, FONT_WEIGHT.medium));
-      lastBaselineY = lineY;
-      lastFontSize = TYPOGRAPHY.rowLabelSize;
-      lineY += STATUS_BANNER_LAYOUT.descriptionLineGap;
-    }
+  for (const line of lines) {
+    markup.push(buildText(line, textX, currentY, palette.labelFill, TYPOGRAPHY.rowLabelSize, FONT_WEIGHT.medium));
+    currentY += STATUS_FOOTER_LAYOUT.lineGap;
   }
 
-  const bannerBottomY = getTextBottomY(lastBaselineY, lastFontSize) + STATUS_BANNER_LAYOUT.paddingY;
-  // The banner background is prepended so the dot and text render on top.
-  markup.unshift(
-    buildSvgRect({
-      x: getLeftContentX(),
-      y: startY,
-      width: getContentWidth(),
-      height: bannerBottomY - startY,
-      radius: STATUS_BANNER_LAYOUT.radius,
-      fill: tonePalette.fill,
-      fillOpacity: tonePalette.fillOpacity,
-    }),
-  );
-
-  return { markup, contentBottomY: bannerBottomY };
+  return {
+    markup,
+    contentBottomY: getTextBottomY(currentY - STATUS_FOOTER_LAYOUT.lineGap, TYPOGRAPHY.rowLabelSize),
+  };
 }
 
 function buildProgressBar(
@@ -568,7 +521,6 @@ export function buildProviderDetailMarkdown(
   const hasHeaderContent = Boolean(subtitle || detail.accountEmail || detail.planText);
   const status =
     options?.status && isRenderableProviderStatusIndicator(options.status.indicator) ? options.status : undefined;
-
   if (sections.length === 0 && !hasHeaderContent && !status) {
     return "No data available";
   }
@@ -588,14 +540,6 @@ export function buildProviderDetailMarkdown(
   const markup = [...header.markup];
   let currentY = header.contentBottomY;
 
-  // An incident banner sits directly under the header, above every section, so
-  // an outage is the first thing read in the detail panel.
-  if (status) {
-    const rendered = renderStatusBanner(status, appearance, currentY + STATUS_BANNER_LAYOUT.topSpacing);
-    markup.push(...rendered.markup);
-    currentY = rendered.contentBottomY;
-  }
-
   if (metricSections.length > 0) {
     markup.push(buildSectionDivider(getSectionDividerY(currentY), palette.dividerStroke));
     currentY = getSectionTitleY(currentY);
@@ -610,6 +554,13 @@ export function buildProviderDetailMarkdown(
     currentY = getSectionTitleY(currentY);
 
     const rendered = renderStandaloneSection(section, detail.id, appearance, currentY);
+    markup.push(...rendered.markup);
+    currentY = rendered.contentBottomY;
+  }
+
+  if (status) {
+    markup.push(buildSectionDivider(getSectionDividerY(currentY), palette.dividerStroke));
+    const rendered = renderStatusFooter(status, appearance, getSectionDividerY(currentY));
     markup.push(...rendered.markup);
     currentY = rendered.contentBottomY;
   }

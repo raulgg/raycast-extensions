@@ -493,7 +493,7 @@ describe("provider markdown", () => {
     expect(gapBelowDivider).toBeCloseTo(16.5);
   });
 
-  it("renders a tinted incident banner above the usage sections for a minor incident", () => {
+  it("renders incident status as a subtle footer below the usage sections", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",
@@ -501,20 +501,24 @@ describe("provider markdown", () => {
         sections: [{ kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 61 }],
       },
       "light",
-      { status: { indicator: "minor", description: "Partial System Degradation" } },
+      {
+        status: {
+          indicator: "minor",
+          description: "Partial System Degradation",
+          updatedAt: "2026-07-08T09:00:00Z",
+        },
+      },
     );
 
     const [svg] = extractSvgMarkup(markdown);
-    expect(svg).toContain("Partial outage</text>");
-    expect(svg).toContain("Partial System Degradation</text>");
-    // Banner background + warning icon share the warning tone.
-    expect(svg).toContain('fill="#F59E0B" fill-opacity="0.12"');
+    expect(svg).toContain("Session</text>");
+    expect(svg).toMatch(/Partial System Degradation - Updated .*2026.*<\/text>/);
+    expect(svg).not.toContain("Partial outage</text>");
+    expect(svg.indexOf("Partial System Degradation - Updated")).toBeGreaterThan(svg.indexOf("Session</text>"));
     expect(svg).toContain('fill="#F59E0B" fill-rule="evenodd"');
-    // The banner precedes the usage section in the document.
-    expect(svg.indexOf("Partial outage</text>")).toBeLessThan(svg.indexOf("Session</text>"));
   });
 
-  it("renders a header and incident banner when only a renderable status exists", () => {
+  it("renders a header and status footer when only a renderable status exists", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",
@@ -527,16 +531,11 @@ describe("provider markdown", () => {
 
     const [svg] = extractSvgMarkup(markdown);
     expect(markdown).not.toBe("No data available");
-    expect(markdown).toContain("data:image/svg+xml;base64,");
     expect(svg).toContain(">Codex<");
-    expect(svg).toContain("Major outage</text>");
     expect(svg).toContain("Major Service Outage</text>");
-    // Major incidents use the danger tone for the banner background.
-    expect(svg).toContain('fill="#EF4444" fill-opacity="0.1"');
-    expect(svg).not.toContain(">No data available<");
   });
 
-  it("renders the banner label alone when the incident has no description", () => {
+  it("renders the status label when the incident has no description", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",
@@ -548,12 +547,11 @@ describe("provider markdown", () => {
     );
 
     const [svg] = extractSvgMarkup(markdown);
+    expect(svg).toContain("Session</text>");
     expect(svg).toContain("Maintenance</text>");
-    // Neutral tone for maintenance.
-    expect(svg).toContain('fill="#6B7280" fill-opacity="0.1"');
   });
 
-  it("omits the incident banner for operational status", () => {
+  it("omits status text for operational status", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",

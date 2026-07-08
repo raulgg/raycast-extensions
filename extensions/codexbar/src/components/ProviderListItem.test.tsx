@@ -296,7 +296,7 @@ describe("ProviderListItem", () => {
     });
   });
 
-  it("keeps accessories usage-only during an incident; status renders in the detail panel instead", () => {
+  it("keeps accessories usage-only during an incident", () => {
     const accessories = buildProviderListItemAccessories("codex", makeDetail(82, 41), undefined, false);
 
     expect(accessories).toHaveLength(2);

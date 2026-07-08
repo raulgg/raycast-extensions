@@ -44,7 +44,13 @@ export function ProviderListItem({
       title={provider.name}
       keywords={provider.keywords}
       icon={provider.icon}
-      accessories={buildProviderListItemAccessories(provider.id, detail, detailError, isDetailLoading, detailCacheStatus)}
+      accessories={buildProviderListItemAccessories(
+        provider.id,
+        detail,
+        detailError,
+        isDetailLoading,
+        detailCacheStatus,
+      )}
       detail={
         <ProviderDetail
           provider={provider}
@@ -104,8 +110,8 @@ export function ProviderListItem({
   );
 }
 
-// Incident status is intentionally absent here: it renders only inside the
-// detail panel (see markdown.ts), so the list accessories stay usage-only.
+// Incident status is intentionally absent here: it renders as a bottom footer
+// in the detail panel, so the list accessories stay usage-only.
 export function buildProviderListItemAccessories(
   providerId: string,
   detail: ProviderDetailData | undefined,
