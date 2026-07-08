@@ -1,5 +1,5 @@
 import { Action, ActionPanel, Icon, List } from "@raycast/api";
-import type { ProviderDetailCacheStatus } from "../hooks/useProviderDetails";
+import type { ProviderDetailCacheStatus } from "../lib/providerDetailCache";
 import type { ConfiguredProvider, ProviderDetailData, ProviderStatus, ProviderUsageSection } from "../providers/types";
 import { buildTwoBarAccessoryIcon } from "../lib/twoBarAccessoryIcon";
 import { getProviderMetadata, resolveDashboardUrl } from "../providers/registry";

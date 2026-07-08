@@ -1,6 +1,6 @@
 import { environment, List } from "@raycast/api";
 import { buildProviderErrorMarkdown, formatRelativeUpdateTime } from "../lib/presentation";
-import type { ProviderDetailCacheStatus } from "../hooks/useProviderDetails";
+import type { ProviderDetailCacheStatus } from "../lib/providerDetailCache";
 import { getHidePersonalInfoPreference } from "../preferences";
 import { buildProviderDetailMarkdown, buildProviderLoadingMarkdown } from "../providers/markdown";
 import type { ConfiguredProvider, ProviderDetailData, ProviderSection, ProviderStatus } from "../providers/types";

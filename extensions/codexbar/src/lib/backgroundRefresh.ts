@@ -1,6 +1,6 @@
 import { getMockConfiguredProviders, isCodexBarMockMode } from "../mocks/codexbar";
 import type { ConfiguredProvider } from "../providers/types";
-import { cacheProviderDetailIfRicher, runProviderDetailFetches } from "../hooks/useProviderDetails";
+import { cacheProviderDetailIfRicher, runProviderDetailFetches } from "./providerDetailCache";
 import { cacheProviderStatus, readProviderStatus } from "./providerStatusCache";
 import {
   ensureCodexBarServe,

@@ -49,7 +49,7 @@ import {
 } from "./providerConfig";
 import { refreshUsageCache } from "./backgroundRefresh";
 import { cacheProviderStatus, readProviderStatus } from "./providerStatusCache";
-import { buildCachedProviderResults } from "../hooks/useProviderDetails";
+import { buildCachedProviderResults } from "./providerDetailCache";
 
 function mockAccessForPaths(paths: string[]) {
   accessMock.mockImplementation((targetPath: string) => {
