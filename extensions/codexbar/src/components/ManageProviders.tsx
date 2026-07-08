@@ -9,6 +9,8 @@ import {
 } from "../lib/codexbar";
 import type { AvailableProvider } from "../providers/types";
 
+const NOT_IN_OVERVIEW_HINT = "Not shown in the Raycast Usage Overview yet";
+
 type ManageProvidersProps = {
   binary: ResolvedCodexBarBinary;
   // Called after a successful toggle so the Usage Overview re-reads the config
@@ -39,6 +41,7 @@ export function ManageProviders({ binary, onProvidersChanged }: ManageProvidersP
         await showToast({
           style: Toast.Style.Success,
           title: nextEnabled ? `Enabled ${provider.name}` : `Disabled ${provider.name}`,
+          message: nextEnabled && !provider.supported ? NOT_IN_OVERVIEW_HINT : undefined,
         });
         available.revalidate();
         onProvidersChanged?.();
@@ -164,7 +167,7 @@ function ProviderToggleItem({ provider, isPending, onToggle, onMoveUp, onMoveDow
       icon={provider.icon}
       title={provider.name}
       keywords={[provider.id, provider.cliProvider]}
-      accessories={[buildToggleAccessory(provider, isPending)]}
+      accessories={buildToggleAccessories(provider, isPending)}
       actions={
         <ActionPanel>
           <Action
@@ -195,7 +198,21 @@ function ProviderToggleItem({ provider, isPending, onToggle, onMoveUp, onMoveDow
   );
 }
 
-function buildToggleAccessory(provider: AvailableProvider, isPending: boolean): List.Item.Accessory {
+function buildToggleAccessories(provider: AvailableProvider, isPending: boolean): List.Item.Accessory[] {
+  const accessories: List.Item.Accessory[] = [];
+
+  // The Usage Overview only renders registry-supported providers, so enabling an
+  // unsupported one otherwise looks like a no-op. Flag it here so the dead-end is
+  // visible rather than silent.
+  if (!provider.supported) {
+    accessories.push({ icon: Icon.Info, tooltip: NOT_IN_OVERVIEW_HINT });
+  }
+
+  accessories.push(buildToggleStateAccessory(provider, isPending));
+  return accessories;
+}
+
+function buildToggleStateAccessory(provider: AvailableProvider, isPending: boolean): List.Item.Accessory {
   if (isPending) {
     return { icon: Icon.Hourglass, tooltip: "Updating…" };
   }
