@@ -102,7 +102,7 @@ describe("provider registry", () => {
     expect(getProviderMetadata("mistral")).toMatchObject({
       name: "Mistral",
       brandColor: "#FF500F",
-      usageSectionLabels: { primary: "Monthly" },
+      usageSectionLabels: { primary: "Balance" },
     });
     expect(getProviderMetadata("alibabatokenplan")).toMatchObject({
       name: "Alibaba Token Plan",
@@ -185,7 +185,7 @@ describe("provider registry", () => {
   });
 
   it("falls back to the semantic slot title when a label is missing", () => {
-    expect(getProviderUsageSectionDisplayTitle("mistral", "Primary")).toBe("Monthly");
+    expect(getProviderUsageSectionDisplayTitle("mistral", "Primary")).toBe("Balance");
     expect(getProviderUsageSectionDisplayTitle("mistral", "Secondary")).toBe("Secondary");
   });
 
@@ -205,6 +205,7 @@ describe("provider registry", () => {
       },
       usageSectionLabels: { primary: "Credits", secondary: "Usage" },
       dashboardUrl: "https://openrouter.ai/settings/credits",
+      statusPageUrl: "https://status.openrouter.ai",
     });
   });
 
@@ -224,6 +225,7 @@ describe("provider registry", () => {
       },
       usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
       dashboardUrl: "https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=coding-plan#/efm/coding_plan",
+      statusPageUrl: "https://status.aliyun.com",
     });
   });
 

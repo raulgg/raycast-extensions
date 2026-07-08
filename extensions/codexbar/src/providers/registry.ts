@@ -84,9 +84,10 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#FF6A00",
     usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
     dashboardUrl: "https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=coding-plan#/efm/coding_plan",
+    statusPageUrl: "https://status.aliyun.com",
   },
   factory: {
-    name: "Factory",
+    name: "Droid",
     icon: providerIcon("factory"),
     brandColor: "#FF6B35",
     usageSectionLabels: { primary: "Standard", secondary: "Premium" },
@@ -99,15 +100,17 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#AB87EA",
     usageSectionLabels: { primary: "Pro", secondary: "Flash", tertiary: "Flash Lite" },
     dashboardUrl: "https://gemini.google.com",
+    statusPageUrl: "https://www.google.com/appsstatus/dashboard/products/npdyhgECDJ6tB66MxXyo/history",
   },
   antigravity: {
     name: "Antigravity",
     icon: providerIcon("antigravity"),
     brandColor: "#60BA7E",
-    usageSectionLabels: { primary: "Claude", secondary: "Gemini Pro", tertiary: "Gemini Flash" },
+    usageSectionLabels: { primary: "Gemini Models", secondary: "Claude and GPT" },
+    statusPageUrl: "https://www.google.com/appsstatus/dashboard/products/npdyhgECDJ6tB66MxXyo/history",
   },
   copilot: {
-    name: "GitHub Copilot",
+    name: "Copilot",
     icon: providerIcon("copilot", Icon.Person),
     brandColor: "#A855F7",
     usageSectionLabels: { primary: "Premium", secondary: "Chat" },
@@ -115,7 +118,7 @@ const PROVIDER_DEFINITIONS = {
     statusPageUrl: "https://www.githubstatus.com/",
   },
   zai: {
-    name: "Z.ai",
+    name: "z.ai",
     icon: providerIcon("zai", Icon.Globe),
     brandColor: "#E85A6A",
     usageSectionLabels: { primary: "Tokens", secondary: "MCP", tertiary: "5-hour" },
@@ -148,6 +151,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#FF9900",
     usageSectionLabels: { primary: "Credits", secondary: "Bonus" },
     dashboardUrl: "https://app.kiro.dev/account/usage",
+    statusPageUrl: "https://health.aws.amazon.com/health/status",
   },
   vertexai: {
     name: "Vertex AI",
@@ -155,6 +159,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#4285F4",
     usageSectionLabels: { primary: "Requests", secondary: "Tokens" },
     dashboardUrl: "https://console.cloud.google.com/vertex-ai",
+    statusPageUrl: "https://status.cloud.google.com",
   },
   augment: {
     name: "Augment",
@@ -165,13 +170,13 @@ const PROVIDER_DEFINITIONS = {
     statusPageUrl: "https://status.augmentcode.com",
   },
   jetbrains: {
-    name: "JetBrains",
+    name: "JetBrains AI",
     icon: providerIcon("jetbrains", Icon.AppWindow),
     brandColor: "#FF3399",
     usageSectionLabels: { primary: "Current", secondary: "Refill" },
   },
   kimik2: {
-    name: "Kimi K2",
+    name: "Kimi K2 (unofficial)",
     icon: Icon.Circle,
     brandColor: "#4C00FF",
     usageSectionLabels: { primary: "Credits", secondary: "Credits" },
@@ -181,7 +186,7 @@ const PROVIDER_DEFINITIONS = {
     icon: providerIcon("amp", Icon.Bolt),
     brandColor: "#DC2626",
     usageSectionLabels: { primary: "Amp Free", secondary: "Balance" },
-    dashboardUrl: "https://ampcode.com/settings#billing",
+    dashboardUrl: "https://ampcode.com/settings/usage",
   },
   ollama: {
     name: "Ollama",
@@ -194,7 +199,7 @@ const PROVIDER_DEFINITIONS = {
     name: "Synthetic",
     icon: providerIcon("synthetic"),
     brandColor: "#141414",
-    usageSectionLabels: { primary: "Quota", secondary: "Usage" },
+    usageSectionLabels: { primary: "Five-hour quota", secondary: "Weekly tokens", tertiary: "Search hourly" },
   },
   warp: {
     name: "Warp",
@@ -209,6 +214,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#6467F2",
     usageSectionLabels: { primary: "Credits", secondary: "Usage" },
     dashboardUrl: "https://openrouter.ai/settings/credits",
+    statusPageUrl: "https://status.openrouter.ai",
   },
   perplexity: {
     name: "Perplexity",
@@ -216,6 +222,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#20B2AA",
     usageSectionLabels: { primary: "Credits", secondary: "Bonus credits", tertiary: "Purchased" },
     dashboardUrl: "https://www.perplexity.ai/account/usage",
+    statusPageUrl: "https://status.perplexity.com/",
   },
   openai: {
     name: "OpenAI",
@@ -231,6 +238,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#0078D4",
     usageSectionLabels: { primary: "Status", secondary: "Deployment" },
     dashboardUrl: "https://ai.azure.com",
+    statusPageUrl: "https://azure.status.microsoft/en-us/status",
   },
   alibabatokenplan: {
     name: "Alibaba Token Plan",
@@ -238,6 +246,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#FF6A00",
     usageSectionLabels: { primary: "Credits", secondary: "Usage" },
     dashboardUrl: "https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/token-plan",
+    statusPageUrl: "https://status.aliyun.com",
   },
   manus: {
     name: "Manus",
@@ -268,6 +277,7 @@ const PROVIDER_DEFINITIONS = {
     usageSectionLabels: { primary: "Credits", secondary: "Voices" },
     dashboardUrl: "https://elevenlabs.io/app/developers/usage",
     subscriptionDashboardUrl: "https://elevenlabs.io/app/subscription",
+    statusPageUrl: "https://status.elevenlabs.io",
   },
   windsurf: {
     name: "Windsurf",
@@ -287,7 +297,7 @@ const PROVIDER_DEFINITIONS = {
     name: "Doubao",
     icon: providerIcon("doubao"),
     brandColor: "#3370FF",
-    usageSectionLabels: { primary: "Requests", secondary: "Rate limit" },
+    usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
     dashboardUrl:
       "https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=subscribe",
   },
@@ -302,8 +312,9 @@ const PROVIDER_DEFINITIONS = {
     name: "Mistral",
     icon: providerIcon("mistral", Icon.Bolt),
     brandColor: "#FF500F",
-    usageSectionLabels: { primary: "Monthly" },
+    usageSectionLabels: { primary: "Balance" },
     dashboardUrl: "https://admin.mistral.ai/organization/usage",
+    statusPageUrl: "https://status.mistral.ai",
   },
   deepseek: {
     name: "DeepSeek",
@@ -311,6 +322,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#527DF0",
     usageSectionLabels: { primary: "Balance", secondary: "Balance" },
     dashboardUrl: "https://platform.deepseek.com/usage",
+    statusPageUrl: "https://status.deepseek.com",
   },
   codebuff: {
     name: "Codebuff",
@@ -354,6 +366,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#FF9900",
     usageSectionLabels: { primary: "Budget", secondary: "Cost" },
     dashboardUrl: "https://console.aws.amazon.com/bedrock",
+    statusPageUrl: "https://health.aws.amazon.com/health/status",
   },
   grok: {
     name: "Grok",
@@ -361,6 +374,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#10A37F",
     usageSectionLabels: { primary: "Credits", secondary: "On-demand" },
     dashboardUrl: "https://grok.com/?_s=usage",
+    statusPageUrl: "https://status.x.ai",
   },
   groq: {
     name: "Groq",
@@ -368,6 +382,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#F56844",
     usageSectionLabels: { primary: "Requests", secondary: "Tokens" },
     dashboardUrl: "https://console.groq.com/dashboard/metrics",
+    statusPageUrl: "https://status.groq.com",
   },
   llmproxy: {
     name: "LLM Proxy",
@@ -381,6 +396,7 @@ const PROVIDER_DEFINITIONS = {
     brandColor: "#6467F2",
     usageSectionLabels: { primary: "Requests", secondary: "Usage" },
     dashboardUrl: "https://console.deepgram.com/project/",
+    statusPageUrl: "https://status.deepgram.com",
   },
   devin: {
     name: "Devin",

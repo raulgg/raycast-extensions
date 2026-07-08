@@ -361,10 +361,10 @@ describe("ProviderListItem", () => {
 
   it("falls back to the cached status url for a provider without a registry status page", () => {
     const element = ProviderListItem({
-      provider: { id: "mistral", name: "Mistral", icon: { source: "provider-icons/mistral.svg" } },
+      provider: { id: "synthetic", name: "Synthetic", icon: { source: "provider-icons/synthetic.svg" } },
       isDetailLoading: false,
       isSelected: true,
-      status: { indicator: "none", url: "https://status.mistral.ai/" },
+      status: { indicator: "none", url: "https://status.example.com/" },
       onRefresh: vi.fn(),
     });
 
@@ -373,12 +373,12 @@ describe("ProviderListItem", () => {
       (action: { props: { title?: string } }) => action.props.title === "Open Status Page",
     );
 
-    expect(statusAction?.props.url).toBe("https://status.mistral.ai/");
+    expect(statusAction?.props.url).toBe("https://status.example.com/");
   });
 
   it("omits the Open Status Page action when there is no registry url and no cached status", () => {
     const element = ProviderListItem({
-      provider: { id: "mistral", name: "Mistral", icon: { source: "provider-icons/mistral.svg" } },
+      provider: { id: "synthetic", name: "Synthetic", icon: { source: "provider-icons/synthetic.svg" } },
       isDetailLoading: false,
       isSelected: true,
       onRefresh: vi.fn(),
