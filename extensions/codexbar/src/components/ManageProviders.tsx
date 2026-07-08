@@ -2,6 +2,7 @@ import { Action, ActionPanel, Color, Icon, List, showToast, Toast } from "@rayca
 import { useCallback, useRef, useState } from "react";
 import { useAvailableProviders } from "../hooks/useAvailableProviders";
 import {
+  CodexBarCliError,
   moveConfiguredProviderInConfig,
   setProviderEnabled,
   type ProviderMoveDirection,
@@ -92,19 +93,14 @@ export function ManageProviders({ binary, onProvidersChanged }: ManageProvidersP
     [available, onProvidersChanged],
   );
 
-  // Capability probe: a failed roster load means the installed CLI is too old to
-  // manage providers. Degrade gracefully instead of surfacing a raw CLI error.
+  // A failed roster load usually means the installed CLI is too old to manage
+  // providers, but it can also be a launch failure or a transient timeout — the
+  // error's kind tells them apart, so we don't misreport a timeout as an old CLI.
   if (available.error) {
+    const { title, description } = describeManageProvidersError(available.error);
     return (
       <List navigationTitle="Manage Providers">
-        <List.EmptyView
-          icon={Icon.Warning}
-          title="Managing Providers Needs a Newer CodexBar CLI"
-          description={
-            available.error.message ||
-            "The installed codexbar CLI does not support the config commands. Update CodexBar and try again."
-          }
-        />
+        <List.EmptyView icon={Icon.Warning} title={title} description={description} />
       </List>
     );
   }
@@ -196,6 +192,33 @@ function ProviderToggleItem({ provider, isPending, onToggle, onMoveUp, onMoveDow
       }
     />
   );
+}
+
+// Maps a roster-load failure to user-facing copy. Only "unavailable" (CLI can't
+// launch) and "timeout" get their own message; every other failure is treated as
+// "the installed CLI is too old to know `config providers`", which is the common
+// case for this capability probe.
+function describeManageProvidersError(error: Error): { title: string; description: string } {
+  const kind = error instanceof CodexBarCliError ? error.kind : undefined;
+
+  if (kind === "unavailable") {
+    return {
+      title: "CodexBar CLI Not Found",
+      description: "Unable to launch the codexbar CLI. Make sure CodexBar is installed and try again.",
+    };
+  }
+
+  if (kind === "timeout") {
+    return {
+      title: "CodexBar Timed Out",
+      description: "Loading providers timed out. Try reopening this command.",
+    };
+  }
+
+  return {
+    title: "Managing Providers Needs a Newer CodexBar CLI",
+    description: "The installed codexbar CLI does not support the config commands. Update CodexBar and try again.",
+  };
 }
 
 function buildToggleAccessories(provider: AvailableProvider, isPending: boolean): List.Item.Accessory[] {
