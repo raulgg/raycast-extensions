@@ -72,14 +72,10 @@ function getHeaderSubtitle(
   now?: number,
 ): string | undefined {
   if (cacheStatus === "stale") {
-    if (isLoading) {
-      return "Updating... | ⚠︎ Stale data";
-    }
-
+    if (isLoading) return "Updating... | ⚠︎ Stale data";
     const relativeUpdatedAt = formatRelativeUpdateTime(getProviderDetailHeaderTimestamp(detail, cacheStatus), { now });
     return relativeUpdatedAt ? `Updated ${relativeUpdatedAt} | ⚠︎ Stale data` : "⚠︎ Stale data";
   }
-
   return isLoading ? "Updating..." : undefined;
 }
 

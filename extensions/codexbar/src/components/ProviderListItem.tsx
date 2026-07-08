@@ -112,21 +112,9 @@ export function buildProviderListItemAccessories(
   cacheStatus?: ProviderDetailCacheStatus,
 ): List.Item.Accessory[] | undefined {
   if (cacheStatus === "stale" && detail) {
-    if (isLoading) {
-      return [
-        {
-          icon: Icon.Hourglass,
-          tooltip: "Loading usage",
-        },
-      ];
-    }
-
-    return [
-      {
-        icon: Icon.Warning,
-        tooltip: formatProviderDetailStaleTooltip(),
-      },
-    ];
+    return isLoading
+      ? [{ icon: Icon.Hourglass, tooltip: "Loading usage" }]
+      : [{ icon: Icon.Warning, tooltip: formatProviderDetailStaleTooltip() }];
   }
 
   const primaryUsage = getPrimaryUsageSection(detail);

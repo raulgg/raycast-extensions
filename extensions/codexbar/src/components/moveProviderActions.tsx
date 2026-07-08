@@ -1,10 +1,7 @@
 import { Action, Icon } from "@raycast/api";
 import type { ReactNode } from "react";
 
-// The Move Up / Move Down action pair, shared by the Usage Overview rows and the
-// Manage Providers list so both keep the same titles and shortcuts. Returned as a
-// plain element array (not a component) so it inlines into the ActionPanel and
-// keeps the surrounding action order stable.
+// Shared Move Up / Move Down actions (array so they inline into ActionPanel in stable order).
 export function moveProviderActions(onMoveUp?: () => void, onMoveDown?: () => void): ReactNode[] {
   return [
     onMoveUp ? (

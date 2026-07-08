@@ -6,10 +6,8 @@ import type { AvailableProvider, ConfiguredProvider } from "../providers/types";
 import { getMockAvailableProviders, isCodexBarMockMode } from "../mocks/codexbar";
 import { CodexBarCliError, executeCodexBar, type ResolvedCodexBarBinary } from "./codexbar";
 
-// Reading and writing the CodexBar app's shared config file (~/.codexbar/config.json)
-// and the CLI-backed provider roster. Kept apart from codexbar.ts, which owns the
-// CLI process plumbing and usage fetching. See docs/adr/0001 (direct config
-// reorder) and docs/adr/0004 (mixed CLI/file write ownership).
+// Shared CodexBar config (~/.codexbar/config.json) + CLI roster helpers.
+// See ADR-0001 (reorder) and ADR-0004 (mixed write ownership).
 const CONFIG_PATH = join(homedir(), ".codexbar", "config.json");
 
 type CodexBarConfig = {
@@ -21,7 +19,7 @@ type CodexBarConfigProvider = {
   enabled?: boolean;
 };
 
-// Shape of a single entry from `codexbar config providers --json`.
+// Entry from `codexbar config providers --json`.
 type CodexBarConfigProvidersEntry = {
   provider?: string;
   displayName?: string;
@@ -51,13 +49,7 @@ export async function readConfiguredProvidersFromConfig(): Promise<ConfiguredPro
   }
 }
 
-// Lists every Available Provider the installed CLI knows about, joined to the
-// extension registry for display (icon and, when the registry knows the id, its
-// canonical name). Sourced from the CLI so new upstream providers appear without
-// an extension release. Off the hot path (Manage Providers subview only), so the
-// process spawn cost is acceptable. Throws when the installed CLI is too old to
-// expose the `config providers` subcommand — callers treat that as "capability
-// unavailable" and degrade gracefully.
+// CLI `config providers` + registry join. Throws for old CLIs (callers degrade).
 export async function listAvailableProviders(binary: ResolvedCodexBarBinary): Promise<AvailableProvider[]> {
   if (binary.source === "mock" || isCodexBarMockMode()) {
     return getMockAvailableProviders();
@@ -65,16 +57,10 @@ export async function listAvailableProviders(binary: ResolvedCodexBarBinary): Pr
 
   const payload = await executeCodexBar(binary, ["config", "providers", "--format", "json", "--json-only"]);
   const providers = normalizeAvailableProviders(payload);
-  // The CLI roster order is not the config-file array order the Usage Overview
-  // renders. Re-order the enabled subset to match config order so Manage
-  // Providers and the Overview agree — reorder gating in the view derives its
-  // adjacency from this order, and the move writes the config array directly.
   return orderEnabledProvidersByConfig(providers, await readConfiguredProviderOrder());
 }
 
-// Best-effort read of the enabled provider order from the shared config file.
-// Returns [] when the config can't be read; callers then keep the CLI roster
-// order rather than fail the whole roster load.
+// Best-effort; falls back to CLI order on read failure.
 async function readConfiguredProviderOrder(): Promise<string[]> {
   try {
     const configured = await readConfiguredProvidersFromConfig();
@@ -84,10 +70,7 @@ async function readConfiguredProviderOrder(): Promise<string[]> {
   }
 }
 
-// Sorts the enabled providers to match `enabledOrder` (config-file array order,
-// canonical ids), leaving disabled providers after them in roster order.
-// Providers missing from the order (e.g. registry-unknown, which the config read
-// filters out) keep their relative roster order via the stable sort.
+// Reorders enabled to match config-file order; disabled trail in original order.
 export function orderEnabledProvidersByConfig(
   providers: AvailableProvider[],
   enabledOrder: string[],
@@ -137,9 +120,6 @@ export function normalizeAvailableProviders(payload: unknown): AvailableProvider
     providers.push({
       id: metadata.id,
       cliProvider,
-      // Prefer the registry's curated name; fall back to the CLI's displayName
-      // for providers the registry doesn't know yet (registry returns a derived
-      // fallback name for those).
       name: isKnownProviderId(cliProvider) ? metadata.name : (cliDisplayName ?? metadata.name),
       icon: metadata.icon,
       enabled: record.enabled === true,
@@ -150,10 +130,7 @@ export function normalizeAvailableProviders(payload: unknown): AvailableProvider
   return providers;
 }
 
-// Enables or disables an Available Provider through the CLI (`config enable` /
-// `config disable`), the app-sanctioned write path. The CLI flips the entry's
-// `enabled` flag in place without changing array order, so this never disturbs
-// the Configured Provider order that reorder and the Usage Overview depend on.
+// CLI enable/disable. Does not affect order (CLI keeps array stable).
 export async function setProviderEnabled(
   binary: ResolvedCodexBarBinary,
   cliProvider: string,

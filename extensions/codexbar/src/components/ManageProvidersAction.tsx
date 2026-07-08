@@ -7,9 +7,6 @@ type ManageProvidersActionProps = {
   onProvidersChanged?: () => void;
 };
 
-// Shared entry point into the Manage Providers subview, used from both provider
-// rows and the empty view so a user who has disabled every provider can still
-// get back to enabling one. Renders nothing when the CLI binary is unavailable.
 export function ManageProvidersAction({ binary, onProvidersChanged }: ManageProvidersActionProps) {
   if (!binary) {
     return null;
