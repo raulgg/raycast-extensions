@@ -1,4 +1,4 @@
-import { ActionPanel, Icon, List, showToast, Toast } from "@raycast/api";
+import { ActionPanel, Icon, List } from "@raycast/api";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CommandErrorDetail } from "./CommandErrorDetail";
 import { InstallHelpDetail } from "./InstallHelpDetail";
@@ -11,7 +11,7 @@ import { useProviderStatuses } from "../hooks/useProviderStatuses";
 import { useProviderDetailErrorToast } from "../hooks/useProviderDetailErrorToast";
 import { useRelativeUpdateTime } from "../hooks/useRelativeUpdateTime";
 import { useUsageOverview } from "../hooks/useUsageOverview";
-import { moveConfiguredProviderInConfig, type ProviderMoveDirection } from "../lib/codexbar";
+import { useMoveProvider } from "../hooks/useMoveProvider";
 
 export function UsageList() {
   const [selectedProviderId, setSelectedProviderId] = useState<string>();
@@ -64,25 +64,14 @@ export function UsageList() {
     }
   }, [refreshProvider, selectedProviderId]);
 
-  const moveProvider = useCallback(
-    async (providerId: string, direction: ProviderMoveDirection) => {
-      try {
-        const didMove = await moveConfiguredProviderInConfig(providerId, direction);
-        if (!didMove) {
-          return;
-        }
-
+  const moveProvider = useMoveProvider(
+    useCallback(
+      (providerId: string) => {
         setSelectedProviderId(providerId);
         configuredProviders.revalidate();
-      } catch (error) {
-        await showToast({
-          style: Toast.Style.Failure,
-          title: "Failed to Reorder Providers",
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    },
-    [configuredProviders],
+      },
+      [configuredProviders],
+    ),
   );
 
   useProviderDetailErrorToast({

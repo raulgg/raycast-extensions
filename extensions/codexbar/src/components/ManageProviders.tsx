@@ -1,14 +1,10 @@
 import { Action, ActionPanel, Color, Icon, List, showToast, Toast } from "@raycast/api";
 import { useCallback, useRef, useState } from "react";
 import { useAvailableProviders } from "../hooks/useAvailableProviders";
-import {
-  CodexBarCliError,
-  moveConfiguredProviderInConfig,
-  setProviderEnabled,
-  type ProviderMoveDirection,
-  type ResolvedCodexBarBinary,
-} from "../lib/codexbar";
+import { useMoveProvider } from "../hooks/useMoveProvider";
+import { CodexBarCliError, setProviderEnabled, type ResolvedCodexBarBinary } from "../lib/codexbar";
 import type { AvailableProvider } from "../providers/types";
+import { moveProviderActions } from "./moveProviderActions";
 
 const NOT_IN_OVERVIEW_HINT = "Not shown in the Raycast Usage Overview yet";
 
@@ -64,35 +60,14 @@ export function ManageProviders({ binary, onProvidersChanged }: ManageProvidersP
 
   // Reorder within the enabled providers. Writes the reordering straight to the
   // shared config (per ADR-0001), moving the entry among the enabled subset
-  // without touching disabled entries. Only enabled providers are
-  // reorderable — order is the Usage Overview display order, and disabled
-  // providers are not rendered there.
-  const moveProvider = useCallback(
-    async (providerId: string, direction: ProviderMoveDirection) => {
-      if (isMutatingRef.current) {
-        return;
-      }
-      isMutatingRef.current = true;
-
-      try {
-        const didMove = await moveConfiguredProviderInConfig(providerId, direction);
-        if (!didMove) {
-          return;
-        }
-
-        available.revalidate();
-        onProvidersChanged?.();
-      } catch (error) {
-        await showToast({
-          style: Toast.Style.Failure,
-          title: "Failed to Reorder Providers",
-          message: error instanceof Error ? error.message : String(error),
-        });
-      } finally {
-        isMutatingRef.current = false;
-      }
-    },
-    [available, onProvidersChanged],
+  // without touching disabled entries. Shares isMutatingRef with toggleProvider
+  // so a reorder and a toggle can never write the config concurrently.
+  const moveProvider = useMoveProvider(
+    useCallback(() => {
+      void available.revalidate();
+      onProvidersChanged?.();
+    }, [available, onProvidersChanged]),
+    isMutatingRef,
   );
 
   // A failed roster load usually means the installed CLI is too old to manage
@@ -173,23 +148,7 @@ function ProviderToggleItem({ provider, isPending, onToggle, onMoveUp, onMoveDow
             icon={provider.enabled ? Icon.XMarkCircle : Icon.CheckCircle}
             onAction={onToggle}
           />
-          {onMoveUp ? (
-            <Action
-              // eslint-disable-next-line @raycast/prefer-title-case
-              title="Move Up"
-              icon={Icon.ArrowUp}
-              shortcut={{ modifiers: ["cmd", "opt"], key: "arrowUp" }}
-              onAction={onMoveUp}
-            />
-          ) : null}
-          {onMoveDown ? (
-            <Action
-              title="Move Down"
-              icon={Icon.ArrowDown}
-              shortcut={{ modifiers: ["cmd", "opt"], key: "arrowDown" }}
-              onAction={onMoveDown}
-            />
-          ) : null}
+          {moveProviderActions(onMoveUp, onMoveDown)}
         </ActionPanel>
       }
     />

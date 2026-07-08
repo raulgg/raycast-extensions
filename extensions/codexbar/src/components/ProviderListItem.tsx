@@ -5,6 +5,7 @@ import { buildTwoBarAccessoryIcon } from "../lib/twoBarAccessoryIcon";
 import { getProviderMetadata, resolveDashboardUrl } from "../providers/registry";
 import type { ResolvedCodexBarBinary } from "../lib/codexbar";
 import { ManageProvidersAction } from "./ManageProvidersAction";
+import { moveProviderActions } from "./moveProviderActions";
 import { ProviderDetail } from "./ProviderDetail";
 
 type ProviderListItemProps = {
@@ -87,23 +88,7 @@ export function ProviderListItem({
               shortcut={{ modifiers: ["cmd", "shift"], key: "o" }}
             />
           ) : null}
-          {onMoveUp ? (
-            <Action
-              // eslint-disable-next-line @raycast/prefer-title-case
-              title="Move Up"
-              icon={Icon.ArrowUp}
-              shortcut={{ modifiers: ["cmd", "opt"], key: "arrowUp" }}
-              onAction={onMoveUp}
-            />
-          ) : null}
-          {onMoveDown ? (
-            <Action
-              title="Move Down"
-              icon={Icon.ArrowDown}
-              shortcut={{ modifiers: ["cmd", "opt"], key: "arrowDown" }}
-              onAction={onMoveDown}
-            />
-          ) : null}
+          {moveProviderActions(onMoveUp, onMoveDown)}
           <ManageProvidersAction binary={binary} onProvidersChanged={onProvidersChanged} />
           <Action.CopyToClipboard
             title="Copy CLI Command"
