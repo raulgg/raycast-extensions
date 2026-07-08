@@ -90,7 +90,6 @@ type CodexBarConfigProvidersEntry = {
   provider?: string;
   displayName?: string;
   enabled?: boolean;
-  defaultEnabled?: boolean;
 };
 
 export type ProviderMoveDirection = "up" | "down";
@@ -725,7 +724,6 @@ export function normalizeAvailableProviders(payload: unknown): AvailableProvider
       name: isKnownProviderId(cliProvider) ? metadata.name : (cliDisplayName ?? metadata.name),
       icon: metadata.icon,
       enabled: record.enabled === true,
-      defaultEnabled: record.defaultEnabled === true,
     });
   }
 

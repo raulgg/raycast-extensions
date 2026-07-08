@@ -879,7 +879,6 @@ export function getMockAvailableProviders(): AvailableProvider[] {
       name: metadata.name,
       icon: metadata.icon,
       enabled: index < 5,
-      defaultEnabled: providerId === "codex",
     };
   });
 }

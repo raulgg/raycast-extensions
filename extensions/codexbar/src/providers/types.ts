@@ -20,7 +20,6 @@ export type AvailableProvider = {
   name: string;
   icon: Image.ImageLike;
   enabled: boolean;
-  defaultEnabled: boolean;
 };
 
 export type ProviderSectionItem = {

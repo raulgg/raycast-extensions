@@ -543,14 +543,14 @@ describe("available providers", () => {
 
   it("normalizes `config providers` output, joining the registry and resolving aliases", () => {
     const providers = normalizeAvailableProviders([
-      { provider: "claude", displayName: "Claude", enabled: true, defaultEnabled: false },
-      { provider: "codex", displayName: "Codex", enabled: false, defaultEnabled: true },
-      { provider: "groqcloud", displayName: "Groq", enabled: false, defaultEnabled: false },
+      { provider: "claude", displayName: "Claude", enabled: true },
+      { provider: "codex", displayName: "Codex", enabled: false },
+      { provider: "groqcloud", displayName: "Groq", enabled: false },
     ]);
 
     expect(providers).toEqual([
       expect.objectContaining({ id: "claude", cliProvider: "claude", name: "Claude", enabled: true }),
-      expect.objectContaining({ id: "codex", cliProvider: "codex", enabled: false, defaultEnabled: true }),
+      expect.objectContaining({ id: "codex", cliProvider: "codex", enabled: false }),
       // `groqcloud` resolves to the canonical `groq` registry id for display.
       expect.objectContaining({ id: "groq", cliProvider: "groqcloud", name: "Groq", enabled: false }),
     ]);
@@ -577,12 +577,12 @@ describe("available providers", () => {
   });
 
   it("lists available providers from the CLI", async () => {
-    mockExecSuccess(JSON.stringify([{ provider: "codex", displayName: "Codex", enabled: true, defaultEnabled: true }]));
+    mockExecSuccess(JSON.stringify([{ provider: "codex", displayName: "Codex", enabled: true }]));
 
     const providers = await listAvailableProviders(binary);
 
     expect(providers).toEqual([
-      expect.objectContaining({ id: "codex", cliProvider: "codex", enabled: true, defaultEnabled: true }),
+      expect.objectContaining({ id: "codex", cliProvider: "codex", enabled: true }),
     ]);
     expect(execFileMock).toHaveBeenCalledWith(
       "codexbar",
