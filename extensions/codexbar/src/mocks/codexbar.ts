@@ -88,6 +88,7 @@ const MOCK_SOURCES: Record<string, string> = {
   chutes: "api",
   crossmodel: "api",
   clawrouter: "api",
+  wayfinder: "api",
 };
 
 const MOCK_VERSIONS: Record<string, string | null> = {
@@ -859,6 +860,7 @@ const MOCK_BUILDERS: Record<string, MockBuilder> = {
   chutes: buildGenericProvider("chutes"),
   crossmodel: buildGenericProvider("crossmodel"),
   clawrouter: buildGenericProvider("clawrouter"),
+  wayfinder: buildGenericProvider("wayfinder"),
 };
 
 const missingMockProviderIds = PROVIDER_IDS.filter((id) => !MOCK_BUILDERS[id]);
