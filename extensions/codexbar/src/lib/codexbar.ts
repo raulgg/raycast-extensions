@@ -10,7 +10,12 @@ import {
   extractProviderStatus,
   normalizeProviderDetailPayload,
 } from "../providers/normalize";
-import type { ProviderDetailData, ProviderStatus } from "../providers/types";
+import type {
+  ProviderDetailData,
+  ProviderInteractionMode,
+  ProviderSourceMode,
+  ProviderStatus,
+} from "../providers/types";
 import { getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
 
 const CODEXBAR_TIMEOUT_MS = 60_000;
@@ -30,7 +35,34 @@ const HOMEBREW_INSTALL_COMMAND = "brew install steipete/tap/codexbar";
 export type ResolvedCodexBarBinary = {
   command: string;
   source: "path" | "fallback" | "mock";
+  capabilities?: CodexBarCapabilities;
 };
+
+export type CodexBarCapabilities = {
+  appFetchProfile: boolean;
+  interactionModes: boolean;
+  presentationSchemaVersions: number[];
+  serveAppFetchProfile: boolean;
+  serveForceRefresh: boolean;
+};
+
+type ProviderFetchOptions = {
+  mode?: "auto" | "force";
+  source?: ProviderSourceMode;
+  interaction?: ProviderInteractionMode;
+};
+
+const LEGACY_CAPABILITIES: CodexBarCapabilities = {
+  appFetchProfile: false,
+  interactionModes: false,
+  presentationSchemaVersions: [],
+  serveAppFetchProfile: false,
+  serveForceRefresh: false,
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
 
 export type CodexBarCliErrorKind = "unavailable" | "timeout" | "invalid-json" | "execution";
 
@@ -251,11 +283,11 @@ function getJsonErrorMessage(payload: unknown): string | undefined {
     return payload;
   }
 
-  if (!payload || typeof payload !== "object") {
+  if (!isRecord(payload)) {
     return undefined;
   }
 
-  const record = payload as Record<string, unknown>;
+  const record = payload;
   const directMessage =
     (typeof record.message === "string" && record.message) ||
     (typeof record.error === "string" && record.error) ||
@@ -265,10 +297,9 @@ function getJsonErrorMessage(payload: unknown): string | undefined {
   }
 
   const nestedError = record.error;
-  if (nestedError && typeof nestedError === "object") {
-    const nested = nestedError as Record<string, unknown>;
-    if (typeof nested.message === "string" && nested.message) {
-      return nested.message;
+  if (isRecord(nestedError)) {
+    if (typeof nestedError.message === "string" && nestedError.message) {
+      return nestedError.message;
     }
   }
 
@@ -375,9 +406,53 @@ function requestCodexBarServeJson(path: string, timeout: number): Promise<unknow
 export async function isCodexBarServeHealthy(): Promise<boolean> {
   try {
     const payload = await requestCodexBarServeJson("/health", CODEXBAR_SERVE_HEALTH_TIMEOUT_MS);
-    return Boolean(payload && typeof payload === "object" && (payload as Record<string, unknown>).status === "ok");
+    return isRecord(payload) && payload.status === "ok";
   } catch {
     return false;
+  }
+}
+
+function parseCodexBarCapabilities(payload: unknown): CodexBarCapabilities {
+  if (!isRecord(payload)) {
+    return LEGACY_CAPABILITIES;
+  }
+
+  const rawCapabilities = isRecord(payload.capabilities) ? payload.capabilities : payload;
+  const fetchProfiles = Array.isArray(rawCapabilities.fetchProfiles) ? rawCapabilities.fetchProfiles : [];
+  const interactionModes = Array.isArray(rawCapabilities.interactionModes) ? rawCapabilities.interactionModes : [];
+  const presentationSchemaVersions = Array.isArray(rawCapabilities.presentationSchemaVersions)
+    ? rawCapabilities.presentationSchemaVersions.filter(
+        (version): version is number => typeof version === "number" && Number.isFinite(version),
+      )
+    : [];
+  const serve = isRecord(rawCapabilities.serve) ? rawCapabilities.serve : undefined;
+
+  return {
+    appFetchProfile: fetchProfiles.includes("app"),
+    interactionModes: interactionModes.includes("background") && interactionModes.includes("user"),
+    presentationSchemaVersions,
+    serveAppFetchProfile: serve?.fetchProfile === true,
+    serveForceRefresh: serve?.forceRefresh === true,
+  };
+}
+
+function hasNegotiatedCapabilities(capabilities: CodexBarCapabilities): boolean {
+  return (
+    capabilities.appFetchProfile ||
+    capabilities.interactionModes ||
+    capabilities.presentationSchemaVersions.length > 0 ||
+    capabilities.serveAppFetchProfile ||
+    capabilities.serveForceRefresh
+  );
+}
+
+async function detectCodexBarCapabilities(binary: ResolvedCodexBarBinary): Promise<CodexBarCapabilities | undefined> {
+  try {
+    const payload = await executeCodexBar(binary, ["capabilities", "--format", "json", "--json-only"]);
+    const capabilities = parseCodexBarCapabilities(payload);
+    return hasNegotiatedCapabilities(capabilities) ? capabilities : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -439,24 +514,50 @@ export async function ensureCodexBarServe(binary: ResolvedCodexBarBinary): Promi
   return false;
 }
 
-async function executeCodexBarServe(providerId: string): Promise<unknown> {
-  return requestCodexBarServeJson(
-    `/usage?provider=${encodeURIComponent(providerId)}`,
-    CODEXBAR_SERVE_REQUEST_TIMEOUT_SECONDS * 1000,
-  );
+async function executeCodexBarServe(
+  providerId: string,
+  options?: ProviderFetchOptions,
+  capabilities?: CodexBarCapabilities,
+): Promise<unknown> {
+  const params = new URLSearchParams({ provider: providerId });
+  if (capabilities?.serveAppFetchProfile) {
+    params.set("fetchProfile", "app");
+  }
+  if (capabilities?.interactionModes) {
+    params.set("interaction", options?.interaction ?? "background");
+  }
+  if (options?.mode === "force" && capabilities?.serveForceRefresh) {
+    params.set("refresh", "true");
+  }
+  return requestCodexBarServeJson(`/usage?${params.toString()}`, CODEXBAR_SERVE_REQUEST_TIMEOUT_SECONDS * 1000);
 }
 
-async function fetchProviderDetailPayload(binary: ResolvedCodexBarBinary, providerId: string): Promise<unknown> {
-  const usageCommandArgs = buildProviderUsageCommandArgs(providerId);
+async function fetchProviderDetailPayload(
+  binary: ResolvedCodexBarBinary,
+  providerId: string,
+  options?: ProviderFetchOptions,
+): Promise<unknown> {
+  const usageCommandArgs = buildProviderUsageCommandArgs(providerId, {
+    source: options?.source,
+    interaction: options?.interaction,
+    capabilities: binary.capabilities,
+  });
+
+  // Older CLIs without serve force-refresh always use a fresh one-shot command for forced refreshes.
+  if (options?.mode === "force" && !binary.capabilities?.serveForceRefresh) {
+    return executeCodexBar(binary, usageCommandArgs);
+  }
 
   if (await isCodexBarServeHealthy()) {
     try {
-      return await executeCodexBarServe(providerId);
+      return await executeCodexBarServe(providerId, options, binary.capabilities);
     } catch {
-      return executeCodexBar(binary, usageCommandArgs);
+      // Serve is healthy but this request failed; fall through to a fresh one-shot command.
     }
   }
 
+  // Foreground never starts serve (ADR-0002). When serve is unavailable, a one-shot CLI command
+  // bypasses serve's response TTL and remains the negotiated force-refresh fallback.
   return executeCodexBar(binary, usageCommandArgs);
 }
 
@@ -487,10 +588,11 @@ export async function getCodexBarAvailability(): Promise<CodexBarAvailability> {
   try {
     const binary = await resolveCodexBarBinary();
     await smokeTestCodexBar(binary);
+    const capabilities = await detectCodexBarCapabilities(binary);
 
     return {
       status: "available",
-      binary,
+      binary: capabilities ? { ...binary, capabilities } : binary,
     };
   } catch (error) {
     if (error instanceof CodexBarCliError && error.kind === "unavailable") {
@@ -511,47 +613,62 @@ export async function getCodexBarAvailability(): Promise<CodexBarAvailability> {
 export async function fetchProviderDetail(
   binary: ResolvedCodexBarBinary,
   providerId: string,
-  options?: { mode?: "auto" | "force" },
+  options?: ProviderFetchOptions,
 ): Promise<ProviderDetailData> {
   const normalizedProviderId = assertFetchableProviderId(providerId);
 
   if (binary.source === "mock" || isCodexBarMockMode()) {
-    return normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId);
+    return withRequestMetadata(
+      normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId),
+      options?.source,
+    );
   }
 
-  const payload =
-    options?.mode === "force"
-      ? await executeCodexBar(binary, buildProviderUsageCommandArgs(normalizedProviderId))
-      : await fetchProviderDetailPayload(binary, normalizedProviderId);
-  return normalizeProviderDetailResponse(payload, normalizedProviderId);
+  const payload = await fetchProviderDetailPayload(binary, normalizedProviderId, options);
+  return withRequestMetadata(normalizeProviderDetailResponse(payload, normalizedProviderId), options?.source);
 }
 
 export async function fetchProviderDetailFromServe(
   binary: ResolvedCodexBarBinary,
   providerId: string,
+  options?: ProviderFetchOptions,
 ): Promise<ProviderDetailData> {
   const normalizedProviderId = assertFetchableProviderId(providerId);
 
   if (binary.source === "mock" || isCodexBarMockMode()) {
-    return normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId);
+    return withRequestMetadata(
+      normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId),
+      options?.source,
+    );
   }
 
-  const payload = await executeCodexBarServe(normalizedProviderId);
-  return normalizeProviderDetailResponse(payload, normalizedProviderId);
+  const payload = await executeCodexBarServe(normalizedProviderId, options, binary.capabilities);
+  return withRequestMetadata(normalizeProviderDetailResponse(payload, normalizedProviderId), options?.source);
 }
 
 export async function fetchProviderDetailFromUsageCommand(
   binary: ResolvedCodexBarBinary,
   providerId: string,
+  options?: ProviderFetchOptions,
 ): Promise<ProviderDetailData> {
   const normalizedProviderId = assertFetchableProviderId(providerId);
 
   if (binary.source === "mock" || isCodexBarMockMode()) {
-    return normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId);
+    return withRequestMetadata(
+      normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId),
+      options?.source,
+    );
   }
 
-  const payload = await executeCodexBar(binary, buildProviderUsageCommandArgs(normalizedProviderId));
-  return normalizeProviderDetailResponse(payload, normalizedProviderId);
+  const payload = await executeCodexBar(
+    binary,
+    buildProviderUsageCommandArgs(normalizedProviderId, {
+      source: options?.source,
+      interaction: options?.interaction,
+      capabilities: binary.capabilities,
+    }),
+  );
+  return withRequestMetadata(normalizeProviderDetailResponse(payload, normalizedProviderId), options?.source);
 }
 
 export type ProviderUsageWithStatus = {
@@ -563,23 +680,29 @@ export type ProviderUsageWithStatus = {
 export async function fetchProviderUsageWithStatus(
   binary: ResolvedCodexBarBinary,
   providerId: string,
+  options?: ProviderFetchOptions,
 ): Promise<ProviderUsageWithStatus> {
   const normalizedProviderId = assertFetchableProviderId(providerId);
 
   if (binary.source === "mock" || isCodexBarMockMode()) {
     const payload = getMockProviderPayload(normalizedProviderId);
     return {
-      detail: normalizeProviderDetailPayload(payload, normalizedProviderId),
+      detail: withRequestMetadata(normalizeProviderDetailPayload(payload, normalizedProviderId), options?.source),
       status: extractProviderStatus(payload, normalizedProviderId),
     };
   }
 
   const payload = await executeCodexBar(
     binary,
-    buildProviderUsageCommandArgs(normalizedProviderId, { includeStatus: true }),
+    buildProviderUsageCommandArgs(normalizedProviderId, {
+      includeStatus: true,
+      source: options?.source,
+      interaction: options?.interaction,
+      capabilities: binary.capabilities,
+    }),
   );
   const status = extractProviderStatus(payload, normalizedProviderId);
-  const detail = normalizeProviderDetailResponse(payload, normalizedProviderId);
+  const detail = withRequestMetadata(normalizeProviderDetailResponse(payload, normalizedProviderId), options?.source);
   return { detail, status };
 }
 
@@ -601,7 +724,20 @@ function normalizeProviderDetailResponse(payload: unknown, providerId: string): 
   return normalizeProviderDetailPayload(payload, providerId);
 }
 
-function buildProviderUsageCommandArgs(providerId: string, options?: { includeStatus?: boolean }): string[] {
+function withRequestMetadata(detail: ProviderDetailData, requestedSource?: ProviderSourceMode): ProviderDetailData {
+  return { ...detail, requestedSource: requestedSource ?? "auto" };
+}
+
+function buildProviderUsageCommandArgs(
+  providerId: string,
+  options?: {
+    includeStatus?: boolean;
+    source?: ProviderSourceMode;
+    interaction?: ProviderInteractionMode;
+    capabilities?: CodexBarCapabilities;
+  },
+): string[] {
+  const capabilities = options?.capabilities;
   return [
     "usage",
     "--format",
@@ -611,9 +747,13 @@ function buildProviderUsageCommandArgs(providerId: string, options?: { includeSt
     "--web-timeout",
     `${CODEXBAR_WEB_TIMEOUT_MS / 1000}`,
     ...(options?.includeStatus ? ["--status"] : []),
+    ...(capabilities?.appFetchProfile ? ["--fetch-profile", "app"] : []),
+    ...(capabilities?.appFetchProfile && capabilities.interactionModes
+      ? ["--interaction", options?.interaction ?? "background"]
+      : []),
     "--provider",
     providerId,
     "--source",
-    "auto",
+    options?.source ?? "auto",
   ];
 }

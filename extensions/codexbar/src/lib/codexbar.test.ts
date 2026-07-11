@@ -212,6 +212,86 @@ describe("codexbar runtime helpers", () => {
     }
   });
 
+  it("discovers serve-only capabilities from a supporting CLI", async () => {
+    vi.stubEnv("PATH", "/usr/local/bin");
+    mockAccessForPaths(["/usr/local/bin/codexbar"]);
+    execFileMock.mockImplementation(
+      (
+        _command: string,
+        args: string[],
+        _options: unknown,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        if (args[0] === "--version") {
+          callback(null, "CodexBar 0.42.0\n", "");
+          return;
+        }
+        callback(
+          null,
+          JSON.stringify({
+            fetchProfiles: ["cli"],
+            serve: { fetchProfile: true, forceRefresh: true },
+          }),
+          "",
+        );
+      },
+    );
+
+    await expect(getCodexBarAvailability()).resolves.toMatchObject({
+      status: "available",
+      binary: {
+        capabilities: {
+          appFetchProfile: false,
+          interactionModes: false,
+          presentationSchemaVersions: [],
+          serveAppFetchProfile: true,
+          serveForceRefresh: true,
+        },
+      },
+    });
+  });
+
+  it("discovers GUI-parity capabilities from a supporting CLI", async () => {
+    vi.stubEnv("PATH", "/usr/local/bin");
+    mockAccessForPaths(["/usr/local/bin/codexbar"]);
+    execFileMock.mockImplementation(
+      (
+        _command: string,
+        args: string[],
+        _options: unknown,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        if (args[0] === "--version") {
+          callback(null, "CodexBar 0.42.0\n", "");
+          return;
+        }
+        callback(
+          null,
+          JSON.stringify({
+            fetchProfiles: ["cli", "app"],
+            interactionModes: ["background", "user"],
+            presentationSchemaVersions: [1],
+            serve: { fetchProfile: true, forceRefresh: true },
+          }),
+          "",
+        );
+      },
+    );
+
+    await expect(getCodexBarAvailability()).resolves.toMatchObject({
+      status: "available",
+      binary: {
+        capabilities: {
+          appFetchProfile: true,
+          interactionModes: true,
+          presentationSchemaVersions: [1],
+          serveAppFetchProfile: true,
+          serveForceRefresh: true,
+        },
+      },
+    });
+  });
+
   it("prefers CodexBar serve for provider detail fetches when available", async () => {
     mockServeResponses({ status: "ok" }, { provider: "codex", usage: { primary: { usedPercent: 20 } } });
 
@@ -265,6 +345,122 @@ describe("codexbar runtime helpers", () => {
       "/usr/local/bin/codexbar",
       expect.arrayContaining(["usage", "--provider", "codex", "--source", "auto"]),
       expect.any(Object),
+      expect.any(Function),
+    );
+  });
+
+  it("uses GUI profile, configured source, and forced serve refresh when supported", async () => {
+    const binary: ResolvedCodexBarBinary = {
+      command: "/usr/local/bin/codexbar",
+      source: "path",
+      capabilities: {
+        appFetchProfile: true,
+        interactionModes: true,
+        presentationSchemaVersions: [1],
+        serveAppFetchProfile: true,
+        serveForceRefresh: true,
+      },
+    };
+    mockServeResponses(
+      { status: "ok" },
+      { provider: "claude", source: "oauth", presentation: { schemaVersion: 1, meters: [] } },
+    );
+
+    await expect(
+      fetchProviderDetail(binary, "claude", { mode: "force", source: "web", interaction: "user" }),
+    ).resolves.toMatchObject({
+      id: "claude",
+      source: "oauth",
+      requestedSource: "web",
+      presentationSchemaVersion: 1,
+      sections: [],
+    });
+
+    expect(httpRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: "/usage?provider=claude&fetchProfile=app&interaction=user&refresh=true",
+      }),
+      expect.any(Function),
+    );
+    expect(execFileMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to a fresh one-shot CLI when forced serve refresh is unavailable", async () => {
+    const binary: ResolvedCodexBarBinary = {
+      command: "/usr/local/bin/codexbar",
+      source: "path",
+      capabilities: {
+        appFetchProfile: true,
+        interactionModes: true,
+        presentationSchemaVersions: [1],
+        serveAppFetchProfile: true,
+        serveForceRefresh: true,
+      },
+    };
+    mockExecSuccess(JSON.stringify({ provider: "codex", usage: { primary: { usedPercent: 20 } } }));
+
+    await fetchProviderDetail(binary, "codex", { mode: "force", interaction: "user" });
+
+    expect(httpRequestMock).toHaveBeenCalled();
+    expect(execFileMock).toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      expect.arrayContaining([
+        "usage",
+        "--fetch-profile",
+        "app",
+        "--interaction",
+        "user",
+        "--provider",
+        "codex",
+      ]),
+      expect.any(Object),
+      expect.any(Function),
+    );
+  });
+
+  it("falls back to one-shot CLI when a forced serve refresh request fails", async () => {
+    const binary: ResolvedCodexBarBinary = {
+      command: "/usr/local/bin/codexbar",
+      source: "path",
+      capabilities: {
+        appFetchProfile: false,
+        interactionModes: false,
+        presentationSchemaVersions: [],
+        serveAppFetchProfile: false,
+        serveForceRefresh: true,
+      },
+    };
+    mockServeResponses({ status: "ok" }, new Error("CodexBar serve request timed out."));
+    mockExecSuccess(JSON.stringify({ provider: "codex", usage: { primary: { usedPercent: 20 } } }));
+
+    await fetchProviderDetail(binary, "codex", { mode: "force" });
+
+    expect(execFileMock).toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      expect.arrayContaining(["usage", "--provider", "codex"]),
+      expect.any(Object),
+      expect.any(Function),
+    );
+  });
+
+  it("requests a forced serve refresh independently of app-profile support", async () => {
+    const binary: ResolvedCodexBarBinary = {
+      command: "/usr/local/bin/codexbar",
+      source: "path",
+      capabilities: {
+        appFetchProfile: false,
+        interactionModes: false,
+        presentationSchemaVersions: [],
+        serveAppFetchProfile: false,
+        serveForceRefresh: true,
+      },
+    };
+    mockServeResponses({ status: "ok" }, { provider: "codex", usage: { primary: { usedPercent: 20 } } });
+
+    await fetchProviderDetail(binary, "codex", { mode: "force" });
+
+    expect(httpRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "/usage?provider=codex&refresh=true" }),
       expect.any(Function),
     );
   });
@@ -391,10 +587,16 @@ describe("codexbar runtime helpers", () => {
       usedServe: true,
     });
 
-    expect(execFileMock).toHaveBeenCalledTimes(1);
+    expect(execFileMock).toHaveBeenCalledTimes(2);
     expect(execFileMock).toHaveBeenCalledWith(
       "/usr/local/bin/codexbar",
       ["--version"],
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(execFileMock).toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      ["capabilities", "--format", "json", "--json-only"],
       expect.any(Object),
       expect.any(Function),
     );
@@ -553,7 +755,7 @@ describe("codexbar runtime helpers", () => {
     readFileMock.mockResolvedValue(
       JSON.stringify({
         providers: {
-          codex: { enabled: true },
+          codex: { enabled: true, source: "oauth" },
           unknown: { enabled: true },
           perplexity: { enabled: true },
           all: { enabled: true },
@@ -572,6 +774,7 @@ describe("codexbar runtime helpers", () => {
           tintColor: Color.PrimaryText,
         },
         keywords: ["codex"],
+        source: "oauth",
       },
       {
         id: "perplexity",

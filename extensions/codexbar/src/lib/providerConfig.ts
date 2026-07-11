@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { getProviderMetadata, isKnownProviderId, isProviderSelectorId, resolveProviderId } from "../providers/registry";
-import type { AvailableProvider, ConfiguredProvider } from "../providers/types";
+import type { AvailableProvider, ConfiguredProvider, ProviderSourceMode } from "../providers/types";
 import { getMockAvailableProviders, isCodexBarMockMode } from "../mocks/codexbar";
 import { CodexBarCliError, executeCodexBar, type ResolvedCodexBarBinary } from "./codexbar";
 
@@ -17,6 +17,7 @@ type CodexBarConfig = {
 type CodexBarConfigProvider = {
   id?: string;
   enabled?: boolean;
+  source?: string;
 };
 
 // Entry from `codexbar config providers --json`.
@@ -208,13 +209,13 @@ function extractConfiguredProvidersFromConfig(rawConfig: string): ConfiguredProv
 
   return providers
     .filter(
-      (provider): provider is { id: string; enabled: true } =>
+      (provider): provider is CodexBarConfigProvider & { id: string; enabled: true } =>
         typeof provider.id === "string" && provider.id.trim().length > 0 && provider.enabled === true,
     )
-    .map((provider) => provider.id.trim())
-    .filter((providerId) => !isProviderSelectorId(providerId) && isKnownProviderId(providerId))
-    .filter((providerId) => {
-      const canonicalId = resolveProviderId(providerId);
+    .map((provider) => ({ id: provider.id.trim(), source: normalizeProviderSource(provider.source) }))
+    .filter(({ id }) => !isProviderSelectorId(id) && isKnownProviderId(id))
+    .filter(({ id }) => {
+      const canonicalId = resolveProviderId(id);
       if (seenProviderIds.has(canonicalId)) {
         return false;
       }
@@ -222,15 +223,24 @@ function extractConfiguredProvidersFromConfig(rawConfig: string): ConfiguredProv
       seenProviderIds.add(canonicalId);
       return true;
     })
-    .map((providerId) => {
+    .map(({ id: providerId, source }) => {
       const metadata = getProviderMetadata(providerId);
       return {
         id: metadata.id,
         name: metadata.name,
         icon: metadata.icon,
         keywords: [metadata.id],
+        ...(source ? { source } : {}),
       };
     });
+}
+
+function normalizeProviderSource(source: unknown): ProviderSourceMode | undefined {
+  if (source === "auto" || source === "web" || source === "cli" || source === "oauth" || source === "api") {
+    return source;
+  }
+
+  return undefined;
 }
 
 function normalizeConfiguredProviders(config: CodexBarConfig): CodexBarConfigProvider[] {
