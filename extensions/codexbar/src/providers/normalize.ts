@@ -99,6 +99,10 @@ function extractUpdatedAt(payload: RawProviderPayload): string | undefined {
   );
 }
 
+function extractResolvedSource(payload: RawProviderPayload): string | undefined {
+  return toTrimmedString(payload.source);
+}
+
 function formatCountdown(isoTimestamp: string, now = Date.now()): string | undefined {
   const target = Date.parse(isoTimestamp);
   if (Number.isNaN(target)) {
@@ -411,6 +415,93 @@ function buildExtraRateWindowSections(payload: RawProviderPayload, now = Date.no
   }
 
   return sections;
+}
+
+type PresentationMeterKind = "primary" | "secondary" | "tertiary" | "supplemental";
+
+function toPresentationMeterKind(value: unknown): PresentationMeterKind | undefined {
+  if (value === "primary" || value === "secondary" || value === "tertiary" || value === "supplemental") {
+    return value;
+  }
+
+  return undefined;
+}
+
+function buildPresentationMeterSections(
+  providerId: string,
+  payload: RawProviderPayload,
+  now = Date.now(),
+): { schemaVersion: number; sections: ProviderSection[] } | undefined {
+  const presentation = toRecord(payload.presentation);
+  const schemaVersion = toFiniteNumber(presentation?.schemaVersion);
+  if (schemaVersion !== 1 || !Array.isArray(presentation?.meters)) {
+    return undefined;
+  }
+
+  const sections: ProviderSection[] = [];
+  for (const entry of presentation.meters) {
+    const meter = toRecord(entry);
+    const kind = toPresentationMeterKind(meter?.kind);
+    const label = toTrimmedString(meter?.label);
+    if (!meter || !kind || !label) {
+      continue;
+    }
+
+    const usedPercent = toFiniteNumber(meter.usedPercent);
+    const reportedRemainingPercent = toFiniteNumber(meter.remainingPercent);
+    const remainingPercent =
+      reportedRemainingPercent ?? (usedPercent === undefined ? undefined : Math.max(0, 100 - usedPercent));
+    if (remainingPercent === undefined) {
+      continue;
+    }
+
+    const resetsAt = toString(meter.resetsAt);
+    const resolvedUsedPercent = usedPercent ?? Math.max(0, 100 - remainingPercent);
+    const windowMinutes = toFiniteNumber(meter.windowMinutes);
+    const nextRegenPercent = toFiniteNumber(meter.nextRegenPercent);
+
+    if (kind === "primary" || kind === "secondary" || kind === "tertiary") {
+      const title = kind === "primary" ? "Primary" : kind === "secondary" ? "Secondary" : "Tertiary";
+      const usagePacing = resetsAt
+        ? computeSlotUsagePacing(
+            providerId,
+            title,
+            { usedPercent: resolvedUsedPercent, remainingPercent, resetsAt, windowMinutes },
+            now,
+          )
+        : undefined;
+      sections.push({
+        kind: "usage",
+        title,
+        displayTitle: label,
+        remainingPercent: clampPercent(remainingPercent),
+        resetsIn: resetsAt ? formatCountdown(resetsAt, now) : undefined,
+        usagePacing,
+        nextRegenPercent,
+      });
+      continue;
+    }
+
+    if (kind === "supplemental") {
+      const usagePacing = resetsAt
+        ? computeWeeklyUsagePacing(
+            { usedPercent: resolvedUsedPercent, remainingPercent, resetsAt, windowMinutes },
+            now,
+            false,
+          )
+        : undefined;
+      sections.push({
+        kind: "supplementalUsage",
+        title: label,
+        remainingPercent: clampPercent(remainingPercent),
+        resetsIn: resetsAt ? formatCountdown(resetsAt, now) : undefined,
+        usagePacing,
+        nextRegenPercent,
+      });
+    }
+  }
+
+  return { schemaVersion, sections };
 }
 
 const SUPPLEMENTAL_USAGE_MAPPERS: Record<string, (record: RawProviderPayload, now: number) => ProviderSection[]> = {
@@ -771,7 +862,8 @@ function normalizePayload(providerId: string, payload: RawProviderPayload, now =
   const fetchedAt = new Date(now).toISOString();
   const accountEmail = extractAccountEmail(payload);
   const planText = formatPlanText(metadata.id, payload);
-  const sections = [
+  const presentation = buildPresentationMeterSections(metadata.id, payload, now);
+  const sections = presentation?.sections ?? [
     ...buildUsageSections(metadata.id, payload, now),
     ...buildExtraRateWindowSections(payload, now),
     ...buildSupplementalUsageSections(payload, now),
@@ -786,6 +878,8 @@ function normalizePayload(providerId: string, payload: RawProviderPayload, now =
     updatedAt,
     accountEmail,
     planText,
+    source: extractResolvedSource(payload),
+    presentationSchemaVersion: presentation?.schemaVersion,
     sections,
   };
 }

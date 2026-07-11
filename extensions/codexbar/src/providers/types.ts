@@ -2,11 +2,15 @@ import type { Image } from "@raycast/api";
 
 export type RawProviderPayload = Record<string, unknown>;
 
+export type ProviderSourceMode = "auto" | "web" | "cli" | "oauth" | "api";
+export type ProviderInteractionMode = "background" | "user";
+
 export type ConfiguredProvider = {
   id: string;
   name: string;
   icon: Image.ImageLike;
   keywords?: string[];
+  source?: ProviderSourceMode;
 };
 
 // A Provider the installed CodexBar CLI knows about and can toggle on/off, as
@@ -104,5 +108,8 @@ export type ProviderDetailData = {
   updatedAt?: string;
   accountEmail?: string;
   planText?: string;
+  source?: string;
+  requestedSource?: ProviderSourceMode;
+  presentationSchemaVersion?: number;
   sections: ProviderSection[];
 };

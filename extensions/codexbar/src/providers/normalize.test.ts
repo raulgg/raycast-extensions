@@ -29,6 +29,65 @@ const codexPayload = {
 } as const;
 
 describe("provider normalization", () => {
+  it("prefers canonical GUI presentation meters over legacy provider windows", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "claude",
+        source: "oauth",
+        presentation: {
+          schemaVersion: 1,
+          meters: [
+            {
+              id: "primary",
+              kind: "primary",
+              label: "Session",
+              usedPercent: 15,
+              remainingPercent: 85,
+              windowMinutes: 300,
+              resetsAt: "2026-03-23T12:00:00Z",
+            },
+            {
+              id: "extra:claude-routines",
+              kind: "supplemental",
+              label: "Daily Routines",
+              usedPercent: 30,
+              remainingPercent: 70,
+              windowMinutes: 10_080,
+              resetsAt: "2026-03-30T10:30:00Z",
+            },
+          ],
+        },
+        usage: {
+          primary: { usedPercent: 99 },
+          secondary: { usedPercent: 99 },
+        },
+      },
+      "claude",
+      Date.parse("2026-03-23T10:30:00Z"),
+    );
+
+    expect(detail.source).toBe("oauth");
+    expect(detail.presentationSchemaVersion).toBe(1);
+    expect(detail.sections).toMatchObject([
+      { kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 85, resetsIn: "1h 30m" },
+      { kind: "supplementalUsage", title: "Daily Routines", remainingPercent: 70, resetsIn: "7d" },
+    ]);
+    expect(detail.sections).toHaveLength(2);
+  });
+
+  it("treats an empty canonical meter list as authoritative", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "codex",
+        presentation: { schemaVersion: 1, meters: [] },
+        usage: { primary: { usedPercent: 20 } },
+      },
+      "codex",
+    );
+
+    expect(detail.sections).toEqual([]);
+  });
+
   it("normalizes generic provider detail sections", () => {
     const now = Date.parse("2026-03-23T10:30:00Z");
     const detail = normalizeProviderDetailPayload(codexPayload, "codex", now);
