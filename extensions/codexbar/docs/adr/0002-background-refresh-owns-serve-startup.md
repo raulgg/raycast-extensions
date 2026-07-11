@@ -4,7 +4,7 @@ The CodexBar CLI has two runtime shapes: one-shot `usage` commands and long-live
 
 The foreground Usage Overview must not secretly start a long-lived process. Opening a view command should feel like a read and refresh operation, not a daemon manager. Raycast background commands are a better ownership boundary because users can enable or disable them through Raycast's native command settings.
 
-Decision: the `refresh-usage-cache` `no-view` command runs on Raycast's scheduled interval. It checks whether the CodexBar serve daemon is healthy on the extension's localhost port; if not, it starts `codexbar serve` with a conservative 10-minute response cache TTL, then refreshes configured Provider details into the shared provider-detail cache. The Usage Overview may read from an already-healthy serve daemon, but if serve is missing or stale it falls back to the one-shot CLI path and does not start serve. Opening the Usage Overview manually forces one fresh one-shot usage fetch per provider for that command instance, even if the background cache is still inside the 10-minute freshness window. User-triggered Refresh actions also bypass serve so an explicit refresh is not hidden behind the longer automatic TTL.
+Decision: the `refresh-usage-cache` `no-view` command runs on Raycast's scheduled interval. It checks whether the CodexBar serve daemon is healthy on the extension's localhost port; if not, it starts `codexbar serve` with a conservative 10-minute response cache TTL, then refreshes configured Provider details into the shared provider-detail cache. Usage Overview renders that cache immediately, then force-revalidates every configured Provider with bounded concurrency whenever the command opens. A user-triggered Refresh uses the same negotiated serve `refresh=true` capability so it bypasses response TTL while retaining warm helper processes; older daemons fall back to a fresh one-shot CLI command. The foreground never starts serve.
 
 The background command does not try to kill serve when scheduling is disabled. Raycast does not expose a reliable disable hook, and a running serve process might have been started by the user, the CodexBar app, or another tool. We accept that an extension-started serve process can remain alive until the user stops it or restarts the machine.
 
@@ -12,6 +12,6 @@ Consequences:
 
 - Daemon startup is provider-agnostic and tied to Raycast's background refresh, not to Codex-specific data quirks.
 - The visible command stays predictable: it can use warm data, but it does not create background work.
-- Cached detail writes must be quality-aware so a poorer refresh payload does not replace a richer cached payload.
+- Every successful GUI-profile response is authoritative and replaces the prior meter set; failures retain last-good data.
 - Existing serve processes keep the interval they were started with. Restart Raycast, stop the process, or reboot to apply a new serve interval after an extension update.
 - Serve shutdown is intentionally out of scope until Raycast exposes a reliable lifecycle hook or the extension adds an explicit user-facing stop command.

@@ -81,7 +81,7 @@ _Avoid_: Enabled provider, active provider
 The CodexBar config file (`~/.codexbar/config.json`), owned by the CodexBar app, listing which Providers are enabled and in what order. The extension reads and reorders it but treats the app as the owner.
 
 **Source**:
-How the CodexBar CLI acquires a Provider's usage — API, browser session (web), OAuth, local file, or CLI. Upstream categorizes Providers by source; this extension requests `auto`. (Not currently surfaced — the Source row lived in the now-removed General section.)
+How the CodexBar CLI acquires a Provider's usage — API, browser session (web), OAuth, local file, or CLI. The extension forwards the Provider's shared-config source and requests the upstream GUI-parity fetch profile when the installed CLI supports it. (Not currently surfaced — the Source row lived in the now-removed General section.)
 
 **Provider id alias**:
 An alternate spelling the CLI accepts for a Provider id (its `cliName` or upstream aliases, e.g. `alibaba-coding-plan` → `alibaba`, `groqcloud` → `groq`). The registry resolves aliases to the canonical id (the upstream enum case name, which is what the config file and payloads use) so a config listing either spelling renders one row.

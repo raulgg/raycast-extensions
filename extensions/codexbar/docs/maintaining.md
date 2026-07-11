@@ -100,8 +100,8 @@ These surprise people. Each has an ADR with the full reasoning; the short versio
   `~/.codexbar/config.json` directly (no CLI command exists). Both live in `providerConfig.ts` and are
   serialized in the UI so they can't clobber each other's read-modify-write. → **ADR-0001 / ADR-0004**.
 - **The two caches never merge.** Serve-sourced usage writes carry no status and must not clobber a
-  cached status (nor the reverse). A poorer refresh payload must not replace a richer cached one
-  (quality-aware writes). → **ADR-0003**.
+  cached status (nor the reverse). Successful usage payloads replace atomically; fetch failures keep
+  the last successful usage snapshot. → **ADR-0003 / ADR-0005**.
 
 ## Working with mock data
 
