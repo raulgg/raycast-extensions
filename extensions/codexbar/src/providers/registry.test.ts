@@ -168,6 +168,7 @@ describe("provider registry", () => {
     expect(getProviderMetadata("codex").dashboardUrl).toBe("https://chatgpt.com/codex/settings/usage");
     expect(getProviderMetadata("claude").dashboardUrl).toBe("https://console.anthropic.com/settings/billing");
     expect(getProviderMetadata("cursor").dashboardUrl).toBe("https://cursor.com/dashboard?tab=usage");
+    expect(getProviderMetadata("kimik2").dashboardUrl).toBe("https://kimrel.com/my-credits");
   });
 
   it("omits dashboardUrl for providers where upstream has no dashboard", () => {

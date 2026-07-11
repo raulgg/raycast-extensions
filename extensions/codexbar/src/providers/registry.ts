@@ -180,6 +180,7 @@ const PROVIDER_DEFINITIONS = {
     icon: Icon.Circle,
     brandColor: "#4C00FF",
     usageSectionLabels: { primary: "Credits", secondary: "Credits" },
+    dashboardUrl: "https://kimrel.com/my-credits",
   },
   amp: {
     name: "Amp",
