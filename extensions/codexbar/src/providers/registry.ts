@@ -460,6 +460,14 @@ const PROVIDER_DEFINITIONS = {
     usageSectionLabels: { primary: "Monthly budget", secondary: "Requests" },
     dashboardUrl: "https://clawrouter.openclaw.ai/dashboard/access",
   },
+  wayfinder: {
+    name: "Wayfinder",
+    icon: providerIcon("wayfinder", Icon.Globe),
+    brandColor: "#10A37F",
+    usageSectionLabels: { primary: "Savings", secondary: "Requests" },
+    // Default gateway dashboard (WayfinderSettingsReader.dashboardURL with empty env).
+    dashboardUrl: "http://127.0.0.1:8088/router",
+  },
 } satisfies Record<string, ProviderDefinition>;
 
 // Alternate spellings the CLI accepts (cliName + aliases from upstream
@@ -503,6 +511,7 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   "chutes.ai": "chutes",
   cm: "crossmodel",
   "claw-router": "clawrouter",
+  "wayfinder-router": "wayfinder",
 };
 
 export function resolveProviderId(id: string): string {

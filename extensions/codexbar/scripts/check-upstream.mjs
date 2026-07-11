@@ -87,6 +87,13 @@ const ALLOWED_DIVERGENCES = {
       reason: "upstream computes the URL per site; ours is the resolved .international constant",
     },
   },
+  wayfinder: {
+    dashboardUrl: {
+      ours: "http://127.0.0.1:8088/router",
+      upstream: "expr:WayfinderSettingsReader.dashboardURL(environment: [:]).absoluteString",
+      reason: "upstream builds dashboard from WAYFINDER_GATEWAY_URL; ours is the empty-env default (http://127.0.0.1:8088/router)",
+    },
+  },
 };
 
 async function main() {

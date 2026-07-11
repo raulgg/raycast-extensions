@@ -66,6 +66,7 @@ describe("provider registry", () => {
       "chutes",
       "crossmodel",
       "clawrouter",
+      "wayfinder",
     ];
 
     for (const providerId of upstreamEnumIds) {
@@ -91,6 +92,7 @@ describe("provider registry", () => {
     expect(resolveProviderId("chutes.ai")).toBe("chutes");
     expect(resolveProviderId("cm")).toBe("crossmodel");
     expect(resolveProviderId("claw-router")).toBe("clawrouter");
+    expect(resolveProviderId("wayfinder-router")).toBe("wayfinder");
   });
 
   it("uses harvested upstream metadata for new providers", () => {
@@ -153,6 +155,12 @@ describe("provider registry", () => {
       name: "ClawRouter",
       brandColor: "#596EF6",
       usageSectionLabels: { primary: "Monthly budget", secondary: "Requests" },
+    });
+    expect(getProviderMetadata("wayfinder")).toMatchObject({
+      name: "Wayfinder",
+      brandColor: "#10A37F",
+      usageSectionLabels: { primary: "Savings", secondary: "Requests" },
+      dashboardUrl: "http://127.0.0.1:8088/router",
     });
   });
 
