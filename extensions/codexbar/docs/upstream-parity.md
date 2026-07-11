@@ -196,6 +196,13 @@ Upstream also draws something on the primary bar for `abacus` (billing-cycle pac
 (billing-cycle pace), and `synthetic` (rolling-regen detail). These are **separate code paths**, not
 the session-pace whitelist. Treat each as its own parity task if it comes up.
 
+## Codex-only raw projection — weekly caps session
+
+On the **raw** usage path (no `presentation.schemaVersion === 1` meters), Codex applies the app's
+`CodexConsumerProjection.weeklyCapsSession` rule in `normalize.ts`: when weekly remaining is 0 and
+still binding, Primary is forced to 0% remaining and its reset is retargeted via `bindingReset`.
+Presentation meters stay authoritative (ADR-0005) — the cap is not re-applied on that path.
+
 ## Surface 5 — Supplemental usage shapes (hand-maintained)
 
 Beyond Primary/Secondary/Tertiary, upstream models a long list of provider-specific meters. We map a

@@ -308,9 +308,101 @@ function resolveSlotDisplayTitle(
   return getProviderUsageSectionDisplayTitle(providerId, slotTitle);
 }
 
+// CodexConsumerProjection.weeklyCapsSession: weekly is the binding cap while remaining
+// is 0 and the weekly reset is still in the future (or unknown).
+function codexWeeklyCapsSession(
+  weeklyRemainingPercent: number,
+  weeklyResetsAt: string | undefined,
+  now: number,
+): boolean {
+  if (weeklyRemainingPercent > 0) {
+    return false;
+  }
+
+  if (!weeklyResetsAt) {
+    return true;
+  }
+
+  const resetMs = Date.parse(weeklyResetsAt);
+  if (Number.isNaN(resetMs)) {
+    return true;
+  }
+
+  return resetMs > now;
+}
+
+// CodexConsumerProjection.bindingReset: when session still has headroom, retarget to
+// weekly's reset; when both are exhausted, prefer the later of the two known resets.
+function codexBindingResetsAt(
+  sessionRemainingPercent: number,
+  sessionResetsAt: string | undefined,
+  weeklyResetsAt: string | undefined,
+  now: number,
+): string | undefined {
+  const sessionResetMs = sessionResetsAt ? Date.parse(sessionResetsAt) : Number.NaN;
+  const sessionResetFuture =
+    !sessionResetsAt || Number.isNaN(sessionResetMs) ? true : sessionResetMs > now;
+  const sessionIsExhausted = sessionRemainingPercent <= 0 && sessionResetFuture;
+
+  if (!sessionIsExhausted) {
+    return weeklyResetsAt;
+  }
+
+  if (!sessionResetsAt || !weeklyResetsAt) {
+    return undefined;
+  }
+
+  const weeklyResetMs = Date.parse(weeklyResetsAt);
+  if (Number.isNaN(sessionResetMs) || Number.isNaN(weeklyResetMs)) {
+    return undefined;
+  }
+
+  return sessionResetMs > weeklyResetMs ? sessionResetsAt : weeklyResetsAt;
+}
+
+function applyCodexWeeklySessionCap(
+  sections: ProviderSection[],
+  resetsAtByTitle: Partial<Record<"Primary" | "Secondary", string | undefined>>,
+  now: number,
+): ProviderSection[] {
+  const primaryIndex = sections.findIndex((section) => section.kind === "usage" && section.title === "Primary");
+  const secondaryIndex = sections.findIndex((section) => section.kind === "usage" && section.title === "Secondary");
+  if (primaryIndex < 0 || secondaryIndex < 0) {
+    return sections;
+  }
+
+  const primary = sections[primaryIndex];
+  const secondary = sections[secondaryIndex];
+  if (primary.kind !== "usage" || secondary.kind !== "usage") {
+    return sections;
+  }
+
+  const weeklyResetsAt = resetsAtByTitle.Secondary;
+  if (!codexWeeklyCapsSession(secondary.remainingPercent, weeklyResetsAt, now)) {
+    return sections;
+  }
+
+  const bindingResetsAt = codexBindingResetsAt(
+    primary.remainingPercent,
+    resetsAtByTitle.Primary,
+    weeklyResetsAt,
+    now,
+  );
+
+  const next = sections.slice();
+  next[primaryIndex] = {
+    ...primary,
+    remainingPercent: 0,
+    resetsIn: bindingResetsAt ? formatCountdown(bindingResetsAt, now) : undefined,
+    usagePacing: undefined,
+  };
+  return next;
+}
+
 function buildUsageSections(providerId: string, payload: RawProviderPayload, now = Date.now()): ProviderSection[] {
   const usage = toRecord(payload.usage);
   const sections: ProviderSection[] = [];
+  const resetsAtByTitle: Partial<Record<"Primary" | "Secondary", string | undefined>> = {};
   const slotFallbacks = [
     {
       title: "Primary" as const,
@@ -346,6 +438,9 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
     if (progressPercent !== undefined) {
       const resolvedUsedPercent = usedPercent ?? Math.max(0, 100 - progressPercent);
       const resolvedResetsAt = toString(record.resetsAt) ?? slot.resetTimestamp;
+      if (slot.title === "Primary" || slot.title === "Secondary") {
+        resetsAtByTitle[slot.title] = resolvedResetsAt;
+      }
       const usagePacing = resolvedResetsAt
         ? computeSlotUsagePacing(
             providerId,
@@ -375,6 +470,11 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
         nextRegenPercent: toFiniteNumber(record.nextRegenPercent),
       });
     }
+  }
+
+  // Raw path only (presentation meters never call this). Codex weekly-empty caps session.
+  if (providerId === "codex") {
+    return applyCodexWeeklySessionCap(sections, resetsAtByTitle, now);
   }
 
   return sections;

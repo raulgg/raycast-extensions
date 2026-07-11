@@ -640,6 +640,159 @@ describe("provider normalization", () => {
   });
 });
 
+describe("Codex weekly caps session (raw path)", () => {
+  // Mirrors CodexConsumerProjectionTests: exhausted weekly is the binding cap.
+  const NOW = Date.parse("2026-03-23T10:30:00Z");
+  const SESSION_RESETS_AT = "2026-03-23T13:30:00Z"; // 3h out
+  const WEEKLY_RESETS_AT = "2026-03-27T10:30:00Z"; // 4d out
+  const WEEKLY_RESET_PAST = "2026-03-23T09:00:00Z";
+
+  function sections(
+    provider: string,
+    usage: Record<string, unknown>,
+    presentation?: Record<string, unknown>,
+  ) {
+    return normalizeProviderDetailPayload(
+      { provider, usage, ...(presentation ? { presentation } : {}) },
+      provider,
+      NOW,
+    ).sections;
+  }
+
+  it("caps Primary to 0% and retargets reset to weekly when weekly is exhausted with a future reset", () => {
+    const result = sections("codex", {
+      primary: { windowMinutes: 300, usedPercent: 1, resetsAt: SESSION_RESETS_AT },
+      secondary: { windowMinutes: 10_080, usedPercent: 157, resetsAt: WEEKLY_RESETS_AT },
+    });
+
+    expect(result).toMatchObject([
+      {
+        kind: "usage",
+        title: "Primary",
+        remainingPercent: 0,
+        resetsIn: "4d",
+      },
+      {
+        kind: "usage",
+        title: "Secondary",
+        remainingPercent: 0,
+        resetsIn: "4d",
+      },
+    ]);
+    expect(result[0].kind === "usage" && result[0].usagePacing).toBeUndefined();
+  });
+
+  it("still caps session when weekly is exhausted with no resetsAt", () => {
+    const result = sections("codex", {
+      primary: { windowMinutes: 300, usedPercent: 1, resetsAt: SESSION_RESETS_AT },
+      secondary: { windowMinutes: 10_080, usedPercent: 100 },
+    });
+
+    expect(result[0]).toMatchObject({
+      kind: "usage",
+      title: "Primary",
+      remainingPercent: 0,
+    });
+    expect(result[0].kind === "usage" ? result[0].resetsIn : undefined).toBeUndefined();
+  });
+
+  it("does not cap session when the weekly reset is already past", () => {
+    const result = sections("codex", {
+      primary: { windowMinutes: 300, usedPercent: 1, resetsAt: SESSION_RESETS_AT },
+      secondary: { windowMinutes: 10_080, usedPercent: 100, resetsAt: WEEKLY_RESET_PAST },
+    });
+
+    expect(result[0]).toMatchObject({
+      kind: "usage",
+      title: "Primary",
+      remainingPercent: 99,
+      resetsIn: "3h",
+    });
+  });
+
+  it("leaves session unchanged when weekly still has remaining", () => {
+    const result = sections("codex", {
+      primary: { windowMinutes: 300, usedPercent: 1, resetsAt: SESSION_RESETS_AT },
+      secondary: { windowMinutes: 10_080, usedPercent: 12, resetsAt: WEEKLY_RESETS_AT },
+    });
+
+    expect(result[0]).toMatchObject({
+      kind: "usage",
+      title: "Primary",
+      remainingPercent: 99,
+      resetsIn: "3h",
+    });
+  });
+
+  it("does not apply the cap to non-codex providers with the same numbers", () => {
+    const result = sections("claude", {
+      primary: { windowMinutes: 300, usedPercent: 1, resetsAt: SESSION_RESETS_AT },
+      secondary: { windowMinutes: 10_080, usedPercent: 157, resetsAt: WEEKLY_RESETS_AT },
+    });
+
+    expect(result[0]).toMatchObject({
+      kind: "usage",
+      title: "Primary",
+      remainingPercent: 99,
+      resetsIn: "3h",
+    });
+  });
+
+  it("does not re-apply the cap when presentation meters are authoritative", () => {
+    const result = sections(
+      "codex",
+      {
+        primary: { windowMinutes: 300, usedPercent: 1, resetsAt: SESSION_RESETS_AT },
+        secondary: { windowMinutes: 10_080, usedPercent: 157, resetsAt: WEEKLY_RESETS_AT },
+      },
+      {
+        schemaVersion: 1,
+        meters: [
+          {
+            id: "primary",
+            kind: "primary",
+            label: "Session",
+            usedPercent: 1,
+            remainingPercent: 99,
+            windowMinutes: 300,
+            resetsAt: SESSION_RESETS_AT,
+          },
+          {
+            id: "secondary",
+            kind: "secondary",
+            label: "Weekly",
+            usedPercent: 100,
+            remainingPercent: 0,
+            windowMinutes: 10_080,
+            resetsAt: WEEKLY_RESETS_AT,
+          },
+        ],
+      },
+    );
+
+    expect(result).toMatchObject([
+      { kind: "usage", title: "Primary", remainingPercent: 99, resetsIn: "3h" },
+      { kind: "usage", title: "Secondary", remainingPercent: 0, resetsIn: "4d" },
+    ]);
+  });
+
+  it("when both lanes are exhausted, retargets Primary reset to the later of the two", () => {
+    const sessionLater = "2026-03-23T14:30:00Z"; // 4h out
+    const weeklySooner = "2026-03-23T11:30:00Z"; // 1h out
+    const result = sections("codex", {
+      primary: { windowMinutes: 300, usedPercent: 100, resetsAt: sessionLater },
+      secondary: { windowMinutes: 10_080, usedPercent: 100, resetsAt: weeklySooner },
+    });
+
+    expect(result[0]).toMatchObject({
+      kind: "usage",
+      title: "Primary",
+      remainingPercent: 0,
+      resetsIn: "4h",
+    });
+  });
+});
+
 describe("usage pacing gating", () => {
   const NOW = Date.parse("2026-03-23T10:30:00Z");
   // Session window resets 2.5h out (inside the 5h session cadence).
