@@ -159,12 +159,13 @@ const SESSION_PACE_DEFAULT_WINDOW_MINUTES = 300;
 const WEEKLY_PACE_DEFAULT_WINDOW_MINUTES = 10_080;
 
 // Session (primary) pace is a hand-maintained whitelist, mirroring upstream
-// UsagePaceText.sessionPace(provider:): only codex, claude, and ollama get a
-// marker on the session bar. codex/claude fall back to the 300-min default when
-// the payload omits windowMinutes; ollama only paces when windowMinutes is
-// explicit. It is a rule, not registry data — no property of the payload tells
-// you a provider qualifies.
-const SESSION_PACE_PROVIDER_IDS = new Set(["codex", "claude", "ollama"]);
+// UsagePaceText.sessionPace(provider:): only codex, claude, ollama, and
+// antigravity get a marker on the session bar. codex/claude fall back to the
+// 300-min default when the payload omits windowMinutes; ollama only paces when
+// windowMinutes is explicit; antigravity paces when windowMinutes is omitted or
+// exactly 300 (rejecting other explicit window lengths). It is a rule, not
+// registry data — no property of the payload tells you a provider qualifies.
+const SESSION_PACE_PROVIDER_IDS = new Set(["codex", "claude", "ollama", "antigravity"]);
 const SESSION_PACE_EXPLICIT_WINDOW_PROVIDER_IDS = new Set(["ollama"]);
 
 type UsagePacingInput = {
@@ -184,6 +185,16 @@ function computeSessionUsagePacing(
   }
 
   if (SESSION_PACE_EXPLICIT_WINDOW_PROVIDER_IDS.has(providerId) && input.windowMinutes === undefined) {
+    return undefined;
+  }
+
+  // Upstream: if provider == .antigravity, let windowMinutes = window.windowMinutes,
+  // windowMinutes != 300 { return nil } — only reject when defined and not 300.
+  if (
+    providerId === "antigravity" &&
+    input.windowMinutes !== undefined &&
+    input.windowMinutes !== SESSION_PACE_DEFAULT_WINDOW_MINUTES
+  ) {
     return undefined;
   }
 

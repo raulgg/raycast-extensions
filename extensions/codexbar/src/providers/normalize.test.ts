@@ -639,6 +639,23 @@ describe("usage pacing gating", () => {
     expect(withWindow.usagePacing).toMatchObject({ context: "session" });
   });
 
+  it("paces the antigravity session window when windowMinutes is omitted or exactly 300", () => {
+    const [withoutWindow] = pace("antigravity", { primary: { usedPercent: 60, resetsAt: SESSION_RESETS_AT } });
+    expect(withoutWindow.usagePacing).toMatchObject({ stage: "over", context: "session" });
+
+    const [withSessionWindow] = pace("antigravity", {
+      primary: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
+    });
+    expect(withSessionWindow.usagePacing).toMatchObject({ stage: "over", context: "session" });
+  });
+
+  it("does not pace the antigravity session window when windowMinutes is present and not 300", () => {
+    const [primary] = pace("antigravity", {
+      primary: { windowMinutes: 10_080, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
+    });
+    expect(primary.usagePacing).toBeUndefined();
+  });
+
   it("never paces the session window for providers outside the whitelist", () => {
     const [primary] = pace("cursor", {
       primary: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
