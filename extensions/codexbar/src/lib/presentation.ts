@@ -14,6 +14,12 @@ import {
   wrapText,
 } from "./detailMarkdown";
 
+export function formatPercentRemaining(value: number): string {
+  const clamped = Math.max(0, Math.min(100, value));
+  if (clamped > 0 && clamped < 1) return "<1%";
+  return `${Math.round(clamped)}%`;
+}
+
 export function formatLocalDateTime(
   isoTimestamp?: string,
   locale?: Intl.LocalesArgument,

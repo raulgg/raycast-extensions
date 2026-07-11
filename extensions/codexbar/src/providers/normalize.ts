@@ -65,7 +65,7 @@ function formatCurrency(value: number, currencyCode: string): string {
 }
 
 function clampPercent(value: number): number {
-  return Math.max(0, Math.min(100, Math.round(value)));
+  return Math.max(0, Math.min(100, value));
 }
 
 function normalizePercentFromFraction(value: number): number | undefined {
@@ -74,11 +74,11 @@ function normalizePercentFromFraction(value: number): number | undefined {
   }
 
   if (value >= 0 && value <= 1) {
-    return Math.round(value * 100);
+    return value * 100;
   }
 
   if (value >= 0 && value <= 100) {
-    return Math.round(value);
+    return value;
   }
 
   return undefined;
@@ -342,7 +342,7 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
     const record = slot.record ?? {};
     const usedPercent = toFiniteNumber(record.usedPercent);
     const progressPercent =
-      slot.remainingPercent ?? (usedPercent !== undefined ? Math.max(0, Math.round(100 - usedPercent)) : undefined);
+      slot.remainingPercent ?? (usedPercent !== undefined ? Math.max(0, 100 - usedPercent) : undefined);
     if (progressPercent !== undefined) {
       const resolvedUsedPercent = usedPercent ?? Math.max(0, 100 - progressPercent);
       const resolvedResetsAt = toString(record.resetsAt) ?? slot.resetTimestamp;

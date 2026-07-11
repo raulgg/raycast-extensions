@@ -1,4 +1,4 @@
-import { formatRelativeUpdateTime } from "../lib/presentation";
+import { formatPercentRemaining, formatRelativeUpdateTime } from "../lib/presentation";
 import { buildSvgProgressBar, buildSvgRect, buildSvgWarningIcon } from "../lib/svg";
 import { formatUsagePacingLabels } from "./usagePacing";
 import { getProviderProgressPalette } from "./registry";
@@ -87,10 +87,6 @@ const STATUS_FOOTER_ICON_FILL: Record<DetailAppearance, string> = {
   light: "#F59E0B",
   dark: "#FBBF24",
 };
-
-function formatPercent(value: number): string {
-  return `${Math.max(0, Math.min(100, Math.round(value)))}%`;
-}
 
 function getHeaderSubtitle(updatedAt?: string, now?: number): string | undefined {
   const formatted = formatRelativeUpdateTime(updatedAt, { now });
@@ -323,12 +319,12 @@ function renderMetricSection(
     section.remainingPercent,
     [
       {
-        left: `${formatPercent(section.remainingPercent)} left`,
+        left: `${formatPercentRemaining(section.remainingPercent)} left`,
         right: section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
       },
       ...(usagePacingFooter ? [{ left: usagePacingFooter.leftLabel, right: usagePacingFooter.rightLabel }] : []),
       ...(section.nextRegenPercent !== undefined
-        ? [{ left: `Regenerates ${formatPercent(section.nextRegenPercent)} next tick` }]
+        ? [{ left: `Regenerates ${formatPercentRemaining(section.nextRegenPercent)} next tick` }]
         : []),
     ],
     providerId,

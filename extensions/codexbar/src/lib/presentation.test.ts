@@ -2,12 +2,25 @@ import { describe, expect, it } from "vitest";
 import {
   buildProviderErrorMarkdown,
   formatLocalDateTime,
+  formatPercentRemaining,
   formatRelativeUpdateTime,
   getRelativeUpdateTimeRefreshDelay,
 } from "./presentation";
 import { extractSvgMarkup } from "../../test/svg-markdown";
 
 describe("presentation helpers", () => {
+  it("formats remaining percent like upstream UsageFormatter.percentString", () => {
+    expect(formatPercentRemaining(0)).toBe("0%");
+    expect(formatPercentRemaining(0.1)).toBe("<1%");
+    expect(formatPercentRemaining(0.4)).toBe("<1%");
+    expect(formatPercentRemaining(0.6)).toBe("<1%");
+    expect(formatPercentRemaining(0.96)).toBe("<1%");
+    expect(formatPercentRemaining(1)).toBe("1%");
+    expect(formatPercentRemaining(99.4)).toBe("99%");
+    expect(formatPercentRemaining(-1)).toBe("0%");
+    expect(formatPercentRemaining(101)).toBe("100%");
+  });
+
   it("formats timestamps as compact local datetimes", () => {
     expect(formatLocalDateTime("2026-04-05T15:11:00.000Z", "en-US", "UTC")).toBe("Apr 5, 2026, 3:11 PM");
   });

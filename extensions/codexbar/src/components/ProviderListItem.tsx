@@ -1,6 +1,7 @@
 import { Action, ActionPanel, Icon, List } from "@raycast/api";
 import type { ProviderDetailCacheStatus } from "../lib/providerDetailCache";
 import type { ConfiguredProvider, ProviderDetailData, ProviderStatus, ProviderUsageSection } from "../providers/types";
+import { formatPercentRemaining } from "../lib/presentation";
 import { buildTwoBarAccessoryIcon } from "../lib/twoBarAccessoryIcon";
 import { getProviderMetadata, resolveDashboardUrl } from "../providers/registry";
 import type { ResolvedCodexBarBinary } from "../lib/codexbar";
@@ -120,16 +121,16 @@ export function buildProviderListItemAccessories(
   const primaryUsage = getPrimaryUsageSection(detail);
   if (primaryUsage) {
     const secondaryUsage = getUsageSection(detail, "Secondary");
-    const primaryRemainingPercent = Math.round(primaryUsage.remainingPercent);
-    const secondaryRemainingPercent = secondaryUsage ? Math.round(secondaryUsage.remainingPercent) : undefined;
+    const primaryRemainingText = formatPercentRemaining(primaryUsage.remainingPercent);
+    const secondaryRemainingText = secondaryUsage ? formatPercentRemaining(secondaryUsage.remainingPercent) : undefined;
     const text =
-      secondaryRemainingPercent === undefined
-        ? `${primaryRemainingPercent}%`
-        : `${primaryRemainingPercent}% • ${secondaryRemainingPercent}%`;
+      secondaryRemainingText === undefined
+        ? primaryRemainingText
+        : `${primaryRemainingText} • ${secondaryRemainingText}`;
     const tooltip =
       secondaryUsage === undefined
-        ? `${primaryUsage.displayTitle}: ${primaryRemainingPercent}% remaining`
-        : `${primaryUsage.displayTitle}: ${primaryRemainingPercent}% remaining • ${secondaryUsage.displayTitle}: ${secondaryRemainingPercent}% remaining`;
+        ? `${primaryUsage.displayTitle}: ${primaryRemainingText} remaining`
+        : `${primaryUsage.displayTitle}: ${primaryRemainingText} remaining • ${secondaryUsage.displayTitle}: ${secondaryRemainingText} remaining`;
 
     return [
       {
@@ -137,7 +138,7 @@ export function buildProviderListItemAccessories(
         tooltip,
       },
       {
-        icon: buildTwoBarAccessoryIcon(providerId, primaryRemainingPercent, secondaryRemainingPercent),
+        icon: buildTwoBarAccessoryIcon(providerId, primaryUsage.remainingPercent, secondaryUsage?.remainingPercent),
         tooltip,
       },
     ];

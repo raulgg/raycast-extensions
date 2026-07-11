@@ -196,6 +196,27 @@ describe("ProviderListItem", () => {
     });
   });
 
+  it("shows sub-1% remaining as <1% in list text and tooltip", () => {
+    const accessories = buildProviderListItemAccessories("codex", makeDetail(0.4, 42), undefined, false);
+
+    expect(accessories).toHaveLength(2);
+    expect(accessories?.[0]).toEqual({
+      text: "<1% • 42%",
+      tooltip: "Session: <1% remaining • Weekly: 42% remaining",
+    });
+    expect(accessories?.[1]?.tooltip).toBe("Session: <1% remaining • Weekly: 42% remaining");
+  });
+
+  it("shows a lone sub-1% primary remaining as <1%", () => {
+    const accessories = buildProviderListItemAccessories("codex", makeDetail(0.96), undefined, false);
+
+    expect(accessories).toHaveLength(2);
+    expect(accessories?.[0]).toEqual({
+      text: "<1%",
+      tooltip: "Session: <1% remaining",
+    });
+  });
+
   it("keeps fresh cached usage visible while provider detail refreshes", () => {
     const accessories = buildProviderListItemAccessories("codex", makeDetail(82, 41), undefined, true, "fresh");
 

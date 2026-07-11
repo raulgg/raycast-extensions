@@ -88,6 +88,38 @@ describe("provider normalization", () => {
     expect(detail.sections).toEqual([]);
   });
 
+  it("preserves fractional remaining percent through normalize", () => {
+    const fromUsed = normalizeProviderDetailPayload(
+      {
+        provider: "codex",
+        usage: {
+          primary: { usedPercent: 99.5 },
+          secondary: { usedPercent: 58 },
+        },
+      },
+      "codex",
+    );
+    expect(fromUsed.sections[0]).toMatchObject({ kind: "usage", title: "Primary", remainingPercent: 0.5 });
+
+    const fromExplicit = normalizeProviderDetailPayload(
+      {
+        provider: "claude",
+        sessionPercentLeft: 0.4,
+      },
+      "claude",
+    );
+    expect(fromExplicit.sections[0]).toMatchObject({ kind: "usage", title: "Primary", remainingPercent: 0.4 });
+
+    const fromFraction = normalizeProviderDetailPayload(
+      {
+        provider: "claude",
+        remainingFraction: 0.004,
+      },
+      "claude",
+    );
+    expect(fromFraction.sections[0]).toMatchObject({ kind: "usage", title: "Primary", remainingPercent: 0.4 });
+  });
+
   it("normalizes generic provider detail sections", () => {
     const now = Date.parse("2026-03-23T10:30:00Z");
     const detail = normalizeProviderDetailPayload(codexPayload, "codex", now);
