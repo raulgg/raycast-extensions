@@ -34,9 +34,7 @@ export function UsageList() {
     [configuredProviders.providers, selectedProviderId],
   );
 
-  const providerDetails = useProviderDetails(binary, configuredProviders.providers, selectedProviderId, {
-    forceInitialRefresh: true,
-  });
+  const providerDetails = useProviderDetails(binary, configuredProviders.providers, selectedProviderId);
   const { isLoading: isProviderDetailLoading, refreshProvider, results: providerDetailResults } = providerDetails;
   const statusProviderIds = useMemo(
     () => configuredProviders.providers.map((provider) => provider.id),

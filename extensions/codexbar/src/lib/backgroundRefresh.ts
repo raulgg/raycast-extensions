@@ -1,6 +1,11 @@
 import { getMockConfiguredProviders, isCodexBarMockMode } from "../mocks/codexbar";
 import type { ConfiguredProvider } from "../providers/types";
-import { cacheProviderDetailIfRicher, runProviderDetailFetches } from "./providerDetailCache";
+import {
+  cacheProviderDetail,
+  recordProviderDetailFailure,
+  recordProviderDetailSuccess,
+  runProviderDetailFetches,
+} from "./providerDetailCache";
 import { cacheProviderStatus, readProviderStatus } from "./providerStatusCache";
 import {
   ensureCodexBarServe,
@@ -65,6 +70,7 @@ export async function refreshUsageCache(): Promise<UsageCacheRefreshResult> {
   }
 
   const providerIds = providers.map((provider) => provider.id).filter(Boolean);
+  const providersById = new Map(providers.map((provider) => [provider.id, provider]));
   if (providerIds.length === 0) {
     return {
       status: "completed",
@@ -83,28 +89,29 @@ export async function refreshUsageCache(): Promise<UsageCacheRefreshResult> {
       : false;
   const errors: UsageCacheRefreshError[] = [];
   let refreshedCount = 0;
-  let unchangedCount = 0;
+  const unchangedCount = 0;
 
   await runProviderDetailFetches({
     providerIds,
     concurrency: BACKGROUND_PROVIDER_DETAIL_CONCURRENCY,
     fetchProvider: async (providerId) => {
+      const provider = providersById.get(providerId);
+      if (!provider) return;
       try {
         const { detail, status } = await fetchProviderDetailAndStatusForBackground(
           availability.binary,
-          providerId,
+          provider,
           usedServe,
         );
-        if (cacheProviderDetailIfRicher(detail)) {
-          refreshedCount += 1;
-        } else {
-          unchangedCount += 1;
-        }
+        cacheProviderDetail(detail);
+        recordProviderDetailSuccess(providerId);
+        refreshedCount += 1;
         // Best effort only; never drop a prior cached status on miss.
         if (status) {
           cacheProviderStatus(providerId, status);
         }
       } catch (error) {
+        recordProviderDetailFailure(providerId);
         errors.push({ providerId, message: toErrorMessage(error) });
       }
     },
@@ -133,33 +140,37 @@ async function readBackgroundConfiguredProviders(binary: ResolvedCodexBarBinary)
 // refreshed only when the dedicated status cache is empty or past TTL.
 async function fetchProviderDetailAndStatusForBackground(
   binary: ResolvedCodexBarBinary,
-  providerId: string,
+  provider: ConfiguredProvider,
   preferServe: boolean,
 ): Promise<ProviderUsageWithStatus> {
+  const options = { source: provider.source, interaction: "background" as const };
   if (preferServe) {
     try {
-      const detail = await fetchProviderDetailFromServe(binary, providerId);
-      return attachStatusWhenStale(binary, providerId, detail);
+      const detail = await fetchProviderDetailFromServe(binary, provider.id, options);
+      return attachStatusWhenStale(binary, provider, detail);
     } catch {
-      return fetchProviderUsageWithStatusOrDetailOnly(binary, providerId);
+      return fetchProviderUsageWithStatusOrDetailOnly(binary, provider);
     }
   }
 
-  return fetchProviderUsageWithStatusOrDetailOnly(binary, providerId);
+  return fetchProviderUsageWithStatusOrDetailOnly(binary, provider);
 }
 
 // Keep serve-sourced detail primary; a failed status one-shot must not drop it.
 async function attachStatusWhenStale(
   binary: ResolvedCodexBarBinary,
-  providerId: string,
+  provider: ConfiguredProvider,
   detail: ProviderUsageWithStatus["detail"],
 ): Promise<ProviderUsageWithStatus> {
-  if (readProviderStatus(providerId)) {
+  if (readProviderStatus(provider.id)) {
     return { detail, status: undefined };
   }
 
   try {
-    const { status } = await fetchProviderUsageWithStatus(binary, providerId);
+    const { status } = await fetchProviderUsageWithStatus(binary, provider.id, {
+      source: provider.source,
+      interaction: "background",
+    });
     return { detail, status };
   } catch {
     return { detail, status: undefined };
@@ -169,12 +180,18 @@ async function attachStatusWhenStale(
 // Combined --status may fail on old CLIs; fall back to plain detail so status errors never drop usage.
 async function fetchProviderUsageWithStatusOrDetailOnly(
   binary: ResolvedCodexBarBinary,
-  providerId: string,
+  provider: ConfiguredProvider,
 ): Promise<ProviderUsageWithStatus> {
   try {
-    return await fetchProviderUsageWithStatus(binary, providerId);
+    return await fetchProviderUsageWithStatus(binary, provider.id, {
+      source: provider.source,
+      interaction: "background",
+    });
   } catch {
-    const detail = await fetchProviderDetailFromUsageCommand(binary, providerId);
+    const detail = await fetchProviderDetailFromUsageCommand(binary, provider.id, {
+      source: provider.source,
+      interaction: "background",
+    });
     return { detail, status: undefined };
   }
 }

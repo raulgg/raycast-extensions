@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   buildCachedProviderResults,
   cacheProviderDetail,
-  cacheProviderDetailIfRicher,
-  resolveProviderRefreshMode,
+  recordProviderDetailFailure,
+  recordProviderDetailSuccess,
   runProviderDetailFetches,
   shouldRefreshProviderAutomatically,
   shouldRefreshSelectedProvider,
-  shouldReplaceProviderDetail,
+  shouldSurfaceProviderDetailFailure,
 } from "./providerDetailCache";
 import type { ProviderDetailData, ProviderSection } from "../providers/types";
 
@@ -31,6 +31,7 @@ function makeDetail(providerId: string, fetchedAt: string, sections?: ProviderSe
 describe("providerDetailCache", () => {
   beforeEach(() => {
     new Cache({ namespace: "provider-details" }).clear();
+    new Cache({ namespace: "provider-detail-failures" }).clear();
   });
 
   it("caps concurrent provider fetches", async () => {
@@ -152,31 +153,7 @@ describe("providerDetailCache", () => {
     expect(shouldRefreshProviderAutomatically(result, undefined, 1, staleNow)).toBe(true);
   });
 
-  it("forces the first manual-open refresh even when cached detail is fresh", () => {
-    const now = Date.parse("2026-04-15T12:05:00Z");
-    const result = {
-      detail: makeDetail("claude", "2026-04-15T12:00:00Z"),
-      isLoading: false,
-    };
-
-    expect(
-      resolveProviderRefreshMode(result, undefined, 1, {
-        forceInitialRefresh: true,
-        forceInitialRefreshCompleted: false,
-        now,
-      }),
-    ).toBe("force");
-
-    expect(
-      resolveProviderRefreshMode(result, undefined, 1, {
-        forceInitialRefresh: true,
-        forceInitialRefreshCompleted: true,
-        now,
-      }),
-    ).toBeUndefined();
-  });
-
-  it("keeps richer current details over poorer refreshes for any provider", () => {
+  it("treats every successful detail response as authoritative", () => {
     const richDetail = makeDetail("claude", "2026-04-15T12:00:00Z", [
       {
         kind: "usage",
@@ -214,7 +191,18 @@ describe("providerDetailCache", () => {
       },
     ]);
 
-    expect(shouldReplaceProviderDetail(richDetail, poorDetail)).toBe(false);
+    cacheProviderDetail(richDetail);
+    cacheProviderDetail(poorDetail);
+    expect(buildCachedProviderResults(["claude"], Date.parse("2026-04-15T12:02:00Z"))).toMatchObject({
+      claude: {
+        detail: {
+          sections: [
+            { kind: "usage", title: "Primary" },
+            { kind: "usage", title: "Secondary" },
+          ],
+        },
+      },
+    });
   });
 
   it("accepts poorer refreshes when an existing usage value changed", () => {
@@ -242,7 +230,11 @@ describe("providerDetailCache", () => {
       },
     ]);
 
-    expect(shouldReplaceProviderDetail(richDetail, newerUsageDetail)).toBe(true);
+    cacheProviderDetail(richDetail);
+    cacheProviderDetail(newerUsageDetail);
+    expect(buildCachedProviderResults(["claude"], Date.parse("2026-04-15T12:02:00Z"))).toMatchObject({
+      claude: { detail: { sections: [{ remainingPercent: 55 }] } },
+    });
   });
 
   it("accepts equal or richer refreshes for any provider", () => {
@@ -270,10 +262,21 @@ describe("providerDetailCache", () => {
       },
     ]);
 
-    expect(shouldReplaceProviderDetail(currentDetail, richerDetail)).toBe(true);
+    cacheProviderDetail(currentDetail);
+    cacheProviderDetail(richerDetail);
+    expect(buildCachedProviderResults(["codex"], Date.parse("2026-04-15T12:02:00Z"))).toMatchObject({
+      codex: {
+        detail: {
+          sections: [
+            { kind: "usage", title: "Primary" },
+            { kind: "usage", title: "Secondary" },
+          ],
+        },
+      },
+    });
   });
 
-  it("does not overwrite richer cached details with poorer background refreshes", () => {
+  it("replaces richer cached details with a successful authoritative background refresh", () => {
     const now = Date.parse("2026-04-15T12:02:00Z");
     const richDetail = makeDetail("codex", "2026-04-15T12:00:00Z", [
       {
@@ -301,16 +304,25 @@ describe("providerDetailCache", () => {
 
     cacheProviderDetail(richDetail);
 
-    expect(cacheProviderDetailIfRicher(poorDetail, now)).toBe(false);
+    cacheProviderDetail(poorDetail);
     expect(buildCachedProviderResults(["codex"], now)).toMatchObject({
       codex: {
         detail: {
-          sections: [
-            { kind: "usage", title: "Primary", resetsIn: "2h" },
-            { kind: "supplementalUsage", title: "Codex Spark" },
-          ],
+          sections: [{ kind: "usage", title: "Primary" }],
         },
       },
     });
+  });
+
+  it("suppresses the first cached-data failure and surfaces the second", () => {
+    expect(shouldSurfaceProviderDetailFailure(true, recordProviderDetailFailure("claude"))).toBe(false);
+    expect(shouldSurfaceProviderDetailFailure(true, recordProviderDetailFailure("claude"))).toBe(true);
+
+    recordProviderDetailSuccess("claude");
+    expect(shouldSurfaceProviderDetailFailure(true, recordProviderDetailFailure("claude"))).toBe(false);
+  });
+
+  it("surfaces the first failure when no cached detail exists", () => {
+    expect(shouldSurfaceProviderDetailFailure(false, recordProviderDetailFailure("codex"))).toBe(true);
   });
 });

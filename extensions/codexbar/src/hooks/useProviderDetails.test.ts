@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   canApplyProviderFetchResult,
+  claimProviderOpenRefresh,
   preserveInFlightProviderResults,
   requestForceOnInFlightProviderFetch,
-  shouldApplyFetchedProviderDetail,
   shouldChainForceProviderFetch,
   type InFlightProviderFetch,
 } from "./useProviderDetails";
-import { shouldReplaceProviderDetail } from "../lib/providerDetailCache";
 import type { ProviderDetailData, ProviderSection } from "../providers/types";
 
 function makeDetail(providerId: string, fetchedAt: string, sections?: ProviderSection[]): ProviderDetailData {
@@ -27,6 +26,15 @@ function makeDetail(providerId: string, fetchedAt: string, sections?: ProviderSe
 }
 
 describe("useProviderDetails helpers", () => {
+  it("claims one forced refresh per provider source each time the command opens", () => {
+    const completedRefreshes = new Set<string>();
+
+    expect(claimProviderOpenRefresh(completedRefreshes, "binary\0claude\0auto")).toBe(true);
+    expect(claimProviderOpenRefresh(completedRefreshes, "binary\0claude\0auto")).toBe(false);
+    expect(claimProviderOpenRefresh(completedRefreshes, "binary\0claude\0web")).toBe(true);
+    expect(claimProviderOpenRefresh(new Set(), "binary\0claude\0auto")).toBe(true);
+  });
+
   it("preserves in-flight provider state across batch resets", () => {
     const inFlightFetches = new Map<string, InFlightProviderFetch>([
       ["claude", { binaryKey: "path\0codexbar", fetchId: 1, generation: 2, mode: "auto", forceRequested: false }],
@@ -129,42 +137,5 @@ describe("useProviderDetails helpers", () => {
     requestForceOnInFlightProviderFetch(inFlightFetch, true);
     expect(inFlightFetch.forceRequested).toBe(false);
     expect(shouldChainForceProviderFetch(inFlightFetch, 2)).toBe(false);
-  });
-
-  it("force success replaces even a lower-quality payload", () => {
-    const richDetail = makeDetail("claude", "2026-04-15T12:00:00Z", [
-      {
-        kind: "usage",
-        title: "Primary",
-        displayTitle: "Session",
-        remainingPercent: 82,
-        resetsIn: "2h",
-      },
-      {
-        kind: "usage",
-        title: "Secondary",
-        displayTitle: "Weekly",
-        remainingPercent: 76,
-        resetsIn: "4d",
-      },
-      {
-        kind: "supplementalUsage",
-        title: "Model",
-        remainingPercent: 91,
-        resetsIn: "4d",
-      },
-    ]);
-    const poorDetail = makeDetail("claude", "2026-04-15T12:01:00Z", [
-      {
-        kind: "usage",
-        title: "Primary",
-        displayTitle: "Session",
-        remainingPercent: 82,
-      },
-    ]);
-
-    expect(shouldReplaceProviderDetail(richDetail, poorDetail)).toBe(false);
-    expect(shouldApplyFetchedProviderDetail(richDetail, poorDetail)).toBe(false);
-    expect(shouldApplyFetchedProviderDetail(richDetail, poorDetail, { force: true })).toBe(true);
   });
 });

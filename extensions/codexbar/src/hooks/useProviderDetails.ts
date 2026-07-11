@@ -4,25 +4,19 @@ import {
   buildCachedProviderResults,
   cacheProviderDetail,
   PROVIDER_DETAIL_CONCURRENCY,
-  resolveProviderRefreshMode,
+  recordProviderDetailFailure,
+  recordProviderDetailSuccess,
   runProviderDetailFetches,
-  shouldReplaceProviderDetail,
+  shouldRefreshProviderAutomatically,
+  shouldSurfaceProviderDetailFailure,
   type ProviderDetailResults,
 } from "../lib/providerDetailCache";
-import type { ConfiguredProvider, ProviderDetailData } from "../providers/types";
+import type { ConfiguredProvider } from "../providers/types";
 
-export type {
-  ProviderDetailCacheStatus,
-  ProviderDetailResults,
-  ProviderDetailState,
-} from "../lib/providerDetailCache";
+export type { ProviderDetailCacheStatus, ProviderDetailResults, ProviderDetailState } from "../lib/providerDetailCache";
 
 type FetchProviderOptions = {
   force?: boolean;
-};
-
-type UseProviderDetailsOptions = {
-  forceInitialRefresh?: boolean;
 };
 
 type UseProviderDetailsResult = {
@@ -43,14 +37,19 @@ export function useProviderDetails(
   binary: ResolvedCodexBarBinary | undefined,
   providers: ConfiguredProvider[],
   selectedProviderId?: string,
-  options?: UseProviderDetailsOptions,
 ): UseProviderDetailsResult {
   const binaryKey = buildProviderDetailBinaryKey(binary);
-  const forceInitialRefresh = options?.forceInitialRefresh === true;
   const providerIds = useMemo(() => providers.map((provider) => provider.id), [providers]);
-  const providerIdsKey = providerIds.join("\0");
+  const providerIdsKey = providers.map((provider) => `${provider.id}\0${provider.source ?? "auto"}`).join("\u0001");
   const providerIdSet = useMemo(() => new Set(providerIds), [providerIdsKey]);
-  const optimisticResults = useMemo(() => buildCachedProviderResults(providerIds), [providerIds, providerIdsKey]);
+  const providerSources = useMemo(
+    () => new Map(providers.map((provider) => [provider.id, provider.source ?? "auto"] as const)),
+    [providerIdsKey],
+  );
+  const optimisticResults = useMemo(
+    () => buildCachedProviderResults(providerIds, Date.now(), providerSources),
+    [providerIdsKey],
+  );
   const [results, setResults] = useState<ProviderDetailResults>({});
   const [isBatchLoading, setIsBatchLoading] = useState(false);
   const displayedResults = useMemo(() => ({ ...optimisticResults, ...results }), [optimisticResults, results]);
@@ -59,16 +58,17 @@ export function useProviderDetails(
   const binaryRef = useRef(binary);
   const binaryKeyRef = useRef(binaryKey);
   const providerIdsRef = useRef(providerIdSet);
+  const providerSourcesRef = useRef(providerSources);
   const inFlightRef = useRef(new Map<string, InFlightProviderFetch>());
   const completedRef = useRef(new Map<string, number>());
-  const forcedInitialRefreshProviderIdsRef = useRef(new Set<string>());
-  const forcedInitialRefreshBinaryKeyRef = useRef("");
+  const openRefreshKeysRef = useRef(new Set<string>());
   const generationRef = useRef(0);
   const nextFetchIdRef = useRef(0);
 
   binaryRef.current = binary;
   binaryKeyRef.current = binaryKey;
   providerIdsRef.current = providerIdSet;
+  providerSourcesRef.current = providerSources;
   optimisticResultsRef.current = optimisticResults;
 
   useEffect(() => {
@@ -110,6 +110,8 @@ export function useProviderDetails(
       try {
         const detail = await fetchProviderDetail(currentBinary, providerId, {
           mode: force ? "force" : "auto",
+          source: providerSourcesRef.current.get(providerId),
+          interaction: "user",
         });
         const completedFetch = inFlightRef.current.get(providerId);
         if (
@@ -126,22 +128,13 @@ export function useProviderDetails(
           return;
         }
 
-        completedRef.current.set(providerId, completedFetch.generation);
-        const previousResult = resultsRef.current[providerId];
-        // Force refresh always applies; auto/background keep the quality gate.
-        const shouldReplaceDetail = shouldApplyFetchedProviderDetail(previousResult?.detail, detail, {
-          force,
-        });
-
-        if (shouldReplaceDetail) {
-          cacheProviderDetail(detail);
-        }
+        completedRef.current.set(providerId, completedFetch?.generation ?? generation);
+        recordProviderDetailSuccess(providerId);
+        cacheProviderDetail(detail);
 
         setResults((current) => ({
           ...current,
-          [providerId]: shouldReplaceDetail
-            ? { detail, isLoading: false, cacheStatus: "fresh" }
-            : { ...previousResult, error: undefined, isLoading: false },
+          [providerId]: { detail, isLoading: false, cacheStatus: "fresh" },
         }));
       } catch (error) {
         const completedFetch = inFlightRef.current.get(providerId);
@@ -159,10 +152,15 @@ export function useProviderDetails(
           return;
         }
 
-        completedRef.current.set(providerId, completedFetch.generation);
+        completedRef.current.set(providerId, completedFetch?.generation ?? generation);
+        const previousResult = resultsRef.current[providerId];
+        const failureCount = recordProviderDetailFailure(providerId);
+        const surfacedError = shouldSurfaceProviderDetailFailure(Boolean(previousResult?.detail), failureCount)
+          ? toError(error)
+          : undefined;
         setResults((current) => ({
           ...current,
-          [providerId]: { ...current[providerId], error: toError(error), isLoading: false },
+          [providerId]: { ...previousResult, error: surfacedError, isLoading: false },
         }));
       } finally {
         const completedFetch = inFlightRef.current.get(providerId);
@@ -183,37 +181,38 @@ export function useProviderDetails(
 
   const fetchProviderIfNeeded = useCallback(
     async (providerId: string, generation: number) => {
-      const refreshMode = resolveProviderRefreshMode(
+      const shouldRefresh = shouldRefreshProviderAutomatically(
         resultsRef.current[providerId],
         completedRef.current.get(providerId),
         generation,
-        {
-          forceInitialRefresh,
-          forceInitialRefreshCompleted: forcedInitialRefreshProviderIdsRef.current.has(providerId),
-        },
       );
-      if (!refreshMode) {
+      if (!shouldRefresh) {
         return;
       }
 
-      if (refreshMode === "force") {
-        forcedInitialRefreshProviderIdsRef.current.add(providerId);
+      await fetchOneProvider(providerId, generation);
+    },
+    [fetchOneProvider],
+  );
+
+  const refreshProviderOnOpen = useCallback(
+    async (providerId: string, generation: number) => {
+      const refreshKey = `${binaryKeyRef.current}\0${providerId}\0${providerSourcesRef.current.get(providerId) ?? "auto"}`;
+      if (claimProviderOpenRefresh(openRefreshKeysRef.current, refreshKey)) {
+        await fetchOneProvider(providerId, generation, { force: true });
+        return;
       }
 
-      await fetchOneProvider(providerId, generation, { force: refreshMode === "force" });
+      await fetchProviderIfNeeded(providerId, generation);
     },
-    [fetchOneProvider, forceInitialRefresh],
+    [fetchOneProvider, fetchProviderIfNeeded],
   );
 
   useEffect(() => {
     const generation = generationRef.current + 1;
     generationRef.current = generation;
     completedRef.current.clear();
-    if (forcedInitialRefreshBinaryKeyRef.current !== binaryKey) {
-      forcedInitialRefreshProviderIdsRef.current.clear();
-      forcedInitialRefreshBinaryKeyRef.current = binaryKey;
-    }
-    const currentProviderIds = providerIdsKey ? providerIdsKey.split("\0") : [];
+    const currentProviderIds = providerIds;
     setResults((current) => preserveInFlightProviderResults(current, inFlightRef.current));
 
     if (!binaryKey || currentProviderIds.length === 0) {
@@ -225,13 +224,13 @@ export function useProviderDetails(
     void runProviderDetailFetches({
       providerIds: currentProviderIds,
       concurrency: PROVIDER_DETAIL_CONCURRENCY,
-      fetchProvider: (providerId) => fetchProviderIfNeeded(providerId, generation),
+      fetchProvider: (providerId) => refreshProviderOnOpen(providerId, generation),
     }).finally(() => {
       if (generationRef.current === generation) {
         setIsBatchLoading(false);
       }
     });
-  }, [binaryKey, fetchProviderIfNeeded, providerIdsKey]);
+  }, [binaryKey, providerIdsKey, refreshProviderOnOpen]);
 
   useEffect(() => {
     if (!binaryKey || !selectedProviderId) {
@@ -261,8 +260,17 @@ export function useProviderDetails(
   };
 }
 
+export function claimProviderOpenRefresh(completedRefreshes: Set<string>, refreshKey: string): boolean {
+  if (completedRefreshes.has(refreshKey)) {
+    return false;
+  }
+
+  completedRefreshes.add(refreshKey);
+  return true;
+}
+
 function buildProviderDetailBinaryKey(binary: ResolvedCodexBarBinary | undefined): string {
-  return binary ? `${binary.source}\0${binary.command}` : "";
+  return binary ? `${binary.source}\0${binary.command}\0${JSON.stringify(binary.capabilities ?? null)}` : "";
 }
 
 export function canApplyProviderFetchResult({
@@ -279,7 +287,7 @@ export function canApplyProviderFetchResult({
   fetchId: number;
   inFlightFetch: InFlightProviderFetch | undefined;
   providerId: string;
-}): inFlightFetch is InFlightProviderFetch {
+}): boolean {
   return (
     inFlightFetch?.fetchId === fetchId &&
     inFlightFetch.binaryKey === binaryKey &&
@@ -300,22 +308,7 @@ export function shouldChainForceProviderFetch(
   inFlightFetch: InFlightProviderFetch | undefined,
   fetchId: number,
 ): boolean {
-  return (
-    inFlightFetch?.fetchId === fetchId && inFlightFetch.forceRequested === true && inFlightFetch.mode !== "force"
-  );
-}
-
-/** Force success always applies; auto/background still use the quality gate. */
-export function shouldApplyFetchedProviderDetail(
-  currentDetail: ProviderDetailData | undefined,
-  nextDetail: ProviderDetailData,
-  options?: { force?: boolean },
-): boolean {
-  if (options?.force === true) {
-    return true;
-  }
-
-  return shouldReplaceProviderDetail(currentDetail, nextDetail);
+  return inFlightFetch?.fetchId === fetchId && inFlightFetch.forceRequested === true && inFlightFetch.mode !== "force";
 }
 
 export function preserveInFlightProviderResults(

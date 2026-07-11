@@ -1,11 +1,12 @@
 import { Cache } from "@raycast/api";
-import type { ProviderDetailData, ProviderSection } from "../providers/types";
+import type { ProviderDetailData, ProviderSourceMode } from "../providers/types";
 
 export const PROVIDER_DETAIL_CONCURRENCY = 4;
 const PROVIDER_DETAIL_FRESHNESS_WINDOW_MS = 10 * 60 * 1000;
 const PROVIDER_DETAIL_STALE_WINDOW_MS = 60 * 60 * 1000;
-const PROVIDER_DETAIL_SCHEMA_VERSION = "provider-details-v5";
+const PROVIDER_DETAIL_SCHEMA_VERSION = "provider-details-v6";
 const providerDetailCache = new Cache({ namespace: "provider-details" });
+const providerDetailFailureCache = new Cache({ namespace: "provider-detail-failures" });
 
 export type ProviderDetailCacheStatus = "fresh" | "stale";
 
@@ -61,25 +62,6 @@ export function shouldRefreshSelectedProvider(
   return shouldRefreshProviderAutomatically(result, completedGeneration, currentGeneration, now);
 }
 
-export function resolveProviderRefreshMode(
-  result: ProviderDetailState | undefined,
-  completedGeneration: number | undefined,
-  currentGeneration: number,
-  options?: {
-    forceInitialRefresh?: boolean;
-    forceInitialRefreshCompleted?: boolean;
-    now?: number;
-  },
-): "auto" | "force" | undefined {
-  if (options?.forceInitialRefresh && !options.forceInitialRefreshCompleted) {
-    return "force";
-  }
-
-  return shouldRefreshProviderAutomatically(result, completedGeneration, currentGeneration, options?.now)
-    ? "auto"
-    : undefined;
-}
-
 export function shouldRefreshProviderAutomatically(
   result: ProviderDetailState | undefined,
   completedGeneration: number | undefined,
@@ -90,8 +72,12 @@ export function shouldRefreshProviderAutomatically(
     return completedGeneration !== currentGeneration;
   }
 
-  if (result.isLoading || result.error) {
+  if (result.isLoading) {
     return false;
+  }
+
+  if (result.error) {
+    return completedGeneration !== currentGeneration;
   }
 
   if (!result.detail) {
@@ -101,10 +87,14 @@ export function shouldRefreshProviderAutomatically(
   return isProviderDetailOlderThan(result.detail, PROVIDER_DETAIL_FRESHNESS_WINDOW_MS, now);
 }
 
-export function buildCachedProviderResults(providerIds: string[], now = Date.now()): ProviderDetailResults {
+export function buildCachedProviderResults(
+  providerIds: string[],
+  now = Date.now(),
+  requestedSources?: ReadonlyMap<string, ProviderSourceMode>,
+): ProviderDetailResults {
   return Object.fromEntries(
     providerIds.flatMap((providerId) => {
-      const cachedDetail = readCachedProviderDetail(providerId, now);
+      const cachedDetail = readCachedProviderDetail(providerId, now, requestedSources?.get(providerId));
       return cachedDetail ? [[providerId, { ...cachedDetail, isLoading: false } satisfies ProviderDetailState]] : [];
     }),
   );
@@ -114,19 +104,10 @@ export function cacheProviderDetail(detail: ProviderDetailData): void {
   providerDetailCache.set(buildProviderDetailCacheKey(detail.id), JSON.stringify(detail));
 }
 
-export function cacheProviderDetailIfRicher(detail: ProviderDetailData, now = Date.now()): boolean {
-  const currentDetail = readCachedProviderDetail(detail.id, now)?.detail;
-  if (!shouldReplaceProviderDetail(currentDetail, detail)) {
-    return false;
-  }
-
-  cacheProviderDetail(detail);
-  return true;
-}
-
 export function readCachedProviderDetail(
   providerId: string,
   now = Date.now(),
+  requestedSource?: ProviderSourceMode,
 ): Pick<ProviderDetailState, "detail" | "cacheStatus"> | undefined {
   const serializedDetail = providerDetailCache.get(buildProviderDetailCacheKey(providerId));
   if (!serializedDetail) {
@@ -135,7 +116,7 @@ export function readCachedProviderDetail(
 
   try {
     const detail = JSON.parse(serializedDetail) as ProviderDetailData;
-    const cacheStatus = getProviderDetailCacheStatus(detail, providerId, now);
+    const cacheStatus = getProviderDetailCacheStatus(detail, providerId, now, requestedSource);
     if (!cacheStatus) {
       return undefined;
     }
@@ -151,8 +132,13 @@ function getProviderDetailCacheStatus(
   detail: ProviderDetailData,
   providerId: string,
   now = Date.now(),
+  requestedSource?: ProviderSourceMode,
 ): ProviderDetailCacheStatus | undefined {
-  if (detail.id !== providerId || !isProviderDetailSchemaCurrent(detail)) {
+  if (
+    detail.id !== providerId ||
+    !isProviderDetailSchemaCurrent(detail) ||
+    (requestedSource !== undefined && detail.requestedSource !== requestedSource)
+  ) {
     return undefined;
   }
 
@@ -180,79 +166,22 @@ function buildProviderDetailCacheKey(providerId: string): string {
   return `${PROVIDER_DETAIL_SCHEMA_VERSION}:${providerId}`;
 }
 
-export function shouldReplaceProviderDetail(
-  currentDetail: ProviderDetailData | undefined,
-  nextDetail: ProviderDetailData,
-): boolean {
-  if (!currentDetail || currentDetail.id !== nextDetail.id) {
-    return true;
-  }
-
-  if (hasProviderUsageValueChanged(currentDetail, nextDetail)) {
-    return true;
-  }
-
-  return getProviderDetailQualityScore(nextDetail) >= getProviderDetailQualityScore(currentDetail);
+export function recordProviderDetailSuccess(providerId: string): void {
+  providerDetailFailureCache.remove(buildProviderDetailFailureKey(providerId));
 }
 
-function hasProviderUsageValueChanged(currentDetail: ProviderDetailData, nextDetail: ProviderDetailData): boolean {
-  const currentUsageSections = new Map(
-    currentDetail.sections
-      .filter((section) => section.kind === "usage" || section.kind === "supplementalUsage")
-      .map((section) => [buildProviderUsageSectionKey(section), section]),
-  );
-
-  return nextDetail.sections.some((section) => {
-    if (section.kind !== "usage" && section.kind !== "supplementalUsage") {
-      return false;
-    }
-
-    const currentSection = currentUsageSections.get(buildProviderUsageSectionKey(section));
-    if (!currentSection) {
-      return false;
-    }
-
-    return (
-      currentSection.remainingPercent !== section.remainingPercent ||
-      currentSection.nextRegenPercent !== section.nextRegenPercent
-    );
-  });
+export function recordProviderDetailFailure(providerId: string): number {
+  const key = buildProviderDetailFailureKey(providerId);
+  const previous = Number.parseInt(providerDetailFailureCache.get(key) ?? "0", 10);
+  const count = Number.isFinite(previous) ? previous + 1 : 1;
+  providerDetailFailureCache.set(key, String(count));
+  return count;
 }
 
-function buildProviderUsageSectionKey(
-  section: Extract<ProviderSection, { kind: "usage" | "supplementalUsage" }>,
-): string {
-  if (section.kind === "usage") {
-    return `${section.kind}\0${section.title}\0${section.displayTitle}`;
-  }
-
-  return `${section.kind}\0${section.title}`;
+export function shouldSurfaceProviderDetailFailure(hasCachedDetail: boolean, consecutiveFailures: number): boolean {
+  return !hasCachedDetail || consecutiveFailures >= 2;
 }
 
-function getProviderDetailQualityScore(detail: ProviderDetailData): number {
-  const metadataScore = (detail.accountEmail ? 2 : 0) + (detail.planText ? 2 : 0) + (detail.updatedAt ? 1 : 0);
-
-  return detail.sections.reduce((score, section) => {
-    if (section.kind === "usage") {
-      return (
-        score +
-        20 +
-        (section.resetsIn ? 5 : 0) +
-        (section.usagePacing ? 3 : 0) +
-        (section.nextRegenPercent !== undefined ? 1 : 0)
-      );
-    }
-
-    if (section.kind === "supplementalUsage") {
-      return (
-        score +
-        12 +
-        (section.resetsIn ? 4 : 0) +
-        (section.usagePacing ? 3 : 0) +
-        (section.nextRegenPercent !== undefined ? 1 : 0)
-      );
-    }
-
-    return score + Math.max(1, section.items.length);
-  }, metadataScore);
+function buildProviderDetailFailureKey(providerId: string): string {
+  return `${PROVIDER_DETAIL_SCHEMA_VERSION}:${providerId}`;
 }
