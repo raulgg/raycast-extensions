@@ -45,6 +45,10 @@ The per-Provider human label for a usage slot (Session, Weekly, Sonnet, Total, A
 The visual progress bar showing how much of a reset window remains.
 _Avoid_: Progress bar, gauge
 
+**Usage adornment**:
+The compact usage summary attached to a Provider row, comprising remaining-percentage text and a meter icon. It summarizes the ordered Primary and Secondary reset windows independently of the Provider detail view.
+_Avoid_: Accessory, badge
+
 **Pacing**:
 A comparison of a reset window's actual usage against its expected usage — summarized as **on pace** when close, otherwise **in deficit** (consuming faster than the window's even pace) or **in reserve** (slower, leaving headroom). Wording matches upstream (revisit resolved 2026-07: parity wins; "ahead" read as good when it means bad).
 _Avoid_: Ahead, behind, on track, burn rate (internal)

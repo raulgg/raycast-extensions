@@ -118,19 +118,19 @@ export function buildProviderListItemAccessories(
       : [{ icon: Icon.Warning, tooltip: formatProviderDetailStaleTooltip() }];
   }
 
-  const primaryUsage = getPrimaryUsageSection(detail);
-  if (primaryUsage) {
-    const secondaryUsage = getUsageSection(detail, "Secondary");
-    const primaryRemainingText = formatPercentRemaining(primaryUsage.remainingPercent);
-    const secondaryRemainingText = secondaryUsage ? formatPercentRemaining(secondaryUsage.remainingPercent) : undefined;
+  const primaryUsage = getUsageSection(detail, "Primary");
+  const secondaryUsage = getUsageSection(detail, "Secondary");
+  const leadingUsage = primaryUsage ?? secondaryUsage;
+  if (leadingUsage) {
+    const trailingUsage = primaryUsage ? secondaryUsage : undefined;
+    const leadingRemainingText = formatPercentRemaining(leadingUsage.remainingPercent);
+    const trailingRemainingText = trailingUsage ? formatPercentRemaining(trailingUsage.remainingPercent) : undefined;
     const text =
-      secondaryRemainingText === undefined
-        ? primaryRemainingText
-        : `${primaryRemainingText} • ${secondaryRemainingText}`;
+      trailingRemainingText === undefined ? leadingRemainingText : `${leadingRemainingText} • ${trailingRemainingText}`;
     const tooltip =
-      secondaryUsage === undefined
-        ? `${primaryUsage.displayTitle}: ${primaryRemainingText} remaining`
-        : `${primaryUsage.displayTitle}: ${primaryRemainingText} remaining • ${secondaryUsage.displayTitle}: ${secondaryRemainingText} remaining`;
+      trailingUsage === undefined
+        ? `${leadingUsage.displayTitle}: ${leadingRemainingText} remaining`
+        : `${leadingUsage.displayTitle}: ${leadingRemainingText} remaining • ${trailingUsage.displayTitle}: ${trailingRemainingText} remaining`;
 
     return [
       {
@@ -138,7 +138,7 @@ export function buildProviderListItemAccessories(
         tooltip,
       },
       {
-        icon: buildTwoBarAccessoryIcon(providerId, primaryUsage.remainingPercent, secondaryUsage?.remainingPercent),
+        icon: buildTwoBarAccessoryIcon(providerId, leadingUsage.remainingPercent, trailingUsage?.remainingPercent),
         tooltip,
       },
     ];
@@ -171,10 +171,6 @@ export function formatProviderDetailErrorTooltip(): string {
 
 export function formatProviderDetailStaleTooltip(): string {
   return "Stale usage data";
-}
-
-function getPrimaryUsageSection(detail: ProviderDetailData | undefined): ProviderUsageSection | undefined {
-  return getUsageSection(detail, "Primary");
 }
 
 function getUsageSection(

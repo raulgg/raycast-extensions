@@ -7,14 +7,14 @@ const ICON_SIZE_PT = 18;
 const ICON_VIEWBOX_PX = 36;
 const CONTENT_Y_OFFSET_PX = 1;
 
-const PRIMARY_BAR = {
+const TOP_BAR = {
   x: 3,
   y: 5 + CONTENT_Y_OFFSET_PX,
   width: 30,
   height: 12,
 } as const;
 
-const SECONDARY_BAR = {
+const BOTTOM_BAR = {
   x: 3,
   y: 23 + CONTENT_Y_OFFSET_PX,
   width: 30,
@@ -30,12 +30,12 @@ const twoBarAccessoryIconCache = new Map<string, Image.Image>();
 
 export function buildTwoBarAccessoryIcon(
   providerId: string,
-  primaryRemainingPercent: number,
-  secondaryRemainingPercent?: number,
+  topRemainingPercent: number,
+  bottomRemainingPercent?: number,
 ): Image.Image {
-  const primary = clampPercent(primaryRemainingPercent);
-  const secondary = secondaryRemainingPercent === undefined ? undefined : clampPercent(secondaryRemainingPercent);
-  const cacheKey = `${providerId}:${primary}:${secondary ?? "missing"}`;
+  const top = clampPercent(topRemainingPercent);
+  const bottom = bottomRemainingPercent === undefined ? undefined : clampPercent(bottomRemainingPercent);
+  const cacheKey = `${providerId}:${top}:${bottom ?? "missing"}`;
   const cached = twoBarAccessoryIconCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -49,16 +49,16 @@ export function buildTwoBarAccessoryIcon(
         trackColor: DETAIL_PALETTES.light.progressTrackFill,
         trackFillOpacity: DETAIL_PALETTES.light.progressTrackOpacity,
         trackStrokeOpacity: TRACK_STROKE_OPACITY.light,
-        primaryRemainingPercent: primary,
-        secondaryRemainingPercent: secondary,
+        topRemainingPercent: top,
+        bottomRemainingPercent: bottom,
       }),
       dark: buildIconDataUri({
         fillColor: progressPalette.darkFill,
         trackColor: DETAIL_PALETTES.dark.progressTrackFill,
         trackFillOpacity: DETAIL_PALETTES.dark.progressTrackOpacity,
         trackStrokeOpacity: TRACK_STROKE_OPACITY.dark,
-        primaryRemainingPercent: primary,
-        secondaryRemainingPercent: secondary,
+        topRemainingPercent: top,
+        bottomRemainingPercent: bottom,
       }),
     },
   };
@@ -72,21 +72,21 @@ type BuildIconOptions = {
   trackColor: string;
   trackFillOpacity: number;
   trackStrokeOpacity: number;
-  primaryRemainingPercent: number;
-  secondaryRemainingPercent?: number;
+  topRemainingPercent: number;
+  bottomRemainingPercent?: number;
 };
 
 function buildIconDataUri(options: BuildIconOptions): string {
   const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${ICON_SIZE_PT}" height="${ICON_SIZE_PT}" viewBox="0 0 ${ICON_VIEWBOX_PX} ${ICON_VIEWBOX_PX}" fill="none">`,
-    buildTrackFill(PRIMARY_BAR, options.trackColor, options.trackFillOpacity),
-    buildTrackFill(SECONDARY_BAR, options.trackColor, options.trackFillOpacity),
-    buildFillRect(PRIMARY_BAR, options.primaryRemainingPercent, options.fillColor),
-    options.secondaryRemainingPercent === undefined
+    buildTrackFill(TOP_BAR, options.trackColor, options.trackFillOpacity),
+    buildTrackFill(BOTTOM_BAR, options.trackColor, options.trackFillOpacity),
+    buildFillRect(TOP_BAR, options.topRemainingPercent, options.fillColor),
+    options.bottomRemainingPercent === undefined
       ? ""
-      : buildFillRect(SECONDARY_BAR, options.secondaryRemainingPercent, options.fillColor),
-    buildTrackStroke(PRIMARY_BAR, options.trackColor, options.trackStrokeOpacity),
-    buildTrackStroke(SECONDARY_BAR, options.trackColor, options.trackStrokeOpacity),
+      : buildFillRect(BOTTOM_BAR, options.bottomRemainingPercent, options.fillColor),
+    buildTrackStroke(TOP_BAR, options.trackColor, options.trackStrokeOpacity),
+    buildTrackStroke(BOTTOM_BAR, options.trackColor, options.trackStrokeOpacity),
     `</svg>`,
   ].join("");
 

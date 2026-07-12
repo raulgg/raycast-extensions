@@ -76,6 +76,20 @@ function makeDetail(remainingPercent: number, secondaryRemainingPercent?: number
   };
 }
 
+function makeSecondaryOnlyDetail(remainingPercent: number): ProviderDetailData {
+  return {
+    ...makeDetail(0),
+    sections: [
+      {
+        kind: "usage",
+        title: "Secondary",
+        displayTitle: "Weekly",
+        remainingPercent,
+      },
+    ],
+  };
+}
+
 describe("ProviderListItem", () => {
   it("adds a copy action for the selected provider fetch command", () => {
     const element = ProviderListItem({
@@ -283,7 +297,18 @@ describe("ProviderListItem", () => {
     ]);
   });
 
-  it("hides accessories when loaded provider detail has no primary usage", () => {
+  it("promotes secondary usage when primary usage is missing", () => {
+    const accessories = buildProviderListItemAccessories("codex", makeSecondaryOnlyDetail(41), undefined, false);
+
+    expectProgressAccessories(accessories, "codex", {
+      primary: 41,
+      text: "41%",
+      tooltip: "Weekly: 41% remaining",
+      secondaryMissing: true,
+    });
+  });
+
+  it("hides accessories when loaded provider detail has neither primary nor secondary usage", () => {
     expect(
       buildProviderListItemAccessories(
         "codex",
