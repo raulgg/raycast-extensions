@@ -2,21 +2,25 @@ import { Cache, Color, Icon } from "@raycast/api";
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { accessMock, readFileMock, writeFileMock, execFileMock, spawnMock, httpRequestMock } = vi.hoisted(() => {
-  return {
-    accessMock: vi.fn(),
-    readFileMock: vi.fn(),
-    writeFileMock: vi.fn(),
-    execFileMock: vi.fn(),
-    spawnMock: vi.fn(),
-    httpRequestMock: vi.fn(),
-  };
-});
+const { accessMock, readFileMock, writeFileMock, statMock, execFileMock, spawnMock, httpRequestMock } = vi.hoisted(
+  () => {
+    return {
+      accessMock: vi.fn(),
+      readFileMock: vi.fn(),
+      writeFileMock: vi.fn(),
+      statMock: vi.fn(),
+      execFileMock: vi.fn(),
+      spawnMock: vi.fn(),
+      httpRequestMock: vi.fn(),
+    };
+  },
+);
 
 vi.mock("node:fs/promises", () => ({
   access: accessMock,
   readFile: readFileMock,
   writeFile: writeFileMock,
+  stat: statMock,
 }));
 
 vi.mock("node:child_process", () => ({
@@ -33,6 +37,7 @@ import {
   CodexBarCliError,
   ensureCodexBarServe,
   extractJsonPayload,
+  parseProcessElapsedMs,
   fetchProviderDetail,
   getCodexBarAvailability,
   resolveCodexBarBinary,
@@ -130,6 +135,7 @@ describe("codexbar runtime helpers", () => {
     accessMock.mockReset();
     readFileMock.mockReset();
     writeFileMock.mockReset();
+    statMock.mockReset();
     execFileMock.mockReset();
     spawnMock.mockReset();
     httpRequestMock.mockReset();
@@ -137,6 +143,7 @@ describe("codexbar runtime helpers", () => {
     new Cache({ namespace: "provider-status" }).clear();
     readFileMock.mockRejectedValue(new Error("missing"));
     writeFileMock.mockResolvedValue(undefined);
+    statMock.mockRejectedValue(new Error("missing"));
     spawnMock.mockImplementation(() => {
       throw new Error("serve unavailable");
     });
@@ -485,6 +492,90 @@ describe("codexbar runtime helpers", () => {
     await expect(ensureCodexBarServe({ command: "/usr/local/bin/codexbar", source: "path" })).resolves.toBe(false);
 
     expect(child.unref).toHaveBeenCalled();
+  });
+
+  function mockServeProcessProbes(options: { pid?: string; etimeAndComm?: string }) {
+    execFileMock.mockImplementation(
+      (
+        command: string,
+        _args: string[],
+        _options: unknown,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        if (command === "lsof") {
+          callback(null, options.pid ?? "", "");
+          return;
+        }
+
+        if (command === "ps") {
+          callback(null, options.etimeAndComm ?? "", "");
+          return;
+        }
+
+        callback(null, "CodexBar", "");
+      },
+    );
+  }
+
+  it("restarts a serve daemon older than the CLI binary (ADR-0006)", async () => {
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    try {
+      mockServeProcessProbes({ pid: "4968\n", etimeAndComm: "   07-17:04:26 /opt/homebrew/bin/codexbar\n" });
+      statMock.mockResolvedValue({ mtimeMs: Date.now() - 1_000 });
+      spawnMock.mockReturnValue(makeMockChildProcess());
+      // Healthy stale daemon, then health drops after SIGTERM, then the fresh daemon reports healthy.
+      mockServeResponses({ status: "ok" }, new Error("connect ECONNREFUSED"), { status: "ok" });
+
+      await expect(ensureCodexBarServe({ command: "/opt/homebrew/bin/codexbar", source: "path" })).resolves.toBe(true);
+
+      expect(killSpy).toHaveBeenCalledWith(4968, "SIGTERM");
+      expect(spawnMock).toHaveBeenCalledWith(
+        "/opt/homebrew/bin/codexbar",
+        ["serve", "--port", "17653", "--refresh-interval", "600", "--request-timeout", "30"],
+        expect.objectContaining({ detached: true, stdio: "ignore" }),
+      );
+    } finally {
+      killSpy.mockRestore();
+    }
+  });
+
+  it("keeps a serve daemon newer than the CLI binary", async () => {
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    try {
+      mockServeProcessProbes({ pid: "4968\n", etimeAndComm: "   05:42 /opt/homebrew/bin/codexbar\n" });
+      statMock.mockResolvedValue({ mtimeMs: Date.now() - 60 * 60 * 1000 });
+      mockServeResponses({ status: "ok" });
+
+      await expect(ensureCodexBarServe({ command: "/opt/homebrew/bin/codexbar", source: "path" })).resolves.toBe(true);
+
+      expect(killSpy).not.toHaveBeenCalled();
+      expect(spawnMock).not.toHaveBeenCalled();
+    } finally {
+      killSpy.mockRestore();
+    }
+  });
+
+  it("never kills a non-CodexBar process listening on the serve port", async () => {
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    try {
+      mockServeProcessProbes({ pid: "4968\n", etimeAndComm: "   07-17:04:26 /usr/bin/python3\n" });
+      statMock.mockResolvedValue({ mtimeMs: Date.now() - 1_000 });
+      mockServeResponses({ status: "ok" });
+
+      await expect(ensureCodexBarServe({ command: "/opt/homebrew/bin/codexbar", source: "path" })).resolves.toBe(true);
+
+      expect(killSpy).not.toHaveBeenCalled();
+      expect(spawnMock).not.toHaveBeenCalled();
+    } finally {
+      killSpy.mockRestore();
+    }
+  });
+
+  it("parses ps etime output across its short and long forms", () => {
+    expect(parseProcessElapsedMs("05:42")).toBe((5 * 60 + 42) * 1000);
+    expect(parseProcessElapsedMs("01:02:03")).toBe((1 * 60 * 60 + 2 * 60 + 3) * 1000);
+    expect(parseProcessElapsedMs("07-17:04:26")).toBe(((7 * 24 + 17) * 60 * 60 + 4 * 60 + 26) * 1000);
+    expect(parseProcessElapsedMs("garbage")).toBeUndefined();
   });
 
   it("refreshes the provider detail cache from the background path after starting serve", async () => {

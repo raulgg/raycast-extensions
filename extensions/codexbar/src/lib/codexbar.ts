@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access } from "node:fs/promises";
+import { access, stat } from "node:fs/promises";
 import { request } from "node:http";
 import { homedir, userInfo } from "node:os";
 import { delimiter, join } from "node:path";
@@ -484,9 +484,124 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+const SERVE_PROBE_TIMEOUT_MS = 5_000;
+const SERVE_PROBE_MAX_BUFFER = 64 * 1024;
+
+async function findCodexBarServePid(): Promise<number | undefined> {
+  try {
+    const { stdout } = await execFileAsync("lsof", ["-nP", "-ti", `tcp:${CODEXBAR_SERVE_PORT}`, "-sTCP:LISTEN"], {
+      encoding: "utf8",
+      timeout: SERVE_PROBE_TIMEOUT_MS,
+      maxBuffer: SERVE_PROBE_MAX_BUFFER,
+    });
+    const pid = Number.parseInt(stdout.trim().split("\n")[0] ?? "", 10);
+    return Number.isInteger(pid) && pid > 0 ? pid : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// ps etime formats: "mm:ss", "hh:mm:ss", "dd-hh:mm:ss".
+export function parseProcessElapsedMs(etime: string): number | undefined {
+  const match = /^(?:(\d+)-)?(?:(\d+):)?(\d{1,2}):(\d{2})$/.exec(etime.trim());
+  if (!match) {
+    return undefined;
+  }
+
+  const [, days, hours, minutes, seconds] = match;
+  const totalSeconds =
+    Number.parseInt(days ?? "0", 10) * 24 * 60 * 60 +
+    Number.parseInt(hours ?? "0", 10) * 60 * 60 +
+    Number.parseInt(minutes, 10) * 60 +
+    Number.parseInt(seconds, 10);
+  return totalSeconds * 1000;
+}
+
+async function readProcessElapsedAndCommand(pid: number): Promise<{ elapsedMs: number; command: string } | undefined> {
+  try {
+    const { stdout } = await execFileAsync("ps", ["-o", "etime=,comm=", "-p", String(pid)], {
+      encoding: "utf8",
+      timeout: SERVE_PROBE_TIMEOUT_MS,
+      maxBuffer: SERVE_PROBE_MAX_BUFFER,
+    });
+    const line = stdout.trim().split("\n")[0]?.trim();
+    const spaceIndex = line?.indexOf(" ") ?? -1;
+    if (!line || spaceIndex < 0) {
+      return undefined;
+    }
+
+    const elapsedMs = parseProcessElapsedMs(line.slice(0, spaceIndex));
+    const command = line.slice(spaceIndex + 1).trim();
+    if (elapsedMs === undefined || !command) {
+      return undefined;
+    }
+
+    return { elapsedMs, command };
+  } catch {
+    return undefined;
+  }
+}
+
+// ADR-0006: a serve daemon started before the CLI binary was last replaced keeps
+// serving the old version's payload shapes (e.g. missing extra rate windows)
+// until restarted. Detect that by comparing the binary's mtime against the
+// daemon process start time. Only a process whose command is recognizably
+// CodexBar is ever considered — anything else on the port is left alone.
+async function findStaleCodexBarServePid(
+  binary: ResolvedCodexBarBinary,
+  now = Date.now(),
+): Promise<number | undefined> {
+  const pid = await findCodexBarServePid();
+  if (pid === undefined) {
+    return undefined;
+  }
+
+  const processInfo = await readProcessElapsedAndCommand(pid);
+  if (!processInfo || !processInfo.command.toLowerCase().includes("codexbar")) {
+    return undefined;
+  }
+
+  try {
+    // stat follows symlinks, so a Homebrew symlink into the app bundle reports
+    // the real helper binary's mtime.
+    const { mtimeMs } = await stat(binary.command);
+    return mtimeMs > now - processInfo.elapsedMs ? pid : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function stopCodexBarServe(pid: number): Promise<boolean> {
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {
+    return false;
+  }
+
+  const deadline = Date.now() + CODEXBAR_SERVE_STARTUP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (!(await isCodexBarServeHealthy())) {
+      return true;
+    }
+
+    await sleep(CODEXBAR_SERVE_STARTUP_POLL_MS);
+  }
+
+  return !(await isCodexBarServeHealthy());
+}
+
 export async function ensureCodexBarServe(binary: ResolvedCodexBarBinary): Promise<boolean> {
   if (await isCodexBarServeHealthy()) {
-    return true;
+    const stalePid = await findStaleCodexBarServePid(binary);
+    if (stalePid === undefined) {
+      return true;
+    }
+
+    // A stale daemon that refuses to die still serves valid (if outdated)
+    // data; keep using it rather than racing a second listener onto the port.
+    if (!(await stopCodexBarServe(stalePid))) {
+      return true;
+    }
   }
 
   let serveStartupFailed = false;
