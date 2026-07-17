@@ -340,8 +340,7 @@ function codexBindingResetsAt(
   now: number,
 ): string | undefined {
   const sessionResetMs = sessionResetsAt ? Date.parse(sessionResetsAt) : Number.NaN;
-  const sessionResetFuture =
-    !sessionResetsAt || Number.isNaN(sessionResetMs) ? true : sessionResetMs > now;
+  const sessionResetFuture = !sessionResetsAt || Number.isNaN(sessionResetMs) ? true : sessionResetMs > now;
   const sessionIsExhausted = sessionRemainingPercent <= 0 && sessionResetFuture;
 
   if (!sessionIsExhausted) {
@@ -382,12 +381,7 @@ function applyCodexWeeklySessionCap(
     return sections;
   }
 
-  const bindingResetsAt = codexBindingResetsAt(
-    primary.remainingPercent,
-    resetsAtByTitle.Primary,
-    weeklyResetsAt,
-    now,
-  );
+  const bindingResetsAt = codexBindingResetsAt(primary.remainingPercent, resetsAtByTitle.Primary, weeklyResetsAt, now);
 
   const next = sections.slice();
   next[primaryIndex] = {

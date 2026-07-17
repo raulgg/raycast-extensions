@@ -103,7 +103,17 @@ const WARNING_ICON_PATH =
 
 const WARNING_ICON_VIEWBOX = 24;
 
-export function buildSvgWarningIcon({ x, y, size, fill }: { x: number; y: number; size: number; fill: string }): string {
+export function buildSvgWarningIcon({
+  x,
+  y,
+  size,
+  fill,
+}: {
+  x: number;
+  y: number;
+  size: number;
+  fill: string;
+}): string {
   const scale = size / WARNING_ICON_VIEWBOX;
   return `<path d="${WARNING_ICON_PATH}" fill="${fill}" fill-rule="evenodd" transform="translate(${x} ${y}) scale(${scale})"/>`;
 }

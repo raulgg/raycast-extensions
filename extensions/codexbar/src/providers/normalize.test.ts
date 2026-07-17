@@ -647,16 +647,9 @@ describe("Codex weekly caps session (raw path)", () => {
   const WEEKLY_RESETS_AT = "2026-03-27T10:30:00Z"; // 4d out
   const WEEKLY_RESET_PAST = "2026-03-23T09:00:00Z";
 
-  function sections(
-    provider: string,
-    usage: Record<string, unknown>,
-    presentation?: Record<string, unknown>,
-  ) {
-    return normalizeProviderDetailPayload(
-      { provider, usage, ...(presentation ? { presentation } : {}) },
-      provider,
-      NOW,
-    ).sections;
+  function sections(provider: string, usage: Record<string, unknown>, presentation?: Record<string, unknown>) {
+    return normalizeProviderDetailPayload({ provider, usage, ...(presentation ? { presentation } : {}) }, provider, NOW)
+      .sections;
   }
 
   it("caps Primary to 0% and retargets reset to weekly when weekly is exhausted with a future reset", () => {

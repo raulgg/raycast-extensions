@@ -118,6 +118,8 @@ describe("describeManageProvidersError", () => {
     expect(describeManageProvidersError(new CodexBarCliError("execution", "x")).title).toBe(
       "Managing Providers Needs a Newer CodexBar CLI",
     );
-    expect(describeManageProvidersError(new Error("plain")).title).toBe("Managing Providers Needs a Newer CodexBar CLI");
+    expect(describeManageProvidersError(new Error("plain")).title).toBe(
+      "Managing Providers Needs a Newer CodexBar CLI",
+    );
   });
 });

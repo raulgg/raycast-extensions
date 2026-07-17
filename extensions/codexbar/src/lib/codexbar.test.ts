@@ -404,15 +404,7 @@ describe("codexbar runtime helpers", () => {
     expect(httpRequestMock).toHaveBeenCalled();
     expect(execFileMock).toHaveBeenCalledWith(
       "/usr/local/bin/codexbar",
-      expect.arrayContaining([
-        "usage",
-        "--fetch-profile",
-        "app",
-        "--interaction",
-        "user",
-        "--provider",
-        "codex",
-      ]),
+      expect.arrayContaining(["usage", "--fetch-profile", "app", "--interaction", "user", "--provider", "codex"]),
       expect.any(Object),
       expect.any(Function),
     );
