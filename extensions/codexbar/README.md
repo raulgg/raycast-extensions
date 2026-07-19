@@ -6,16 +6,24 @@ remaining-usage meters, pacing, and provider status for every provider you have 
 
 ## Requirements
 
-The extension needs the [`codexbar` CLI](https://github.com/steipete/CodexBar) from steipete's
-CodexBar project:
+The extension needs the [CodexBar CLI](https://github.com/steipete/CodexBar) (`codexbar`) from
+steipete's CodexBar project. Two routes:
 
-- **With the CodexBar app** (recommended): open CodexBar → Preferences → Advanced → **Install CLI**.
-- **Without the app**: download a CodexBarCLI build from
+- **CodexBar app + CLI** (recommended): install the CodexBar app with
+  `brew install --cask steipete/tap/codexbar`, or download it from
+  [codexbar.app](https://codexbar.app/). If the app is installed but its CLI isn't set up yet, the
+  extension offers to finish the setup for you: after an explicit confirmation, it symlinks the
+  app's bundled CLI into `/usr/local/bin` and `/opt/homebrew/bin` — the same thing the app's own
+  **Install CLI** button does. It never overwrites existing files, never creates directories, and
+  never asks for a password.
+- **CodexBar CLI only**: `brew install --formula steipete/tap/codexbar` (the formula ships macOS
+  builds — no app needed), or download a CodexBarCLI archive from
   [GitHub Releases](https://github.com/steipete/CodexBar/releases) and put `codexbar` on your
   `PATH`.
 
 The extension looks for `codexbar` on your `PATH`, falling back to `/opt/homebrew/bin/codexbar` and
-`/usr/local/bin/codexbar`. If the CLI is missing, the extension shows step-by-step install help.
+`/usr/local/bin/codexbar`. If the CLI is missing, the extension shows install help matched to your
+setup (CodexBar app present or not, Homebrew present or not).
 
 Providers are read from your CodexBar config (`~/.codexbar/config.json`) — the extension shows
 exactly the providers you enabled there, in your configured order. You can enable and reorder them

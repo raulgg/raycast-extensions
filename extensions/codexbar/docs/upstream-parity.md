@@ -54,8 +54,8 @@ compares against the wrong thing answers a question nobody asked.
 
 ## The parity surfaces at a glance
 
-There are five distinct surfaces where we track upstream. Two are **guarded by scripts** (drift fails
-CI-style), three are **hand-maintained** (drift is silent — you only catch it by re-reading Swift).
+There are six distinct surfaces where we track upstream. Two are **guarded by scripts** (drift fails
+CI-style), four are **hand-maintained** (drift is silent — you only catch it by re-reading Swift).
 
 | # | Surface | Where it lives here | How drift is caught | Upstream source |
 | - | --- | --- | --- | --- |
@@ -64,6 +64,7 @@ CI-style), three are **hand-maintained** (drift is silent — you only catch it 
 | 3 | Provider icons | `assets/provider-icons/*.svg` | `npm run upstream:sync-icons -- --check` | `Sources/CodexBar/Resources/ProviderIcon-<slug>.svg` |
 | 4 | Pacing — formula, gating, labels | `usagePacing.ts`, `registry.ts`, `normalize.ts` | ❌ hand-maintained | `UsagePace.swift`, `UsagePaceText.swift`, `MenuCardView*.swift` |
 | 5 | Supplemental usage shapes | `normalize.ts` mappers | ❌ hand-maintained | descriptor / snapshot shapes |
+| 6 | CLI install routine — the app's **Install CLI** button | `cliInstall.ts` `installCodexBarCli` | ❌ hand-maintained | `Sources/CodexBar/PreferencesAdvancedPane.swift` |
 | — | Provider id aliases | `registry.ts` `PROVIDER_ID_ALIASES` | ❌ hand-maintained | `ProviderCLIConfig` (`cliName` + aliases) |
 
 Everything else the extension renders is derived, not tracked — e.g. the dark-mode progress fill is
@@ -216,6 +217,33 @@ cases:
   These are deferred until we can sample their live JSON — **an unmapped shape renders nothing**
   (silent, by design), so mapping one requires a real payload to key against, not a guess. See the
   `Supplemental usage` entry in [`CONTEXT.md`](../CONTEXT.md).
+
+## Surface 6 — CLI install routine (hand-maintained)
+
+*Verified against upstream `v0.45.1` (`757f1ca1`).*
+
+When the CodexBar CLI is missing but the CodexBar app is installed, the extension can set up the
+app's bundled CLI itself (ADR-0008). `installCodexBarCli` in
+[`cliInstall.ts`](../src/lib/cliInstall.ts) is a faithful port of the app's own **Install CLI**
+button — `installCLI()` in `Sources/CodexBar/PreferencesAdvancedPane.swift` — and is the first place
+the extension mirrors upstream **behaviour** rather than payload interpretation. The properties that
+must survive any edit:
+
+- Tries **both** `/usr/local/bin/codexbar` and `/opt/homebrew/bin/codexbar`, in that order,
+  best-effort — partial success is a normal outcome, not first-writable-wins.
+- **Never overwrites** an existing destination (no `ln -sf`): a foreign file is reported (`Exists:`)
+  and left alone.
+- **No `mkdir`** — a missing prefix is skipped without a result entry (which is how
+  `No writable bin dirs found.` is reached) — and **no privilege escalation**: a non-writable dir is
+  reported, never sudo'd. (The repo script `bin/install-codexbar-cli.sh` *does* escalate; we follow
+  the GUI, not the script.)
+- The result strings are upstream's, verbatim: `Installed: {dir}` · `Exists: {dir}` ·
+  `No write access: {dir}` · `Failed: {dir}` · `No writable bin dirs found.` ·
+  `CodexBarCLI not found in app bundle.`
+
+When re-verifying, re-read `installCLI()` and its `isLink` helper in
+`PreferencesAdvancedPane.swift`. [`cliInstall.test.ts`](../src/lib/cliInstall.test.ts) pins each
+property against real temp dirs, but only Swift says whether the algorithm itself moved.
 
 ## Provider id aliases (hand-maintained)
 

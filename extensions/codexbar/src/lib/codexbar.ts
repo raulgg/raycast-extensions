@@ -17,6 +17,7 @@ import type {
   ProviderStatus,
 } from "../providers/types";
 import { getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
+import { buildInstallHelp, detectHomebrew, findCodexBarApp, type InstallHelpState } from "./cliInstall";
 import { applyProviderUsageSectionMemory } from "./providerShapeMemory";
 
 const CODEXBAR_TIMEOUT_MS = 60_000;
@@ -31,7 +32,6 @@ const CODEXBAR_SERVE_STARTUP_POLL_MS = 150;
 const MAX_BUFFER_BYTES = 5 * 1024 * 1024;
 const DEFAULT_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 const FALLBACK_PATHS = ["/opt/homebrew/bin/codexbar", "/usr/local/bin/codexbar"] as const;
-const HOMEBREW_INSTALL_COMMAND = "brew install steipete/tap/codexbar";
 
 export type ResolvedCodexBarBinary = {
   command: string;
@@ -79,14 +79,7 @@ export class CodexBarCliError extends Error {
   }
 }
 
-export type InstallHelpState = {
-  markdown: string;
-  title: string;
-  docsUrl: string;
-  releasesUrl: string;
-  repositoryUrl: string;
-  homebrewCommand?: string;
-};
+export type { InstallHelpState };
 
 export type CodexBarAvailability =
   | { status: "available"; binary: ResolvedCodexBarBinary }
@@ -106,38 +99,6 @@ type ExecFileOptions = {
   timeout: number;
   maxBuffer: number;
   env?: NodeJS.ProcessEnv;
-};
-
-const INSTALL_HELP: InstallHelpState = {
-  title: "Install CodexBar CLI",
-  docsUrl: "https://github.com/steipete/CodexBar/blob/main/docs/cli.md",
-  releasesUrl: "https://github.com/steipete/CodexBar/releases",
-  repositoryUrl: "https://github.com/steipete/CodexBar",
-  homebrewCommand: HOMEBREW_INSTALL_COMMAND,
-  markdown: [
-    "# Install CodexBar CLI",
-    "",
-    "CodexBar for Raycast expects the official `codexbar` CLI to already be installed and configured.",
-    "",
-    "## macOS",
-    "",
-    "1. Open the CodexBar app.",
-    "2. Go to **Preferences -> Advanced -> Install CLI**.",
-    "3. Reopen this command in Raycast.",
-    "",
-    "CodexBar can also be installed from the repo with `./bin/install-codexbar-cli.sh` or by symlinking `CodexBarCLI` manually.",
-    "",
-    "## Linux",
-    "",
-    `- Homebrew (Linux only): \`${HOMEBREW_INSTALL_COMMAND}\``,
-    "- GitHub Releases: download the CodexBarCLI tarball for your architecture.",
-    "",
-    "## Links",
-    "",
-    "- [CLI docs](https://github.com/steipete/CodexBar/blob/main/docs/cli.md)",
-    "- [GitHub Releases](https://github.com/steipete/CodexBar/releases)",
-    "- [Repository](https://github.com/steipete/CodexBar)",
-  ].join("\n"),
 };
 
 function execFileAsync(
@@ -712,9 +673,13 @@ export async function getCodexBarAvailability(): Promise<CodexBarAvailability> {
     };
   } catch (error) {
     if (error instanceof CodexBarCliError && error.kind === "unavailable") {
+      // The app is looked for only here, and only to pick which help view
+      // renders: app presence never gates usage, so standalone CLI installs
+      // (Homebrew formula, release tarball) stay first-class.
+      const [helperPath, homebrewPrefix] = await Promise.all([findCodexBarApp(), detectHomebrew()]);
       return {
         status: "unavailable",
-        install: INSTALL_HELP,
+        install: buildInstallHelp({ helperPath, homebrewPrefix }),
         error,
       };
     }

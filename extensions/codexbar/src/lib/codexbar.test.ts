@@ -21,6 +21,9 @@ vi.mock("node:fs/promises", () => ({
   readFile: readFileMock,
   writeFile: writeFileMock,
   stat: statMock,
+  // Imported by cliInstall.ts; only exercised there (against real temp dirs).
+  readlink: vi.fn(),
+  symlink: vi.fn(),
 }));
 
 vi.mock("node:child_process", () => ({
@@ -174,7 +177,7 @@ describe("codexbar runtime helpers", () => {
     });
   });
 
-  it("returns unavailable install help when the CLI cannot be resolved", async () => {
+  it("returns app-missing install help when neither the CLI nor the CodexBar app is found", async () => {
     vi.stubEnv("PATH", "/bin");
     mockAccessForPaths([]);
 
@@ -182,8 +185,48 @@ describe("codexbar runtime helpers", () => {
 
     expect(availability.status).toBe("unavailable");
     if (availability.status === "unavailable") {
+      expect(availability.install.kind).toBe("app-missing");
       expect(availability.install.docsUrl).toContain("docs/cli.md");
       expect(availability.install.markdown).toContain("Install CodexBar CLI");
+      if (availability.install.kind === "app-missing") {
+        // No Homebrew on this machine, so no copyable brew commands.
+        expect(availability.install.homebrewCommands).toBeUndefined();
+      }
+    }
+  });
+
+  it("includes both Homebrew commands in app-missing install help when brew is present", async () => {
+    vi.stubEnv("PATH", "/bin");
+    mockAccessForPaths(["/opt/homebrew/bin/brew"]);
+
+    const availability = await getCodexBarAvailability();
+
+    expect(availability.status).toBe("unavailable");
+    if (availability.status === "unavailable") {
+      expect(availability.install.kind).toBe("app-missing");
+      if (availability.install.kind === "app-missing") {
+        expect(availability.install.homebrewCommands).toEqual({
+          appAndCli: "brew install --cask steipete/tap/codexbar",
+          cliOnly: "brew install --formula steipete/tap/codexbar",
+        });
+      }
+    }
+  });
+
+  it("returns cli-missing install help offering extension-run setup when the CodexBar app is installed", async () => {
+    vi.stubEnv("PATH", "/bin");
+    mockAccessForPaths(["/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI"]);
+
+    const availability = await getCodexBarAvailability();
+
+    expect(availability.status).toBe("unavailable");
+    if (availability.status === "unavailable") {
+      expect(availability.install.kind).toBe("cli-missing");
+      if (availability.install.kind === "cli-missing") {
+        expect(availability.install.helperPath).toBe("/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI");
+        // Paths never surface in UI copy — only in the Copy Details payload.
+        expect(availability.install.markdown).not.toContain("/Applications");
+      }
     }
   });
 
