@@ -17,6 +17,7 @@ import type {
   ProviderStatus,
 } from "../providers/types";
 import { getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
+import { applyProviderUsageSectionMemory } from "./providerShapeMemory";
 
 const CODEXBAR_TIMEOUT_MS = 60_000;
 const CODEXBAR_WEB_TIMEOUT_MS = 5_000;
@@ -740,7 +741,9 @@ export async function fetchProviderDetail(
   }
 
   const payload = await fetchProviderDetailPayload(binary, normalizedProviderId, options);
-  return withRequestMetadata(normalizeProviderDetailResponse(payload, normalizedProviderId), options?.source);
+  // Graft remembered sections (ADR-0007): flaky upstream payloads must not drop meters.
+  const detail = applyProviderUsageSectionMemory(normalizeProviderDetailResponse(payload, normalizedProviderId));
+  return withRequestMetadata(detail, options?.source);
 }
 
 export async function fetchProviderDetailFromServe(
@@ -758,7 +761,8 @@ export async function fetchProviderDetailFromServe(
   }
 
   const payload = await executeCodexBarServe(normalizedProviderId, options, binary.capabilities);
-  return withRequestMetadata(normalizeProviderDetailResponse(payload, normalizedProviderId), options?.source);
+  const detail = applyProviderUsageSectionMemory(normalizeProviderDetailResponse(payload, normalizedProviderId));
+  return withRequestMetadata(detail, options?.source);
 }
 
 export async function fetchProviderDetailFromUsageCommand(
@@ -783,7 +787,8 @@ export async function fetchProviderDetailFromUsageCommand(
       capabilities: binary.capabilities,
     }),
   );
-  return withRequestMetadata(normalizeProviderDetailResponse(payload, normalizedProviderId), options?.source);
+  const detail = applyProviderUsageSectionMemory(normalizeProviderDetailResponse(payload, normalizedProviderId));
+  return withRequestMetadata(detail, options?.source);
 }
 
 export type ProviderUsageWithStatus = {
@@ -817,7 +822,10 @@ export async function fetchProviderUsageWithStatus(
     }),
   );
   const status = extractProviderStatus(payload, normalizedProviderId);
-  const detail = withRequestMetadata(normalizeProviderDetailResponse(payload, normalizedProviderId), options?.source);
+  const normalizedDetail = applyProviderUsageSectionMemory(
+    normalizeProviderDetailResponse(payload, normalizedProviderId),
+  );
+  const detail = withRequestMetadata(normalizedDetail, options?.source);
   return { detail, status };
 }
 

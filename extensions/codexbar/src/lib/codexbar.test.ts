@@ -39,6 +39,8 @@ import {
   extractJsonPayload,
   parseProcessElapsedMs,
   fetchProviderDetail,
+  fetchProviderDetailFromServe,
+  fetchProviderUsageWithStatus,
   getCodexBarAvailability,
   resolveCodexBarBinary,
   type ResolvedCodexBarBinary,
@@ -53,6 +55,7 @@ import {
   setProviderEnabled,
 } from "./providerConfig";
 import { refreshUsageCache } from "./backgroundRefresh";
+import { SECTION_MEMORY_TTL_MS } from "./providerShapeMemory";
 import { cacheProviderStatus, readProviderStatus } from "./providerStatusCache";
 import { buildCachedProviderResults } from "./providerDetailCache";
 
@@ -141,6 +144,7 @@ describe("codexbar runtime helpers", () => {
     httpRequestMock.mockReset();
     new Cache({ namespace: "provider-details" }).clear();
     new Cache({ namespace: "provider-status" }).clear();
+    new Cache({ namespace: "provider-shape-memory" }).clear();
     readFileMock.mockRejectedValue(new Error("missing"));
     writeFileMock.mockResolvedValue(undefined);
     statMock.mockRejectedValue(new Error("missing"));
@@ -576,6 +580,96 @@ describe("codexbar runtime helpers", () => {
     expect(parseProcessElapsedMs("01:02:03")).toBe((1 * 60 * 60 + 2 * 60 + 3) * 1000);
     expect(parseProcessElapsedMs("07-17:04:26")).toBe(((7 * 24 + 17) * 60 * 60 + 4 * 60 + 26) * 1000);
     expect(parseProcessElapsedMs("garbage")).toBeUndefined();
+  });
+
+  const FULL_CLAUDE_PAYLOAD = {
+    provider: "claude",
+    usage: {
+      primary: { usedPercent: 25 },
+      extraRateWindows: [{ id: "claude-weekly-scoped-fable", title: "Fable only", window: { usedPercent: 21 } }],
+    },
+  };
+  const POOR_CLAUDE_PAYLOAD = { provider: "claude", usage: { primary: { usedPercent: 25 } } };
+  const hasFableSection = (detail: { sections: Array<{ kind: string; title: string }> }) =>
+    detail.sections.some((section) => section.kind === "supplementalUsage" && section.title === "Fable only");
+
+  it("grafts remembered usage sections into a one-shot payload that omits them (ADR-0007)", async () => {
+    const binary: ResolvedCodexBarBinary = { command: "/usr/local/bin/codexbar", source: "path" };
+    mockExecSuccess(JSON.stringify(FULL_CLAUDE_PAYLOAD));
+    const rich = await fetchProviderDetail(binary, "claude", { mode: "force" });
+    expect(hasFableSection(rich)).toBe(true);
+
+    // The upstream API nondeterministically drops the window from the next fetch.
+    mockExecSuccess(JSON.stringify(POOR_CLAUDE_PAYLOAD));
+    const poor = await fetchProviderDetail(binary, "claude", { mode: "force" });
+    expect(hasFableSection(poor)).toBe(true);
+  });
+
+  it("grafts remembered usage sections into a serve payload without falling back to one-shot (ADR-0007)", async () => {
+    const binary: ResolvedCodexBarBinary = { command: "/usr/local/bin/codexbar", source: "path" };
+    mockExecSuccess(JSON.stringify(FULL_CLAUDE_PAYLOAD));
+    await fetchProviderUsageWithStatus(binary, "claude");
+    const oneShotCallsBeforeServe = execFileMock.mock.calls.length;
+
+    mockServeResponses([POOR_CLAUDE_PAYLOAD]);
+    const detail = await fetchProviderDetailFromServe(binary, "claude");
+    expect(hasFableSection(detail)).toBe(true);
+    expect(execFileMock.mock.calls.length).toBe(oneShotCallsBeforeServe);
+  });
+
+  it("drops remembered usage sections once they have not been seen within the memory TTL (ADR-0007)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const binary: ResolvedCodexBarBinary = { command: "/usr/local/bin/codexbar", source: "path" };
+      const start = Date.now();
+      mockExecSuccess(JSON.stringify(FULL_CLAUDE_PAYLOAD));
+      await fetchProviderDetail(binary, "claude", { mode: "force" });
+
+      // Halfway through the TTL a poor payload is still repaired by the graft…
+      vi.setSystemTime(start + SECTION_MEMORY_TTL_MS / 2);
+      mockExecSuccess(JSON.stringify(POOR_CLAUDE_PAYLOAD));
+      const grafted = await fetchProviderDetail(binary, "claude", { mode: "force" });
+      expect(hasFableSection(grafted)).toBe(true);
+
+      // …but grafting does not refresh the timestamp: past the TTL from the
+      // last genuine sighting, the window is treated as legitimately gone.
+      vi.setSystemTime(start + SECTION_MEMORY_TTL_MS + 1);
+      mockExecSuccess(JSON.stringify(POOR_CLAUDE_PAYLOAD));
+      const expired = await fetchProviderDetail(binary, "claude", { mode: "force" });
+      expect(hasFableSection(expired)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not restore remembered usage sections across a different account identity (ADR-0007)", async () => {
+    const binary: ResolvedCodexBarBinary = { command: "/usr/local/bin/codexbar", source: "path" };
+    mockExecSuccess(JSON.stringify({ ...FULL_CLAUDE_PAYLOAD, accountEmail: "first@example.com" }));
+    const rich = await fetchProviderDetail(binary, "claude", { mode: "force" });
+    expect(hasFableSection(rich)).toBe(true);
+
+    mockExecSuccess(JSON.stringify({ ...POOR_CLAUDE_PAYLOAD, accountEmail: "second@example.com" }));
+    const otherAccount = await fetchProviderDetail(binary, "claude", { mode: "force" });
+    expect(hasFableSection(otherAccount)).toBe(false);
+  });
+
+  it("does not remember info sections carrying mutable inventory such as reset credits (ADR-0007)", async () => {
+    const binary: ResolvedCodexBarBinary = { command: "/usr/local/bin/codexbar", source: "path" };
+    const withCredits = {
+      provider: "codex",
+      usage: {
+        primary: { usedPercent: 10 },
+        codexResetCredits: { credits: [{ status: "available" }] },
+      },
+    };
+    mockExecSuccess(JSON.stringify(withCredits));
+    const rich = await fetchProviderDetail(binary, "codex", { mode: "force" });
+    expect(rich.sections.some((section) => section.title === "Limit Reset Credits")).toBe(true);
+
+    // The credit was redeemed upstream; the next payload legitimately omits it.
+    mockExecSuccess(JSON.stringify({ provider: "codex", usage: { primary: { usedPercent: 10 } } }));
+    const redeemed = await fetchProviderDetail(binary, "codex", { mode: "force" });
+    expect(redeemed.sections.some((section) => section.title === "Limit Reset Credits")).toBe(false);
   });
 
   it("refreshes the provider detail cache from the background path after starting serve", async () => {
