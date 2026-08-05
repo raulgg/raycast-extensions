@@ -1,0 +1,114 @@
+import { LaunchType, type LaunchProps } from "@raycast/api";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  publishListeningModeSubtitle,
+  refreshListeningModeSubtitle,
+  runCycleListeningModeCommand,
+  runSetListeningModeCommand,
+} from "./core/airpods-control";
+import { runWithCliGuard } from "./core/cli-guard";
+import { resetCommandSubtitle } from "./core/command-metadata";
+import main from "./cycle-listening-mode";
+import type { ListeningModeSubtitleRefreshContext } from "./core/airpods-status-refresh";
+import type { SetListeningModeLaunchContext } from "./core/listening-mode-command";
+
+vi.mock("./core/airpods-control", () => ({
+  publishListeningModeSubtitle: vi.fn(),
+  refreshListeningModeSubtitle: vi.fn(),
+  runCycleListeningModeCommand: vi.fn(),
+  runSetListeningModeCommand: vi.fn(),
+}));
+
+vi.mock("./core/cli-guard", () => ({
+  runWithCliGuard: vi.fn(async (perform: () => Promise<void>) => perform()),
+}));
+
+vi.mock("./core/command-metadata", () => ({
+  resetCommandSubtitle: vi.fn(),
+}));
+
+type Props = LaunchProps<{
+  launchContext?: SetListeningModeLaunchContext | ListeningModeSubtitleRefreshContext;
+}>;
+
+function props(
+  launchContext?: SetListeningModeLaunchContext | ListeningModeSubtitleRefreshContext,
+  launchType: LaunchType = LaunchType.UserInitiated,
+): Props {
+  return { launchType, arguments: undefined, launchContext } as unknown as Props;
+}
+
+describe("Cycle Listening Mode entry point", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("preserves the current subtitle while starting a normal cycle", async () => {
+    await main(props());
+
+    expect(refreshListeningModeSubtitle).not.toHaveBeenCalled();
+    expect(resetCommandSubtitle).not.toHaveBeenCalled();
+    expect(runWithCliGuard).toHaveBeenCalledOnce();
+    expect(runWithCliGuard).toHaveBeenCalledWith(expect.any(Function), {
+      onUnavailable: resetCommandSubtitle,
+    });
+    expect(runCycleListeningModeCommand).toHaveBeenCalledOnce();
+    expect(runSetListeningModeCommand).not.toHaveBeenCalled();
+  });
+
+  it("falls back to a read-only refresh for a background launch without refresh context", async () => {
+    await main(props({ operation: "set", mode: "transparency" }, LaunchType.Background));
+
+    expect(refreshListeningModeSubtitle).toHaveBeenCalledOnce();
+    expect(publishListeningModeSubtitle).not.toHaveBeenCalled();
+    expect(runWithCliGuard).not.toHaveBeenCalled();
+    expect(runCycleListeningModeCommand).not.toHaveBeenCalled();
+    expect(runSetListeningModeCommand).not.toHaveBeenCalled();
+  });
+
+  it("publishes coordinator state during a background launch without reading or cycling", async () => {
+    await main(props({ operation: "refresh-listening-mode-subtitle", mode: "anc" }, LaunchType.Background));
+
+    expect(publishListeningModeSubtitle).toHaveBeenCalledWith("anc");
+    expect(refreshListeningModeSubtitle).not.toHaveBeenCalled();
+    expect(runWithCliGuard).not.toHaveBeenCalled();
+    expect(runCycleListeningModeCommand).not.toHaveBeenCalled();
+    expect(runSetListeningModeCommand).not.toHaveBeenCalled();
+  });
+
+  it("resets the coordinator-owned subtitle during a background launch", async () => {
+    await main(props({ operation: "refresh-listening-mode-subtitle", mode: null }, LaunchType.Background));
+
+    expect(publishListeningModeSubtitle).toHaveBeenCalledWith(null);
+    expect(runCycleListeningModeCommand).not.toHaveBeenCalled();
+    expect(runSetListeningModeCommand).not.toHaveBeenCalled();
+  });
+
+  it("performs a single delegated set without cycling", async () => {
+    await main(props({ operation: "set", mode: "transparency" }));
+
+    expect(resetCommandSubtitle).not.toHaveBeenCalled();
+    expect(runSetListeningModeCommand).toHaveBeenCalledWith("transparency", { updateCycleSubtitle: true });
+    expect(runCycleListeningModeCommand).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid programmatic context without changing a mode", async () => {
+    const invalid = { operation: "set", mode: "future" } as unknown as SetListeningModeLaunchContext;
+
+    await expect(main(props(invalid))).rejects.toThrow("invalid launch context");
+
+    expect(resetCommandSubtitle).toHaveBeenCalledOnce();
+    expect(runCycleListeningModeCommand).not.toHaveBeenCalled();
+    expect(runSetListeningModeCommand).not.toHaveBeenCalled();
+  });
+
+  it("never treats subtitle-refresh context as a user-initiated set", async () => {
+    await expect(main(props({ operation: "refresh-listening-mode-subtitle", mode: "adaptive" }))).rejects.toThrow(
+      "invalid launch context",
+    );
+
+    expect(resetCommandSubtitle).toHaveBeenCalledOnce();
+    expect(runCycleListeningModeCommand).not.toHaveBeenCalled();
+    expect(runSetListeningModeCommand).not.toHaveBeenCalled();
+  });
+});

@@ -1,0 +1,221 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "airpods-control",
+  "title": "AirPods Control",
+  "description": "A set of tools for controlling your AirPods from Raycast. Switch between Noise Cancellation, Adaptive, Transparency, or Off, and toggle Conversation Awareness. Listening-mode and Conversation Awareness commands require the airpods-control CLI.",
+  "icon": "airpods-control.png",
+  "author": "raulg",
+  "platforms": [
+    "macOS"
+  ],
+  "categories": [
+    "System",
+    "Media"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "commands": [
+    {
+      "name": "set-noise-cancellation",
+      "title": "Set Noise Cancellation",
+      "subtitle": "Listening Mode",
+      "description": "Set the AirPods to Noise Cancellation (ANC) listening mode.",
+      "mode": "no-view",
+      "keywords": [
+        "airpods",
+        "anc",
+        "noise",
+        "cancellation",
+        "cancelling",
+        "listening",
+        "mode"
+      ]
+    },
+    {
+      "name": "set-transparency",
+      "title": "Set Transparency",
+      "subtitle": "Listening Mode",
+      "description": "Set the AirPods to Transparency listening mode.",
+      "mode": "no-view",
+      "keywords": [
+        "airpods",
+        "transparency",
+        "listening",
+        "mode"
+      ]
+    },
+    {
+      "name": "set-adaptive",
+      "title": "Set Adaptive",
+      "subtitle": "Listening Mode",
+      "description": "Set the AirPods to Adaptive listening mode. ⚠️ Only works if your AirPods support Adaptive mode (AirPods Pro 2nd gen or later).",
+      "mode": "no-view",
+      "keywords": [
+        "airpods",
+        "adaptive",
+        "listening",
+        "mode"
+      ],
+      "disabledByDefault": true
+    },
+    {
+      "name": "set-off",
+      "title": "Set Off",
+      "subtitle": "Listening Mode",
+      "description": "Set the AirPods to the Off listening mode (no Noise Cancellation or Transparency).",
+      "mode": "no-view",
+      "keywords": [
+        "airpods",
+        "off",
+        "noise",
+        "control",
+        "listening",
+        "mode"
+      ],
+      "disabledByDefault": true
+    },
+    {
+      "name": "cycle-listening-mode",
+      "title": "Cycle Listening Mode",
+      "subtitle": "AirPods",
+      "description": "Cycle through your preferred listening modes. The current mode is read from the connected AirPods before cycling, and unsupported modes are skipped.",
+      "mode": "no-view",
+      "keywords": [
+        "listening",
+        "mode",
+        "switch",
+        "toggle",
+        "cycle",
+        "airpods",
+        "noise",
+        "cancellation",
+        "transparency",
+        "anc",
+        "adaptive",
+        "off"
+      ],
+      "preferences": [
+        {
+          "name": "cycleAnc",
+          "title": "Modes to Cycle Through",
+          "label": "Noise Cancellation",
+          "description": "Include Noise Cancellation when cycling listening modes.",
+          "type": "checkbox",
+          "default": true,
+          "required": false
+        },
+        {
+          "name": "cycleTransparency",
+          "label": "Transparency",
+          "description": "Include Transparency when cycling listening modes.",
+          "type": "checkbox",
+          "default": true,
+          "required": false
+        },
+        {
+          "name": "cycleAdaptive",
+          "label": "Adaptive",
+          "description": "Include Adaptive when cycling listening modes. Skipped automatically if your AirPods don't support it.",
+          "type": "checkbox",
+          "default": true,
+          "required": false
+        },
+        {
+          "name": "cycleOff",
+          "label": "Off",
+          "description": "Include Off when cycling listening modes.",
+          "type": "checkbox",
+          "default": false,
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "toggle-conversation-awareness",
+      "title": "Toggle Conversation Awareness",
+      "subtitle": "AirPods",
+      "description": "Toggle Conversation Awareness on or off. Requires AirPods that support Conversation Awareness.",
+      "mode": "no-view",
+      "keywords": [
+        "airpods",
+        "conversation",
+        "awareness",
+        "toggle",
+        "speech"
+      ]
+    },
+    {
+      "name": "refresh-airpods-status",
+      "title": "Refresh AirPods Status",
+      "subtitle": "AirPods",
+      "description": "Refresh the Listening Mode and Conversation Awareness subtitles now and about once a minute while Background Refresh is active. If deactivated, the last confirmed values remain visible until another refresh or control command.",
+      "mode": "no-view",
+      "interval": "1m",
+      "keywords": [
+        "airpods",
+        "status",
+        "refresh",
+        "background",
+        "listening",
+        "conversation",
+        "awareness"
+      ]
+    },
+    {
+      "name": "install-cli",
+      "title": "Install AirPods Control CLI",
+      "subtitle": "AirPods",
+      "description": "Check whether the airpods-control CLI is installed, copy the install command, or install it with Homebrew. The CLI powers the listening-mode and Conversation Awareness commands.",
+      "mode": "view",
+      "keywords": [
+        "airpods",
+        "cli",
+        "install",
+        "setup",
+        "status",
+        "homebrew",
+        "brew"
+      ]
+    }
+  ],
+  "preferences": [
+    {
+      "name": "cliPath",
+      "title": "CLI Path",
+      "description": "Full path to the airpods-control binary. Leave empty to auto-detect it in /opt/homebrew/bin and /usr/local/bin.",
+      "type": "textfield",
+      "placeholder": "/opt/homebrew/bin/airpods-control",
+      "required": false
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^1.104.23",
+    "@raycast/utils": "^2.2.7"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.2.0",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.5",
+    "@vitest/coverage-v8": "^4.0.0",
+    "@vitest/ui": "^4.0.0",
+    "eslint": "^9.22.0",
+    "eslint-plugin-import": "^2.32.0",
+    "happy-dom": "^20.0.10",
+    "prettier": "^3.5.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.0"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "lint:fix": "ray lint --fix",
+    "lint": "ray lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "type-check": "tsc --noEmit",
+    "prepublishOnly": "echo \"\\n\\nIt seems like you are trying to publish the Raycast extension to npm.\\n\\nIf you did intend to publish it to npm, remove the \\`prepublishOnly\\` script and rerun \\`npm publish\\` again.\\nIf you wanted to publish it to the Raycast Store instead, use \\`npm run publish\\` instead.\\n\\n\" && exit 1",
+    "publish": "npx @raycast/api@latest publish"
+  }
+}

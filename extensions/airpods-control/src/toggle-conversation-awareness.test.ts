@@ -1,0 +1,101 @@
+import { LaunchType, type LaunchProps } from "@raycast/api";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  publishConversationAwarenessSubtitle,
+  refreshConversationAwarenessSubtitle,
+  runToggleConversationAwarenessCommand,
+} from "./core/airpods-control";
+import { runWithCliGuard } from "./core/cli-guard";
+import { resetCommandSubtitle } from "./core/command-metadata";
+import main from "./toggle-conversation-awareness";
+import type { ConversationAwarenessSubtitleRefreshContext } from "./core/airpods-status-refresh";
+
+vi.mock("./core/airpods-control", () => ({
+  publishConversationAwarenessSubtitle: vi.fn(),
+  refreshConversationAwarenessSubtitle: vi.fn(),
+  runToggleConversationAwarenessCommand: vi.fn(),
+}));
+
+vi.mock("./core/cli-guard", () => ({
+  runWithCliGuard: vi.fn(async (perform: () => Promise<void>) => perform()),
+}));
+
+vi.mock("./core/command-metadata", () => ({
+  resetCommandSubtitle: vi.fn(),
+}));
+
+type Props = LaunchProps<{ launchContext?: ConversationAwarenessSubtitleRefreshContext }>;
+
+function props(
+  launchType: LaunchType = LaunchType.UserInitiated,
+  launchContext?: ConversationAwarenessSubtitleRefreshContext,
+): Props {
+  return { launchType, arguments: undefined, launchContext } as unknown as Props;
+}
+
+describe("Toggle Conversation Awareness entry point", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("preserves current status and restores AirPods only when the CLI is unavailable", async () => {
+    await main(props());
+
+    expect(refreshConversationAwarenessSubtitle).not.toHaveBeenCalled();
+    expect(resetCommandSubtitle).not.toHaveBeenCalled();
+    expect(runWithCliGuard).toHaveBeenCalledWith(runToggleConversationAwarenessCommand, {
+      onUnavailable: resetCommandSubtitle,
+    });
+    expect(runToggleConversationAwarenessCommand).toHaveBeenCalledOnce();
+  });
+
+  it("only refreshes the subtitle during a background launch", async () => {
+    await main(props(LaunchType.Background));
+
+    expect(refreshConversationAwarenessSubtitle).toHaveBeenCalledOnce();
+    expect(publishConversationAwarenessSubtitle).not.toHaveBeenCalled();
+    expect(runWithCliGuard).not.toHaveBeenCalled();
+    expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
+  });
+
+  it("publishes coordinator state during a background launch without reading or toggling", async () => {
+    await main(
+      props(LaunchType.Background, {
+        operation: "refresh-conversation-awareness-subtitle",
+        state: "on",
+      }),
+    );
+
+    expect(publishConversationAwarenessSubtitle).toHaveBeenCalledWith("on");
+    expect(refreshConversationAwarenessSubtitle).not.toHaveBeenCalled();
+    expect(runWithCliGuard).not.toHaveBeenCalled();
+    expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
+  });
+
+  it("resets the coordinator-owned subtitle during a background launch", async () => {
+    await main(
+      props(LaunchType.Background, {
+        operation: "refresh-conversation-awareness-subtitle",
+        state: null,
+      }),
+    );
+
+    expect(publishConversationAwarenessSubtitle).toHaveBeenCalledWith(null);
+    expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
+  });
+
+  it("rejects user-initiated refresh context without toggling", async () => {
+    await expect(
+      main(
+        props(LaunchType.UserInitiated, {
+          operation: "refresh-conversation-awareness-subtitle",
+          state: "off",
+        }),
+      ),
+    ).rejects.toThrow("invalid launch context");
+
+    expect(resetCommandSubtitle).toHaveBeenCalledOnce();
+    expect(runWithCliGuard).not.toHaveBeenCalled();
+    expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
+  });
+});
