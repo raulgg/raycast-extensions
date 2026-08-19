@@ -2,6 +2,7 @@ import { Action, ActionPanel, confirmAlert, Detail, Icon, showToast, Toast } fro
 import type { ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { codexBarAppPathForHelper, installCodexBarCli } from "../lib/cliInstall";
+import type { KeychainAccessPolicy } from "../lib/keychainAccessPolicy";
 import {
   CodexBarCliError,
   resolveCodexBarBinary,
@@ -9,6 +10,7 @@ import {
   type InstallHelpState,
   type ResolvedCodexBarBinary,
 } from "../lib/codexbar";
+import { getKeychainAccessPolicy } from "../preferences";
 
 type InstallHelpDetailProps = {
   install: InstallHelpState;
@@ -78,10 +80,13 @@ type CliSetupVerdict = { ok: true } | { ok: false; details: string };
 // test — never the status line: a just-linked helper can be resolvable yet
 // unlaunchable. Capability detection is skipped; it never gates availability.
 // Launch failures join the Copy Details payload (ADR-0008).
-export async function judgeCliSetup(statusLine: string): Promise<CliSetupVerdict> {
+export async function judgeCliSetup(
+  statusLine: string,
+  keychainAccessPolicy: KeychainAccessPolicy,
+): Promise<CliSetupVerdict> {
   let binary: ResolvedCodexBarBinary;
   try {
-    binary = await resolveCodexBarBinary();
+    binary = await resolveCodexBarBinary(keychainAccessPolicy);
   } catch {
     return { ok: false, details: statusLine };
   }
@@ -120,7 +125,7 @@ function CliMissingDetail({ install, onRetry }: CliMissingDetailProps) {
 
     const toast = await showToast({ style: Toast.Style.Animated, title: "Setting up the CodexBar CLI…" });
     const result = await installCodexBarCli(helperPath);
-    const verdict = await judgeCliSetup(result.statusLine);
+    const verdict = await judgeCliSetup(result.statusLine, getKeychainAccessPolicy());
     if (!verdict.ok) {
       toast.style = Toast.Style.Failure;
       toast.title = "Couldn't set up the CodexBar CLI";

@@ -20,6 +20,7 @@ export const environment = {
 export function getPreferenceValues<T extends Record<string, unknown>>(): T {
   return {
     hidePersonalInfo: false,
+    disableKeychainAccess: false,
   } as T;
 }
 

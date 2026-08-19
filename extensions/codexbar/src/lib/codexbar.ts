@@ -19,6 +19,14 @@ import type {
 import { getMockProviderPayload, isCodexBarMockMode } from "../mocks/codexbar";
 import { buildInstallHelp, detectHomebrew, findCodexBarApp, type InstallHelpState } from "./cliInstall";
 import { applyProviderUsageSectionMemory } from "./providerShapeMemory";
+import { applyKeychainAccessPolicy, type KeychainAccessPolicy } from "./keychainAccessPolicy";
+import {
+  clearCodexBarServeRuntime,
+  codexBarServeRuntimeMatches,
+  readCodexBarServeRuntime,
+  recordCodexBarServeRuntime,
+  type CodexBarServeProcessIdentity,
+} from "./codexBarServeState";
 
 const CODEXBAR_TIMEOUT_MS = 60_000;
 const CODEXBAR_WEB_TIMEOUT_MS = 5_000;
@@ -36,6 +44,7 @@ const FALLBACK_PATHS = ["/opt/homebrew/bin/codexbar", "/usr/local/bin/codexbar"]
 export type ResolvedCodexBarBinary = {
   command: string;
   source: "path" | "fallback" | "mock";
+  keychainAccessPolicy: KeychainAccessPolicy;
   capabilities?: CodexBarCapabilities;
 };
 
@@ -118,18 +127,21 @@ function execFileAsync(
   });
 }
 
-function buildCodexBarProcessEnv(): NodeJS.ProcessEnv {
+function buildCodexBarProcessEnv(policy: KeychainAccessPolicy): NodeJS.ProcessEnv {
   const currentUser = userInfo();
   const username = process.env.USER || process.env.LOGNAME || currentUser.username;
 
-  return {
-    ...process.env,
-    HOME: process.env.HOME || currentUser.homedir || homedir(),
-    USER: username,
-    LOGNAME: process.env.LOGNAME || username,
-    SHELL: process.env.SHELL || currentUser.shell || "/bin/zsh",
-    PATH: process.env.PATH || DEFAULT_PATH,
-  };
+  return applyKeychainAccessPolicy(
+    {
+      ...process.env,
+      HOME: process.env.HOME || currentUser.homedir || homedir(),
+      USER: username,
+      LOGNAME: process.env.LOGNAME || username,
+      SHELL: process.env.SHELL || currentUser.shell || "/bin/zsh",
+      PATH: process.env.PATH || DEFAULT_PATH,
+    },
+    policy,
+  );
 }
 
 function getFailureOutput(error: unknown, key: "stdout" | "stderr"): string {
@@ -160,12 +172,15 @@ async function findInPath(executable: string, pathValue = process.env.PATH ?? ""
   return undefined;
 }
 
-export async function resolveCodexBarBinary(): Promise<ResolvedCodexBarBinary> {
+export async function resolveCodexBarBinary(
+  keychainAccessPolicy: KeychainAccessPolicy,
+): Promise<ResolvedCodexBarBinary> {
   const fromPath = await findInPath("codexbar");
   if (fromPath) {
     return {
       command: fromPath,
       source: "path",
+      keychainAccessPolicy,
     };
   }
 
@@ -174,6 +189,7 @@ export async function resolveCodexBarBinary(): Promise<ResolvedCodexBarBinary> {
       return {
         command: fallbackPath,
         source: "fallback",
+        keychainAccessPolicy,
       };
     }
   }
@@ -299,7 +315,7 @@ export async function executeCodexBar(binary: ResolvedCodexBarBinary, args: stri
       encoding: "utf8",
       timeout: CODEXBAR_TIMEOUT_MS,
       maxBuffer: MAX_BUFFER_BYTES,
-      env: buildCodexBarProcessEnv(),
+      env: buildCodexBarProcessEnv(binary.keychainAccessPolicy),
     });
 
     return extractJsonPayload(stdout);
@@ -418,7 +434,7 @@ async function detectCodexBarCapabilities(binary: ResolvedCodexBarBinary): Promi
   }
 }
 
-function startCodexBarServe(binary: ResolvedCodexBarBinary, onError: (error: Error) => void): void {
+function startCodexBarServe(binary: ResolvedCodexBarBinary, onError: (error: Error) => void): number | undefined {
   const child = spawn(
     binary.command,
     [
@@ -433,11 +449,12 @@ function startCodexBarServe(binary: ResolvedCodexBarBinary, onError: (error: Err
     {
       detached: true,
       stdio: "ignore",
-      env: buildCodexBarProcessEnv(),
+      env: buildCodexBarProcessEnv(binary.keychainAccessPolicy),
     },
   );
   child.once("error", onError);
   child.unref();
+  return child.pid;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -504,33 +521,61 @@ async function readProcessElapsedAndCommand(pid: number): Promise<{ elapsedMs: n
   }
 }
 
-// ADR-0006: a serve daemon started before the CLI binary was last replaced keeps
-// serving the old version's payload shapes (e.g. missing extra rate windows)
-// until restarted. Detect that by comparing the binary's mtime against the
-// daemon process start time. Only a process whose command is recognizably
-// CodexBar is ever considered — anything else on the port is left alone.
-async function findStaleCodexBarServePid(
-  binary: ResolvedCodexBarBinary,
-  now = Date.now(),
-): Promise<number | undefined> {
+async function readCodexBarServeProcessIdentity(now = Date.now()): Promise<CodexBarServeProcessIdentity | undefined> {
   const pid = await findCodexBarServePid();
   if (pid === undefined) {
     return undefined;
   }
 
   const processInfo = await readProcessElapsedAndCommand(pid);
-  if (!processInfo || !processInfo.command.toLowerCase().includes("codexbar")) {
+  if (!processInfo) {
     return undefined;
   }
 
+  return {
+    pid,
+    command: processInfo.command,
+    startedAtMs: now - processInfo.elapsedMs,
+  };
+}
+
+function isRecognizableCodexBarServe(processIdentity: CodexBarServeProcessIdentity): boolean {
+  return processIdentity.command.toLowerCase().includes("codexbar");
+}
+
+// ADR-0006: a serve daemon started before the CLI binary was last replaced keeps
+// serving the old version's payload shapes until restarted.
+async function isCodexBarServeStale(
+  binary: ResolvedCodexBarBinary,
+  processIdentity: CodexBarServeProcessIdentity,
+): Promise<boolean> {
   try {
     // stat follows symlinks, so a Homebrew symlink into the app bundle reports
     // the real helper binary's mtime.
     const { mtimeMs } = await stat(binary.command);
-    return mtimeMs > now - processInfo.elapsedMs ? pid : undefined;
+    return mtimeMs > processIdentity.startedAtMs;
   } catch {
-    return undefined;
+    return false;
   }
+}
+
+export async function isCodexBarServeAttested(binary: ResolvedCodexBarBinary): Promise<boolean> {
+  if (!(await isCodexBarServeHealthy())) {
+    clearCodexBarServeRuntime();
+    return false;
+  }
+
+  const [record, processIdentity] = [readCodexBarServeRuntime(), await readCodexBarServeProcessIdentity()];
+  if (!record || !processIdentity || !isRecognizableCodexBarServe(processIdentity)) {
+    clearCodexBarServeRuntime();
+    return false;
+  }
+
+  if (!codexBarServeRuntimeMatches(record, processIdentity, binary.keychainAccessPolicy)) {
+    return false;
+  }
+
+  return true;
 }
 
 async function stopCodexBarServe(pid: number): Promise<boolean> {
@@ -542,36 +587,58 @@ async function stopCodexBarServe(pid: number): Promise<boolean> {
 
   const deadline = Date.now() + CODEXBAR_SERVE_STARTUP_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    if (!(await isCodexBarServeHealthy())) {
+    if ((await findCodexBarServePid()) !== pid) {
       return true;
     }
 
     await sleep(CODEXBAR_SERVE_STARTUP_POLL_MS);
   }
 
-  return !(await isCodexBarServeHealthy());
+  return (await findCodexBarServePid()) !== pid;
 }
 
 export async function ensureCodexBarServe(binary: ResolvedCodexBarBinary): Promise<boolean> {
-  if (await isCodexBarServeHealthy()) {
-    const stalePid = await findStaleCodexBarServePid(binary);
-    if (stalePid === undefined) {
-      return true;
-    }
+  const healthy = await isCodexBarServeHealthy();
+  const processIdentity = await readCodexBarServeProcessIdentity();
 
-    // A stale daemon that refuses to die still serves valid (if outdated)
-    // data; keep using it rather than racing a second listener onto the port.
-    if (!(await stopCodexBarServe(stalePid))) {
+  if (processIdentity && !isRecognizableCodexBarServe(processIdentity)) {
+    clearCodexBarServeRuntime();
+    return false;
+  }
+
+  if (healthy && processIdentity) {
+    const record = readCodexBarServeRuntime();
+    const policyMatches =
+      record !== undefined && codexBarServeRuntimeMatches(record, processIdentity, binary.keychainAccessPolicy);
+    const stale = await isCodexBarServeStale(binary, processIdentity);
+    if (policyMatches && !stale) {
       return true;
     }
   }
 
+  if (processIdentity) {
+    if (!(await stopCodexBarServe(processIdentity.pid))) {
+      clearCodexBarServeRuntime();
+      return false;
+    }
+    clearCodexBarServeRuntime();
+  } else if (healthy) {
+    // A healthy listener whose process identity cannot be verified is never
+    // stopped or used. Foreground/background callers fall back to one-shot.
+    clearCodexBarServeRuntime();
+    return false;
+  }
+
   let serveStartupFailed = false;
+  let startedPid: number | undefined;
   try {
-    startCodexBarServe(binary, () => {
+    startedPid = startCodexBarServe(binary, () => {
       serveStartupFailed = true;
     });
   } catch {
+    return false;
+  }
+  if (startedPid === undefined) {
     return false;
   }
 
@@ -582,6 +649,16 @@ export async function ensureCodexBarServe(binary: ResolvedCodexBarBinary): Promi
     }
 
     if (await isCodexBarServeHealthy()) {
+      const startedProcessIdentity = await readCodexBarServeProcessIdentity();
+      if (
+        !startedProcessIdentity ||
+        startedProcessIdentity.pid !== startedPid ||
+        !isRecognizableCodexBarServe(startedProcessIdentity)
+      ) {
+        return false;
+      }
+
+      recordCodexBarServeRuntime(startedProcessIdentity, binary.keychainAccessPolicy);
       return true;
     }
 
@@ -592,18 +669,22 @@ export async function ensureCodexBarServe(binary: ResolvedCodexBarBinary): Promi
 }
 
 async function executeCodexBarServe(
+  binary: ResolvedCodexBarBinary,
   providerId: string,
   options?: ProviderFetchOptions,
-  capabilities?: CodexBarCapabilities,
 ): Promise<unknown> {
+  if (!(await isCodexBarServeAttested(binary))) {
+    throw new Error("CodexBar serve is not attested for the current Keychain access policy.");
+  }
+
   const params = new URLSearchParams({ provider: providerId });
-  if (capabilities?.serveAppFetchProfile) {
+  if (binary.capabilities?.serveAppFetchProfile) {
     params.set("fetchProfile", "app");
   }
-  if (capabilities?.interactionModes) {
+  if (binary.capabilities?.interactionModes) {
     params.set("interaction", options?.interaction ?? "background");
   }
-  if (options?.mode === "force" && capabilities?.serveForceRefresh) {
+  if (options?.mode === "force" && binary.capabilities?.serveForceRefresh) {
     params.set("refresh", "true");
   }
   return requestCodexBarServeJson(`/usage?${params.toString()}`, CODEXBAR_SERVE_REQUEST_TIMEOUT_SECONDS * 1000);
@@ -625,12 +706,11 @@ async function fetchProviderDetailPayload(
     return executeCodexBar(binary, usageCommandArgs);
   }
 
-  if (await isCodexBarServeHealthy()) {
-    try {
-      return await executeCodexBarServe(providerId, options, binary.capabilities);
-    } catch {
-      // Serve is healthy but this request failed; fall through to a fresh one-shot command.
-    }
+  try {
+    return await executeCodexBarServe(binary, providerId, options);
+  } catch {
+    // Serve is unavailable, unattested, or this request failed; fall through
+    // to a fresh policy-guarded one-shot command.
   }
 
   // Foreground never starts serve (ADR-0002). When serve is unavailable, a one-shot CLI command
@@ -644,26 +724,29 @@ export async function smokeTestCodexBar(binary: ResolvedCodexBarBinary): Promise
       encoding: "utf8",
       timeout: 5_000,
       maxBuffer: 64 * 1024,
-      env: buildCodexBarProcessEnv(),
+      env: buildCodexBarProcessEnv(binary.keychainAccessPolicy),
     });
   } catch (error) {
     throw classifyExecFailure(error);
   }
 }
 
-export async function getCodexBarAvailability(): Promise<CodexBarAvailability> {
+export async function getCodexBarAvailability(
+  keychainAccessPolicy: KeychainAccessPolicy,
+): Promise<CodexBarAvailability> {
   if (isCodexBarMockMode()) {
     return {
       status: "available",
       binary: {
         command: "codexbar-mock",
         source: "mock",
+        keychainAccessPolicy,
       },
     };
   }
 
   try {
-    const binary = await resolveCodexBarBinary();
+    const binary = await resolveCodexBarBinary(keychainAccessPolicy);
     await smokeTestCodexBar(binary);
     const capabilities = await detectCodexBarCapabilities(binary);
 
@@ -697,7 +780,6 @@ export async function fetchProviderDetail(
   options?: ProviderFetchOptions,
 ): Promise<ProviderDetailData> {
   const normalizedProviderId = assertFetchableProviderId(providerId);
-
   if (binary.source === "mock" || isCodexBarMockMode()) {
     return withRequestMetadata(
       normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId),
@@ -709,7 +791,7 @@ export async function fetchProviderDetail(
   // Graft remembered sections (ADR-0007): flaky upstream payloads must not drop meters.
   const detail = applyProviderUsageSectionMemory(
     normalizeProviderDetailResponse(payload, normalizedProviderId),
-    "default",
+    binary.keychainAccessPolicy,
   );
   return withRequestMetadata(detail, options?.source);
 }
@@ -720,7 +802,6 @@ export async function fetchProviderDetailFromServe(
   options?: ProviderFetchOptions,
 ): Promise<ProviderDetailData> {
   const normalizedProviderId = assertFetchableProviderId(providerId);
-
   if (binary.source === "mock" || isCodexBarMockMode()) {
     return withRequestMetadata(
       normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId),
@@ -728,10 +809,10 @@ export async function fetchProviderDetailFromServe(
     );
   }
 
-  const payload = await executeCodexBarServe(normalizedProviderId, options, binary.capabilities);
+  const payload = await executeCodexBarServe(binary, normalizedProviderId, options);
   const detail = applyProviderUsageSectionMemory(
     normalizeProviderDetailResponse(payload, normalizedProviderId),
-    "default",
+    binary.keychainAccessPolicy,
   );
   return withRequestMetadata(detail, options?.source);
 }
@@ -742,7 +823,6 @@ export async function fetchProviderDetailFromUsageCommand(
   options?: ProviderFetchOptions,
 ): Promise<ProviderDetailData> {
   const normalizedProviderId = assertFetchableProviderId(providerId);
-
   if (binary.source === "mock" || isCodexBarMockMode()) {
     return withRequestMetadata(
       normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId),
@@ -760,7 +840,7 @@ export async function fetchProviderDetailFromUsageCommand(
   );
   const detail = applyProviderUsageSectionMemory(
     normalizeProviderDetailResponse(payload, normalizedProviderId),
-    "default",
+    binary.keychainAccessPolicy,
   );
   return withRequestMetadata(detail, options?.source);
 }
@@ -777,7 +857,6 @@ export async function fetchProviderUsageWithStatus(
   options?: ProviderFetchOptions,
 ): Promise<ProviderUsageWithStatus> {
   const normalizedProviderId = assertFetchableProviderId(providerId);
-
   if (binary.source === "mock" || isCodexBarMockMode()) {
     const payload = getMockProviderPayload(normalizedProviderId);
     return {
@@ -798,7 +877,7 @@ export async function fetchProviderUsageWithStatus(
   const status = extractProviderStatus(payload, normalizedProviderId);
   const normalizedDetail = applyProviderUsageSectionMemory(
     normalizeProviderDetailResponse(payload, normalizedProviderId),
-    "default",
+    binary.keychainAccessPolicy,
   );
   const detail = withRequestMetadata(normalizedDetail, options?.source);
   return { detail, status };

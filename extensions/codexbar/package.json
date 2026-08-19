@@ -37,6 +37,15 @@
       "label": "Hide Personal Information",
       "description": "Hide provider account emails, account labels, and organizations in the detail view.",
       "default": false
+    },
+    {
+      "name": "disableKeychainAccess",
+      "type": "checkbox",
+      "required": false,
+      "title": "",
+      "label": "Disable Keychain Access",
+      "description": "Prevent CodexBar processes launched by this extension from reading or writing macOS Keychain. Some Providers may become unavailable; configure another authentication source in the CodexBar app.",
+      "default": false
     }
   ],
   "dependencies": {

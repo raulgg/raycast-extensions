@@ -1,5 +1,6 @@
 import { useCachedPromise } from "@raycast/utils";
 import { getCodexBarAvailability, type CodexBarAvailability } from "../lib/codexbar";
+import { getKeychainAccessPolicy } from "../preferences";
 
 type UseCodexBarAvailabilityResult = {
   availability?: CodexBarAvailability;
@@ -9,8 +10,11 @@ type UseCodexBarAvailabilityResult = {
 };
 
 export function useCodexBarAvailability(): UseCodexBarAvailabilityResult {
-  const { data, error, isLoading, revalidate } = useCachedPromise(getCodexBarAvailability, [], {
-    keepPreviousData: true,
+  const keychainAccessPolicy = getKeychainAccessPolicy();
+  const { data, error, isLoading, revalidate } = useCachedPromise(getCodexBarAvailability, [keychainAccessPolicy], {
+    // Never expose a binary resolved under the previous policy while a
+    // preference change is being revalidated.
+    keepPreviousData: false,
   });
 
   return {

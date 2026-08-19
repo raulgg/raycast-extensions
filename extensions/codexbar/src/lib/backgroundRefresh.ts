@@ -19,6 +19,7 @@ import {
   type ResolvedCodexBarBinary,
 } from "./codexbar";
 import { readConfiguredProvidersFromConfig } from "./providerConfig";
+import { getKeychainAccessPolicy } from "../preferences";
 
 const BACKGROUND_PROVIDER_DETAIL_CONCURRENCY = 4;
 
@@ -44,7 +45,7 @@ export type UsageCacheRefreshResult =
     };
 
 export async function refreshUsageCache(): Promise<UsageCacheRefreshResult> {
-  const availability = await getCodexBarAvailability();
+  const availability = await getCodexBarAvailability(getKeychainAccessPolicy());
   if (availability.status !== "available") {
     return {
       status: "skipped",
@@ -107,15 +108,15 @@ export async function refreshUsageCache(): Promise<UsageCacheRefreshResult> {
           provider,
           usedServe,
         );
-        cacheProviderDetail(detail, "default");
-        recordProviderDetailSuccess(providerId, "default");
+        cacheProviderDetail(detail, availability.binary.keychainAccessPolicy);
+        recordProviderDetailSuccess(providerId, availability.binary.keychainAccessPolicy);
         refreshedCount += 1;
         // Best effort only; never drop a prior cached status on miss.
         if (status) {
           cacheProviderStatus(providerId, status);
         }
       } catch (error) {
-        recordProviderDetailFailure(providerId, "default");
+        recordProviderDetailFailure(providerId, availability.binary.keychainAccessPolicy);
         errors.push({ providerId, message: toErrorMessage(error) });
       }
     },

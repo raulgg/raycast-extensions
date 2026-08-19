@@ -61,6 +61,8 @@ import { refreshUsageCache } from "./backgroundRefresh";
 import { SECTION_MEMORY_TTL_MS } from "./providerShapeMemory";
 import { cacheProviderStatus, readProviderStatus } from "./providerStatusCache";
 import { buildCachedProviderResults } from "./providerDetailCache";
+import { recordCodexBarServeRuntime } from "./codexBarServeState";
+import { CODEXBAR_DISABLE_KEYCHAIN_ACCESS_ENV } from "./keychainAccessPolicy";
 
 function mockAccessForPaths(paths: string[]) {
   accessMock.mockImplementation((targetPath: string) => {
@@ -85,8 +87,60 @@ function mockExecSuccess(stdout = "CodexBar", stderr = "") {
   );
 }
 
-function makeMockChildProcess() {
-  return Object.assign(new EventEmitter(), { unref: vi.fn() });
+function makeMockChildProcess(pid = 6000) {
+  return Object.assign(new EventEmitter(), { pid, unref: vi.fn() });
+}
+
+function mockServeProcessProbes(options: { pid?: string | string[]; etimeAndComm?: string | string[] }) {
+  const fallback = execFileMock.getMockImplementation();
+  const pids = Array.isArray(options.pid) ? [...options.pid] : [options.pid ?? ""];
+  const processInfos = Array.isArray(options.etimeAndComm) ? [...options.etimeAndComm] : [options.etimeAndComm ?? ""];
+  const next = (values: string[]) => (values.length > 1 ? values.shift() : values[0]) ?? "";
+
+  execFileMock.mockImplementation(
+    (
+      command: string,
+      args: string[],
+      execOptions: unknown,
+      callback: (error: Error | null, stdout: string, stderr: string) => void,
+    ) => {
+      if (command === "lsof") {
+        callback(null, next(pids), "");
+        return;
+      }
+
+      if (command === "ps") {
+        callback(null, next(processInfos), "");
+        return;
+      }
+
+      if (fallback) {
+        fallback(command, args, execOptions, callback);
+        return;
+      }
+
+      callback(new Error(`unexpected command: ${command}`), "", "");
+    },
+  );
+}
+
+function attestServeProcess(
+  policy: "default" | "disabled" = "default",
+  options: { pid?: number; command?: string; elapsedMs?: number } = {},
+) {
+  const pid = options.pid ?? 4968;
+  const command = options.command ?? "/usr/local/bin/codexbar";
+  const elapsedMs = options.elapsedMs ?? 5_000;
+  const elapsedSeconds = Math.floor(elapsedMs / 1_000);
+  const hours = Math.floor(elapsedSeconds / 3_600);
+  const minutes = Math.floor((elapsedSeconds % 3_600) / 60);
+  const seconds = elapsedSeconds % 60;
+  const elapsed =
+    hours > 0
+      ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+      : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  recordCodexBarServeRuntime({ pid, command, startedAtMs: Date.now() - elapsedMs }, policy);
+  mockServeProcessProbes({ pid: `${pid}\n`, etimeAndComm: `${elapsed} ${command}\n` });
 }
 
 function mockServeUnavailable() {
@@ -148,12 +202,21 @@ describe("codexbar runtime helpers", () => {
     new Cache({ namespace: "provider-details" }).clear();
     new Cache({ namespace: "provider-status" }).clear();
     new Cache({ namespace: "provider-shape-memory" }).clear();
+    new Cache({ namespace: "codexbar-serve-runtime" }).clear();
     readFileMock.mockRejectedValue(new Error("missing"));
     writeFileMock.mockResolvedValue(undefined);
     statMock.mockRejectedValue(new Error("missing"));
     spawnMock.mockImplementation(() => {
       throw new Error("serve unavailable");
     });
+    execFileMock.mockImplementation(
+      (
+        command: string,
+        _args: string[],
+        _options: unknown,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => callback(new Error(`unmocked command: ${command}`), "", ""),
+    );
     mockServeUnavailable();
   });
 
@@ -161,9 +224,10 @@ describe("codexbar runtime helpers", () => {
     vi.stubEnv("PATH", "/usr/local/bin:/bin");
     mockAccessForPaths(["/usr/local/bin/codexbar"]);
 
-    await expect(resolveCodexBarBinary()).resolves.toEqual({
+    await expect(resolveCodexBarBinary("default")).resolves.toEqual({
       command: "/usr/local/bin/codexbar",
       source: "path",
+      keychainAccessPolicy: "default",
     });
   });
 
@@ -171,9 +235,10 @@ describe("codexbar runtime helpers", () => {
     vi.stubEnv("PATH", "/bin");
     mockAccessForPaths(["/opt/homebrew/bin/codexbar"]);
 
-    await expect(resolveCodexBarBinary()).resolves.toEqual({
+    await expect(resolveCodexBarBinary("default")).resolves.toEqual({
       command: "/opt/homebrew/bin/codexbar",
       source: "fallback",
+      keychainAccessPolicy: "default",
     });
   });
 
@@ -181,7 +246,7 @@ describe("codexbar runtime helpers", () => {
     vi.stubEnv("PATH", "/bin");
     mockAccessForPaths([]);
 
-    const availability = await getCodexBarAvailability();
+    const availability = await getCodexBarAvailability("default");
 
     expect(availability.status).toBe("unavailable");
     if (availability.status === "unavailable") {
@@ -199,7 +264,7 @@ describe("codexbar runtime helpers", () => {
     vi.stubEnv("PATH", "/bin");
     mockAccessForPaths(["/opt/homebrew/bin/brew"]);
 
-    const availability = await getCodexBarAvailability();
+    const availability = await getCodexBarAvailability("default");
 
     expect(availability.status).toBe("unavailable");
     if (availability.status === "unavailable") {
@@ -217,7 +282,7 @@ describe("codexbar runtime helpers", () => {
     vi.stubEnv("PATH", "/bin");
     mockAccessForPaths(["/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI"]);
 
-    const availability = await getCodexBarAvailability();
+    const availability = await getCodexBarAvailability("default");
 
     expect(availability.status).toBe("unavailable");
     if (availability.status === "unavailable") {
@@ -258,11 +323,25 @@ describe("codexbar runtime helpers", () => {
     mockAccessForPaths(["/usr/local/bin/codexbar"]);
     mockExecSuccess("CodexBar\n");
 
-    const availability = await getCodexBarAvailability();
+    const availability = await getCodexBarAvailability("default");
 
     expect(availability.status).toBe("available");
     if (availability.status === "available") {
       expect(availability.binary.command).toBe("/usr/local/bin/codexbar");
+    }
+  });
+
+  it("guards every availability probe when Keychain access is disabled", async () => {
+    vi.stubEnv("PATH", "/usr/local/bin");
+    mockAccessForPaths(["/usr/local/bin/codexbar"]);
+    mockExecSuccess("CodexBar\n");
+
+    await expect(getCodexBarAvailability("disabled")).resolves.toMatchObject({ status: "available" });
+
+    for (const call of execFileMock.mock.calls) {
+      expect(call[2]).toMatchObject({
+        env: expect.objectContaining({ [CODEXBAR_DISABLE_KEYCHAIN_ACCESS_ENV]: "1" }),
+      });
     }
   });
 
@@ -291,7 +370,7 @@ describe("codexbar runtime helpers", () => {
       },
     );
 
-    await expect(getCodexBarAvailability()).resolves.toMatchObject({
+    await expect(getCodexBarAvailability("default")).resolves.toMatchObject({
       status: "available",
       binary: {
         capabilities: {
@@ -332,7 +411,7 @@ describe("codexbar runtime helpers", () => {
       },
     );
 
-    await expect(getCodexBarAvailability()).resolves.toMatchObject({
+    await expect(getCodexBarAvailability("default")).resolves.toMatchObject({
       status: "available",
       binary: {
         capabilities: {
@@ -347,10 +426,14 @@ describe("codexbar runtime helpers", () => {
   });
 
   it("prefers CodexBar serve for provider detail fetches when available", async () => {
+    attestServeProcess();
     mockServeResponses({ status: "ok" }, { provider: "codex", usage: { primary: { usedPercent: 20 } } });
 
     await expect(
-      fetchProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "codex"),
+      fetchProviderDetail(
+        { command: "/usr/local/bin/codexbar", source: "path", keychainAccessPolicy: "default" },
+        "codex",
+      ),
     ).resolves.toMatchObject({
       id: "codex",
       sections: [{ kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 80 }],
@@ -365,14 +448,22 @@ describe("codexbar runtime helpers", () => {
       expect.any(Function),
     );
     expect(spawnMock).not.toHaveBeenCalled();
-    expect(execFileMock).not.toHaveBeenCalled();
+    expect(execFileMock).not.toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      expect.any(Array),
+      expect.any(Object),
+      expect.any(Function),
+    );
   });
 
   it("falls back to one-shot usage without starting serve when foreground health check misses", async () => {
     mockExecSuccess('{"provider":"codex","usage":{"primary":{"usedPercent":20}}}');
     mockServeResponses(new Error("connect ECONNREFUSED"));
 
-    await fetchProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "codex");
+    await fetchProviderDetail(
+      { command: "/usr/local/bin/codexbar", source: "path", keychainAccessPolicy: "default" },
+      "codex",
+    );
 
     expect(spawnMock).not.toHaveBeenCalled();
     expect(execFileMock).toHaveBeenCalledWith(
@@ -388,7 +479,11 @@ describe("codexbar runtime helpers", () => {
     mockServeResponses({ status: "ok" }, { provider: "codex", usage: { primary: { usedPercent: 99 } } });
 
     await expect(
-      fetchProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "codex", { mode: "force" }),
+      fetchProviderDetail(
+        { command: "/usr/local/bin/codexbar", source: "path", keychainAccessPolicy: "default" },
+        "codex",
+        { mode: "force" },
+      ),
     ).resolves.toMatchObject({
       id: "codex",
       sections: [{ kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 80 }],
@@ -407,6 +502,7 @@ describe("codexbar runtime helpers", () => {
     const binary: ResolvedCodexBarBinary = {
       command: "/usr/local/bin/codexbar",
       source: "path",
+      keychainAccessPolicy: "default",
       capabilities: {
         appFetchProfile: true,
         interactionModes: true,
@@ -415,6 +511,7 @@ describe("codexbar runtime helpers", () => {
         serveForceRefresh: true,
       },
     };
+    attestServeProcess();
     mockServeResponses(
       { status: "ok" },
       { provider: "claude", source: "oauth", presentation: { schemaVersion: 1, meters: [] } },
@@ -436,13 +533,19 @@ describe("codexbar runtime helpers", () => {
       }),
       expect.any(Function),
     );
-    expect(execFileMock).not.toHaveBeenCalled();
+    expect(execFileMock).not.toHaveBeenCalledWith(
+      "/usr/local/bin/codexbar",
+      expect.any(Array),
+      expect.any(Object),
+      expect.any(Function),
+    );
   });
 
   it("falls back to a fresh one-shot CLI when forced serve refresh is unavailable", async () => {
     const binary: ResolvedCodexBarBinary = {
       command: "/usr/local/bin/codexbar",
       source: "path",
+      keychainAccessPolicy: "default",
       capabilities: {
         appFetchProfile: true,
         interactionModes: true,
@@ -468,6 +571,7 @@ describe("codexbar runtime helpers", () => {
     const binary: ResolvedCodexBarBinary = {
       command: "/usr/local/bin/codexbar",
       source: "path",
+      keychainAccessPolicy: "default",
       capabilities: {
         appFetchProfile: false,
         interactionModes: false,
@@ -476,8 +580,9 @@ describe("codexbar runtime helpers", () => {
         serveForceRefresh: true,
       },
     };
-    mockServeResponses({ status: "ok" }, new Error("CodexBar serve request timed out."));
     mockExecSuccess(JSON.stringify({ provider: "codex", usage: { primary: { usedPercent: 20 } } }));
+    attestServeProcess();
+    mockServeResponses({ status: "ok" }, new Error("CodexBar serve request timed out."));
 
     await fetchProviderDetail(binary, "codex", { mode: "force" });
 
@@ -493,6 +598,7 @@ describe("codexbar runtime helpers", () => {
     const binary: ResolvedCodexBarBinary = {
       command: "/usr/local/bin/codexbar",
       source: "path",
+      keychainAccessPolicy: "default",
       capabilities: {
         appFetchProfile: false,
         interactionModes: false,
@@ -501,6 +607,7 @@ describe("codexbar runtime helpers", () => {
         serveForceRefresh: true,
       },
     };
+    attestServeProcess();
     mockServeResponses({ status: "ok" }, { provider: "codex", usage: { primary: { usedPercent: 20 } } });
 
     await fetchProviderDetail(binary, "codex", { mode: "force" });
@@ -513,9 +620,12 @@ describe("codexbar runtime helpers", () => {
 
   it("starts CodexBar serve only when the background path explicitly ensures it", async () => {
     spawnMock.mockReturnValue(makeMockChildProcess());
+    mockServeProcessProbes({ pid: ["", "6000\n"], etimeAndComm: "00:01 /usr/local/bin/codexbar\n" });
     mockServeResponses(new Error("connect ECONNREFUSED"), { status: "ok" });
 
-    await expect(ensureCodexBarServe({ command: "/usr/local/bin/codexbar", source: "path" })).resolves.toBe(true);
+    await expect(
+      ensureCodexBarServe({ command: "/usr/local/bin/codexbar", source: "path", keychainAccessPolicy: "default" }),
+    ).resolves.toBe(true);
 
     expect(spawnMock).toHaveBeenCalledWith(
       "/usr/local/bin/codexbar",
@@ -527,6 +637,69 @@ describe("codexbar runtime helpers", () => {
     );
   });
 
+  it("restarts an attested daemon when the Keychain policy changes", async () => {
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    try {
+      const startedAtMs = Date.now() - 5_000;
+      recordCodexBarServeRuntime({ pid: 4968, command: "/usr/local/bin/codexbar", startedAtMs }, "default");
+      mockServeProcessProbes({
+        pid: ["4968\n", "", "6000\n"],
+        etimeAndComm: ["00:05 /usr/local/bin/codexbar\n", "00:01 /usr/local/bin/codexbar\n"],
+      });
+      statMock.mockResolvedValue({ mtimeMs: Date.now() - 60_000 });
+      spawnMock.mockReturnValue(makeMockChildProcess());
+      mockServeResponses({ status: "ok" }, { status: "ok" });
+
+      await expect(
+        ensureCodexBarServe({
+          command: "/usr/local/bin/codexbar",
+          source: "path",
+          keychainAccessPolicy: "disabled",
+        }),
+      ).resolves.toBe(true);
+
+      expect(killSpy).toHaveBeenCalledWith(4968, "SIGTERM");
+      expect(spawnMock).toHaveBeenCalledWith(
+        "/usr/local/bin/codexbar",
+        expect.any(Array),
+        expect.objectContaining({
+          env: expect.objectContaining({ [CODEXBAR_DISABLE_KEYCHAIN_ACCESS_ENV]: "1" }),
+        }),
+      );
+    } finally {
+      killSpy.mockRestore();
+    }
+  });
+
+  it("leaves a recognizable daemon in place when it refuses graceful shutdown", async () => {
+    vi.useFakeTimers();
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    try {
+      recordCodexBarServeRuntime(
+        { pid: 4968, command: "/usr/local/bin/codexbar", startedAtMs: Date.now() - 5_000 },
+        "default",
+      );
+      mockServeProcessProbes({ pid: "4968\n", etimeAndComm: "00:05 /usr/local/bin/codexbar\n" });
+      statMock.mockResolvedValue({ mtimeMs: Date.now() - 60_000 });
+      mockServeResponses({ status: "ok" });
+
+      const result = ensureCodexBarServe({
+        command: "/usr/local/bin/codexbar",
+        source: "path",
+        keychainAccessPolicy: "disabled",
+      });
+      await vi.runAllTimersAsync();
+
+      await expect(result).resolves.toBe(false);
+      expect(killSpy).toHaveBeenCalledWith(4968, "SIGTERM");
+      expect(killSpy).not.toHaveBeenCalledWith(4968, "SIGKILL");
+      expect(spawnMock).not.toHaveBeenCalled();
+    } finally {
+      killSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it("handles asynchronous CodexBar serve spawn errors", async () => {
     const child = makeMockChildProcess();
     spawnMock.mockImplementation(() => {
@@ -535,45 +708,29 @@ describe("codexbar runtime helpers", () => {
       });
       return child;
     });
+    mockServeProcessProbes({ pid: "" });
 
-    await expect(ensureCodexBarServe({ command: "/usr/local/bin/codexbar", source: "path" })).resolves.toBe(false);
+    await expect(
+      ensureCodexBarServe({ command: "/usr/local/bin/codexbar", source: "path", keychainAccessPolicy: "default" }),
+    ).resolves.toBe(false);
 
     expect(child.unref).toHaveBeenCalled();
   });
 
-  function mockServeProcessProbes(options: { pid?: string; etimeAndComm?: string }) {
-    execFileMock.mockImplementation(
-      (
-        command: string,
-        _args: string[],
-        _options: unknown,
-        callback: (error: Error | null, stdout: string, stderr: string) => void,
-      ) => {
-        if (command === "lsof") {
-          callback(null, options.pid ?? "", "");
-          return;
-        }
-
-        if (command === "ps") {
-          callback(null, options.etimeAndComm ?? "", "");
-          return;
-        }
-
-        callback(null, "CodexBar", "");
-      },
-    );
-  }
-
   it("restarts a serve daemon older than the CLI binary (ADR-0006)", async () => {
     const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
     try {
-      mockServeProcessProbes({ pid: "4968\n", etimeAndComm: "   07-17:04:26 /opt/homebrew/bin/codexbar\n" });
+      mockServeProcessProbes({
+        pid: ["4968\n", "", "6000\n"],
+        etimeAndComm: ["   07-17:04:26 /opt/homebrew/bin/codexbar\n", "00:01 /opt/homebrew/bin/codexbar\n"],
+      });
       statMock.mockResolvedValue({ mtimeMs: Date.now() - 1_000 });
       spawnMock.mockReturnValue(makeMockChildProcess());
-      // Healthy stale daemon, then health drops after SIGTERM, then the fresh daemon reports healthy.
-      mockServeResponses({ status: "ok" }, new Error("connect ECONNREFUSED"), { status: "ok" });
+      mockServeResponses({ status: "ok" }, { status: "ok" });
 
-      await expect(ensureCodexBarServe({ command: "/opt/homebrew/bin/codexbar", source: "path" })).resolves.toBe(true);
+      await expect(
+        ensureCodexBarServe({ command: "/opt/homebrew/bin/codexbar", source: "path", keychainAccessPolicy: "default" }),
+      ).resolves.toBe(true);
 
       expect(killSpy).toHaveBeenCalledWith(4968, "SIGTERM");
       expect(spawnMock).toHaveBeenCalledWith(
@@ -589,11 +746,17 @@ describe("codexbar runtime helpers", () => {
   it("keeps a serve daemon newer than the CLI binary", async () => {
     const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
     try {
-      mockServeProcessProbes({ pid: "4968\n", etimeAndComm: "   05:42 /opt/homebrew/bin/codexbar\n" });
+      attestServeProcess("default", {
+        pid: 4968,
+        command: "/opt/homebrew/bin/codexbar",
+        elapsedMs: (5 * 60 + 42) * 1000,
+      });
       statMock.mockResolvedValue({ mtimeMs: Date.now() - 60 * 60 * 1000 });
       mockServeResponses({ status: "ok" });
 
-      await expect(ensureCodexBarServe({ command: "/opt/homebrew/bin/codexbar", source: "path" })).resolves.toBe(true);
+      await expect(
+        ensureCodexBarServe({ command: "/opt/homebrew/bin/codexbar", source: "path", keychainAccessPolicy: "default" }),
+      ).resolves.toBe(true);
 
       expect(killSpy).not.toHaveBeenCalled();
       expect(spawnMock).not.toHaveBeenCalled();
@@ -609,7 +772,9 @@ describe("codexbar runtime helpers", () => {
       statMock.mockResolvedValue({ mtimeMs: Date.now() - 1_000 });
       mockServeResponses({ status: "ok" });
 
-      await expect(ensureCodexBarServe({ command: "/opt/homebrew/bin/codexbar", source: "path" })).resolves.toBe(true);
+      await expect(
+        ensureCodexBarServe({ command: "/opt/homebrew/bin/codexbar", source: "path", keychainAccessPolicy: "default" }),
+      ).resolves.toBe(false);
 
       expect(killSpy).not.toHaveBeenCalled();
       expect(spawnMock).not.toHaveBeenCalled();
@@ -637,7 +802,11 @@ describe("codexbar runtime helpers", () => {
     detail.sections.some((section) => section.kind === "supplementalUsage" && section.title === "Fable only");
 
   it("grafts remembered usage sections into a one-shot payload that omits them (ADR-0007)", async () => {
-    const binary: ResolvedCodexBarBinary = { command: "/usr/local/bin/codexbar", source: "path" };
+    const binary: ResolvedCodexBarBinary = {
+      command: "/usr/local/bin/codexbar",
+      source: "path",
+      keychainAccessPolicy: "default",
+    };
     mockExecSuccess(JSON.stringify(FULL_CLAUDE_PAYLOAD));
     const rich = await fetchProviderDetail(binary, "claude", { mode: "force" });
     expect(hasFableSection(rich)).toBe(true);
@@ -649,21 +818,32 @@ describe("codexbar runtime helpers", () => {
   });
 
   it("grafts remembered usage sections into a serve payload without falling back to one-shot (ADR-0007)", async () => {
-    const binary: ResolvedCodexBarBinary = { command: "/usr/local/bin/codexbar", source: "path" };
+    const binary: ResolvedCodexBarBinary = {
+      command: "/usr/local/bin/codexbar",
+      source: "path",
+      keychainAccessPolicy: "default",
+    };
     mockExecSuccess(JSON.stringify(FULL_CLAUDE_PAYLOAD));
     await fetchProviderUsageWithStatus(binary, "claude");
-    const oneShotCallsBeforeServe = execFileMock.mock.calls.length;
+    const oneShotCallsBeforeServe = execFileMock.mock.calls.filter(([command]) => command === binary.command).length;
 
-    mockServeResponses([POOR_CLAUDE_PAYLOAD]);
+    attestServeProcess();
+    mockServeResponses({ status: "ok" }, [POOR_CLAUDE_PAYLOAD]);
     const detail = await fetchProviderDetailFromServe(binary, "claude");
     expect(hasFableSection(detail)).toBe(true);
-    expect(execFileMock.mock.calls.length).toBe(oneShotCallsBeforeServe);
+    expect(execFileMock.mock.calls.filter(([command]) => command === binary.command)).toHaveLength(
+      oneShotCallsBeforeServe,
+    );
   });
 
   it("drops remembered usage sections once they have not been seen within the memory TTL (ADR-0007)", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
-      const binary: ResolvedCodexBarBinary = { command: "/usr/local/bin/codexbar", source: "path" };
+      const binary: ResolvedCodexBarBinary = {
+        command: "/usr/local/bin/codexbar",
+        source: "path",
+        keychainAccessPolicy: "default",
+      };
       const start = Date.now();
       mockExecSuccess(JSON.stringify(FULL_CLAUDE_PAYLOAD));
       await fetchProviderDetail(binary, "claude", { mode: "force" });
@@ -686,7 +866,11 @@ describe("codexbar runtime helpers", () => {
   });
 
   it("does not restore remembered usage sections across a different account identity (ADR-0007)", async () => {
-    const binary: ResolvedCodexBarBinary = { command: "/usr/local/bin/codexbar", source: "path" };
+    const binary: ResolvedCodexBarBinary = {
+      command: "/usr/local/bin/codexbar",
+      source: "path",
+      keychainAccessPolicy: "default",
+    };
     mockExecSuccess(JSON.stringify({ ...FULL_CLAUDE_PAYLOAD, accountEmail: "first@example.com" }));
     const rich = await fetchProviderDetail(binary, "claude", { mode: "force" });
     expect(hasFableSection(rich)).toBe(true);
@@ -697,7 +881,11 @@ describe("codexbar runtime helpers", () => {
   });
 
   it("does not remember info sections carrying mutable inventory such as reset credits (ADR-0007)", async () => {
-    const binary: ResolvedCodexBarBinary = { command: "/usr/local/bin/codexbar", source: "path" };
+    const binary: ResolvedCodexBarBinary = {
+      command: "/usr/local/bin/codexbar",
+      source: "path",
+      keychainAccessPolicy: "default",
+    };
     const withCredits = {
       provider: "codex",
       usage: {
@@ -743,8 +931,10 @@ describe("codexbar runtime helpers", () => {
     );
     readFileMock.mockResolvedValue(JSON.stringify({ providers: [{ id: "codex", enabled: true }] }));
     spawnMock.mockReturnValue(makeMockChildProcess());
+    mockServeProcessProbes({ pid: ["", "6000\n"], etimeAndComm: "00:01 /usr/local/bin/codexbar\n" });
     mockServeResponses(
       new Error("connect ECONNREFUSED"),
+      { status: "ok" },
       { status: "ok" },
       { provider: "codex", usage: { primary: { usedPercent: 20 } } },
     );
@@ -793,8 +983,10 @@ describe("codexbar runtime helpers", () => {
     readFileMock.mockResolvedValue(JSON.stringify({ providers: [{ id: "codex", enabled: true }] }));
     spawnMock.mockReturnValue(makeMockChildProcess());
     cacheProviderStatus("codex", { indicator: "minor", description: "Partial outage" });
+    mockServeProcessProbes({ pid: ["", "6000\n"], etimeAndComm: "00:01 /usr/local/bin/codexbar\n" });
     mockServeResponses(
       new Error("connect ECONNREFUSED"),
+      { status: "ok" },
       { status: "ok" },
       { provider: "codex", usage: { primary: { usedPercent: 20 } } },
     );
@@ -807,7 +999,7 @@ describe("codexbar runtime helpers", () => {
       usedServe: true,
     });
 
-    expect(execFileMock).toHaveBeenCalledTimes(2);
+    expect(execFileMock.mock.calls.filter(([command]) => command === "/usr/local/bin/codexbar")).toHaveLength(2);
     expect(execFileMock).toHaveBeenCalledWith(
       "/usr/local/bin/codexbar",
       ["--version"],
@@ -846,8 +1038,10 @@ describe("codexbar runtime helpers", () => {
     );
     readFileMock.mockResolvedValue(JSON.stringify({ providers: [{ id: "codex", enabled: true }] }));
     spawnMock.mockReturnValue(makeMockChildProcess());
+    mockServeProcessProbes({ pid: ["", "6000\n"], etimeAndComm: "00:01 /usr/local/bin/codexbar\n" });
     mockServeResponses(
       new Error("connect ECONNREFUSED"),
+      { status: "ok" },
       { status: "ok" },
       { provider: "codex", usage: { primary: { usedPercent: 20 } } },
     );
@@ -925,7 +1119,10 @@ describe("codexbar runtime helpers", () => {
     mockExecSuccess('{"provider":"codex","usage":{"primary":{"usedPercent":20}}}');
 
     await expect(
-      fetchProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "codex"),
+      fetchProviderDetail(
+        { command: "/usr/local/bin/codexbar", source: "path", keychainAccessPolicy: "default" },
+        "codex",
+      ),
     ).resolves.toMatchObject({
       id: "codex",
       sections: [{ kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 80 }],
@@ -955,7 +1152,10 @@ describe("codexbar runtime helpers", () => {
     mockExecSuccess('[{"provider":"alibaba","error":{"message":"No available fetch strategy for alibaba."}}]');
 
     await expect(
-      fetchProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "alibaba"),
+      fetchProviderDetail(
+        { command: "/usr/local/bin/codexbar", source: "path", keychainAccessPolicy: "default" },
+        "alibaba",
+      ),
     ).rejects.toThrow("No available fetch strategy for alibaba.");
   });
 
@@ -964,7 +1164,10 @@ describe("codexbar runtime helpers", () => {
     vi.stubEnv("LOGNAME", "");
     mockExecSuccess('{"provider":"codex","usage":{"primary":{"usedPercent":20}}}');
 
-    await fetchProviderDetail({ command: "/usr/local/bin/codexbar", source: "path" }, "codex");
+    await fetchProviderDetail(
+      { command: "/usr/local/bin/codexbar", source: "path", keychainAccessPolicy: "default" },
+      "codex",
+    );
 
     const execOptions = execFileMock.mock.calls[0][2] as { env?: NodeJS.ProcessEnv };
     expect(execOptions.env?.USER).toEqual(expect.any(String));
@@ -1150,7 +1353,7 @@ describe("codexbar runtime helpers", () => {
 });
 
 describe("available providers", () => {
-  const binary: ResolvedCodexBarBinary = { command: "codexbar", source: "path" };
+  const binary: ResolvedCodexBarBinary = { command: "codexbar", source: "path", keychainAccessPolicy: "default" };
 
   beforeEach(() => {
     execFileMock.mockReset();

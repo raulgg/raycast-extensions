@@ -79,7 +79,7 @@ export async function detectHomebrew(brewPaths: readonly string[] = DEFAULT_BREW
 }
 
 // Best-effort over every dir, so partial success is a normal outcome: callers
-// judge success by re-running the availability gate (`resolveCodexBarBinary()`
+// judge success by re-running the availability gate (`resolveCodexBarBinary(policy)`
 // plus the `--version` smoke test), never by the results.
 export async function installCodexBarCli(
   helperPath: string,

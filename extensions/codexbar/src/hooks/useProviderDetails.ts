@@ -13,6 +13,7 @@ import {
   type ProviderDetailResults,
 } from "../lib/providerDetailCache";
 import { pruneProviderUsageSectionMemory } from "../lib/providerShapeMemory";
+import { getKeychainAccessPolicy } from "../preferences";
 import type { ConfiguredProvider } from "../providers/types";
 
 export type { ProviderDetailCacheStatus, ProviderDetailResults, ProviderDetailState } from "../lib/providerDetailCache";
@@ -41,6 +42,7 @@ export function useProviderDetails(
   selectedProviderId?: string,
 ): UseProviderDetailsResult {
   const binaryKey = buildProviderDetailBinaryKey(binary);
+  const keychainAccessPolicy = binary?.keychainAccessPolicy ?? getKeychainAccessPolicy();
   const providerIds = useMemo(() => providers.map((provider) => provider.id), [providers]);
   const providerIdsKey = providers.map((provider) => `${provider.id}\0${provider.source ?? "auto"}`).join("\u0001");
   const providerIdSet = useMemo(() => new Set(providerIds), [providerIdsKey]);
@@ -49,8 +51,8 @@ export function useProviderDetails(
     [providerIdsKey],
   );
   const optimisticResults = useMemo(
-    () => buildCachedProviderResults(providerIds, "default", Date.now(), providerSources),
-    [providerIdsKey],
+    () => buildCachedProviderResults(providerIds, keychainAccessPolicy, Date.now(), providerSources),
+    [keychainAccessPolicy, providerIdsKey],
   );
   const [results, setResults] = useState<ProviderDetailResults>({});
   const [isBatchLoading, setIsBatchLoading] = useState(false);
@@ -131,8 +133,8 @@ export function useProviderDetails(
         }
 
         completedRef.current.set(providerId, completedFetch?.generation ?? generation);
-        recordProviderDetailSuccess(providerId, "default");
-        cacheProviderDetail(detail, "default");
+        recordProviderDetailSuccess(providerId, currentBinary.keychainAccessPolicy);
+        cacheProviderDetail(detail, currentBinary.keychainAccessPolicy);
 
         setResults((current) => ({
           ...current,
@@ -156,7 +158,7 @@ export function useProviderDetails(
 
         completedRef.current.set(providerId, completedFetch?.generation ?? generation);
         const previousResult = resultsRef.current[providerId];
-        const failureCount = recordProviderDetailFailure(providerId, "default");
+        const failureCount = recordProviderDetailFailure(providerId, currentBinary.keychainAccessPolicy);
         const surfacedError = shouldSurfaceProviderDetailFailure(Boolean(previousResult?.detail), failureCount)
           ? toError(error)
           : undefined;
@@ -277,7 +279,9 @@ export function claimProviderOpenRefresh(completedRefreshes: Set<string>, refres
 }
 
 function buildProviderDetailBinaryKey(binary: ResolvedCodexBarBinary | undefined): string {
-  return binary ? `${binary.source}\0${binary.command}\0${JSON.stringify(binary.capabilities ?? null)}` : "";
+  return binary
+    ? `${binary.source}\0${binary.command}\0${binary.keychainAccessPolicy}\0${JSON.stringify(binary.capabilities ?? null)}`
+    : "";
 }
 
 export function canApplyProviderFetchResult({

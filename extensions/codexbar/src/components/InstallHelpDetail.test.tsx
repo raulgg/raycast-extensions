@@ -29,7 +29,11 @@ vi.mock("../lib/codexbar", async (importOriginal) => ({
 import { judgeCliSetup } from "./InstallHelpDetail";
 import { CodexBarCliError } from "../lib/codexbar";
 
-const RESOLVED_BINARY = { command: "/usr/local/bin/codexbar", source: "path" as const };
+const RESOLVED_BINARY = {
+  command: "/usr/local/bin/codexbar",
+  source: "path" as const,
+  keychainAccessPolicy: "default" as const,
+};
 
 describe("judgeCliSetup", () => {
   beforeEach(() => {
@@ -42,7 +46,7 @@ describe("judgeCliSetup", () => {
       new CodexBarCliError("unavailable", "Unable to find the `codexbar` CLI on this machine."),
     );
 
-    await expect(judgeCliSetup("No writable bin dirs found.")).resolves.toEqual({
+    await expect(judgeCliSetup("No writable bin dirs found.", "default")).resolves.toEqual({
       ok: false,
       details: "No writable bin dirs found.",
     });
@@ -58,14 +62,16 @@ describe("judgeCliSetup", () => {
       new CodexBarCliError("execution", "CodexBar failed to fetch usage data.", "zsh: killed codexbar --version"),
     );
 
-    await expect(judgeCliSetup("Installed: /usr/local/bin · Installed: /opt/homebrew/bin")).resolves.toEqual({
-      ok: false,
-      details: [
-        "Installed: /usr/local/bin · Installed: /opt/homebrew/bin",
-        "Launch failed: CodexBar failed to fetch usage data.",
-        "zsh: killed codexbar --version",
-      ].join("\n"),
-    });
+    await expect(judgeCliSetup("Installed: /usr/local/bin · Installed: /opt/homebrew/bin", "default")).resolves.toEqual(
+      {
+        ok: false,
+        details: [
+          "Installed: /usr/local/bin · Installed: /opt/homebrew/bin",
+          "Launch failed: CodexBar failed to fetch usage data.",
+          "zsh: killed codexbar --version",
+        ].join("\n"),
+      },
+    );
     expect(smokeTestCodexBarMock).toHaveBeenCalledWith(RESOLVED_BINARY);
   });
 
@@ -75,7 +81,7 @@ describe("judgeCliSetup", () => {
       new CodexBarCliError("timeout", "CodexBar timed out while fetching usage data."),
     );
 
-    await expect(judgeCliSetup("Installed: /usr/local/bin")).resolves.toEqual({
+    await expect(judgeCliSetup("Installed: /usr/local/bin", "default")).resolves.toEqual({
       ok: false,
       details: "Installed: /usr/local/bin\nLaunch failed: CodexBar timed out while fetching usage data.",
     });
@@ -85,7 +91,7 @@ describe("judgeCliSetup", () => {
     resolveCodexBarBinaryMock.mockResolvedValue(RESOLVED_BINARY);
     smokeTestCodexBarMock.mockResolvedValue(undefined);
 
-    await expect(judgeCliSetup("Installed: /usr/local/bin")).resolves.toEqual({ ok: true });
+    await expect(judgeCliSetup("Installed: /usr/local/bin", "default")).resolves.toEqual({ ok: true });
     expect(smokeTestCodexBarMock).toHaveBeenCalledWith(RESOLVED_BINARY);
   });
 });
