@@ -9,3 +9,4 @@
 - Without the app, the install help lays out both routes (CodexBar app + CLI, or CLI only) and adapts the instructions to whether Homebrew is installed
 - Detail view with usage meters, pacing, credits, cost, named extra rate windows, recent credit activity, daily credit spend, and a General section (source, version, account, organization, subscription dates)
 - Hide Personal Information preference covering account email, label, and organization
+- Optional strict, Provider-wide Keychain isolation for every CodexBar process the extension launches, including policy-scoped Provider caches and graceful background daemon reconciliation

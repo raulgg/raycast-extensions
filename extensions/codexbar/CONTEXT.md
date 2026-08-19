@@ -16,6 +16,10 @@ _Avoid_: "the binary" (used bare)
 A long-lived localhost-only process started from the CodexBar CLI's serve mode that exposes CodexBar usage payloads over HTTP. It is still part of the external CodexBar CLI, not the CodexBar app, and can outlive a single Raycast command invocation. In this extension, the scheduled Raycast background refresh may start it, while the Usage Overview foreground command only consumes it if it is already healthy.
 _Avoid_: Raycast background task, app daemon
 
+**Keychain access policy**:
+The extension-wide rule governing whether CodexBar work initiated by this extension may read or write macOS Keychain. The default policy preserves CodexBar behavior. The strict **disabled** policy applies to every Provider and every CodexBar child process the extension launches. A CodexBar serve daemon is used only when its recorded process identity matches the current policy; the Raycast background refresh may replace an unverifiable daemon, while foreground work falls back to a guarded one-shot command. Provider account-derived caches are isolated by policy.
+_Avoid_: Cursor setting, Provider Keychain mode, no-Keychain source
+
 **Raycast background refresh**:
 Raycast's scheduled launch of a `no-view` or `menu-bar` command at a manifest-defined interval. It is useful for prefetching and updating shared extension state, but it is not a persistent process and does not keep a command loaded between runs. CodexBar uses `refresh-usage-cache` to warm provider detail cache data and to keep the CodexBar serve daemon available when that scheduled command is enabled.
 _Avoid_: Daemon, worker, service
@@ -86,6 +90,8 @@ The CodexBar config file (`~/.codexbar/config.json`), owned by the CodexBar app,
 
 **Source**:
 How the CodexBar CLI acquires a Provider's usage — API, browser session (web), OAuth, local file, or CLI. The extension forwards the Provider's shared-config source and requests the upstream GUI-parity fetch profile when the installed CLI supports it. (Not currently surfaced — the Source row lived in the now-removed General section.)
+
+Source and Keychain access policy are independent. A Source selects an acquisition strategy; the Keychain access policy constrains whether any strategy may use Keychain.
 
 **Provider id alias**:
 An alternate spelling the CLI accepts for a Provider id (its `cliName` or upstream aliases, e.g. `alibaba-coding-plan` → `alibaba`, `groqcloud` → `groq`). The registry resolves aliases to the canonical id (the upstream enum case name, which is what the config file and payloads use) so a config listing either spelling renders one row.

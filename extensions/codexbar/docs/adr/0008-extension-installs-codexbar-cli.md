@@ -11,6 +11,6 @@ Rejected alternatives. The repo script `bin/install-codexbar-cli.sh` escalates w
 Consequences:
 
 - The extension writes outside its own support directory (a symlink in a system bin dir) — only after explicit confirmation, and disclosed in the README for store review.
-- Partial success is a normal outcome (e.g. one prefix read-only): one working link is enough for `resolveCodexBarBinary()`, and nothing retries or repairs the other prefix.
+- Partial success is a normal outcome (e.g. one prefix read-only): one working link is enough for `resolveCodexBarBinary(policy)`, and nothing retries or repairs the other prefix.
 - The port is hand-maintained parity; drift is caught only by re-reading `PreferencesAdvancedPane.swift` (see upstream-parity.md surface 6), with `src/lib/cliInstall.test.ts` pinning each property against real temp dirs.
 - An app present without its helper (older build) renders the no-app help rather than a setup offer that would immediately fail.

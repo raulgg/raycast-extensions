@@ -44,10 +44,18 @@ with the extension's Manage Providers action, too.
 All usage data comes from the local `codexbar` CLI. The extension makes no network requests of its
 own — the only HTTP traffic is to the CLI's localhost serve daemon.
 
+Enable **Disable Keychain Access** to prevent every CodexBar process launched by this extension
+from reading or writing macOS Keychain. This applies to all Providers. Providers that rely on
+Keychain credentials may become unavailable; configure another authentication source in the
+CodexBar app if needed. Provider account data cached under this policy is kept separate from data
+fetched with normal Keychain access.
+
 ## Preferences
 
 - **Hide Personal Information** — hides account emails, labels, and organizations in the detail
   view.
+- **Disable Keychain Access** — launches CodexBar work for every Provider with Keychain access
+  disabled. Alternative authentication sources are configured in the CodexBar app.
 
 ## Contributing
 
