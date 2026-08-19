@@ -36,13 +36,7 @@ export type ProviderSectionItem = {
 };
 
 export type ProviderUsagePacingStage =
-  | "onTrack"
-  | "slightlyOver"
-  | "over"
-  | "farOver"
-  | "slightlyUnder"
-  | "under"
-  | "farUnder";
+  "onTrack" | "slightlyOver" | "over" | "farOver" | "slightlyUnder" | "under" | "farUnder";
 
 // Selects the ETA phrasing, mirroring upstream UsagePaceText.DetailContext:
 // the session (primary) window says "Projected empty in …"; every other
