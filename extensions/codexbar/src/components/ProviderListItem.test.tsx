@@ -42,6 +42,7 @@ vi.mock("./ManageProvidersAction", () => ({
 }));
 
 import {
+  buildProviderFetchCommand,
   buildProviderListItemAccessories,
   formatProviderDetailErrorTooltip,
   formatProviderDetailStaleTooltip,
@@ -91,6 +92,13 @@ function makeSecondaryOnlyDetail(remainingPercent: number): ProviderDetailData {
 }
 
 describe("ProviderListItem", () => {
+  it("copies the strict Keychain policy into the CLI command", () => {
+    expect(buildProviderFetchCommand("claude", "disabled")).toBe(
+      "CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1 codexbar usage --provider claude",
+    );
+    expect(buildProviderFetchCommand("claude", "default")).toBe("codexbar usage --provider claude");
+  });
+
   it("adds a copy action for the selected provider fetch command", () => {
     const element = ProviderListItem({
       provider: {

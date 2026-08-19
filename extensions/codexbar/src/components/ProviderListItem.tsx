@@ -8,6 +8,7 @@ import type { ResolvedCodexBarBinary } from "../lib/codexbar";
 import { ManageProvidersAction } from "./ManageProvidersAction";
 import { moveProviderActions } from "./moveProviderActions";
 import { ProviderDetail } from "./ProviderDetail";
+import { CODEXBAR_DISABLE_KEYCHAIN_ACCESS_ENV, type KeychainAccessPolicy } from "../lib/keychainAccessPolicy";
 
 type ProviderListItemProps = {
   provider: ConfiguredProvider;
@@ -40,7 +41,7 @@ export function ProviderListItem({
   onMoveDown,
   onProvidersChanged,
 }: ProviderListItemProps) {
-  const fetchCommand = `codexbar usage --provider ${provider.id}`;
+  const fetchCommand = buildProviderFetchCommand(provider.id, binary?.keychainAccessPolicy ?? "default");
   const statusPageUrl = getProviderMetadata(provider.id).statusPageUrl ?? status?.url;
   // When detail (and thus planText) hasn't loaded yet, this falls back to the
   // plain dashboardUrl; for Claude subscription plans it resolves to claude.ai.
@@ -101,6 +102,11 @@ export function ProviderListItem({
       }
     />
   );
+}
+
+export function buildProviderFetchCommand(providerId: string, keychainAccessPolicy: KeychainAccessPolicy): string {
+  const command = `codexbar usage --provider ${providerId}`;
+  return keychainAccessPolicy === "disabled" ? `${CODEXBAR_DISABLE_KEYCHAIN_ACCESS_ENV}=1 ${command}` : command;
 }
 
 // Incident status is intentionally absent here: it renders as a bottom footer

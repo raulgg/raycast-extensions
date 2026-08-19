@@ -474,6 +474,30 @@ describe("codexbar runtime helpers", () => {
     );
   });
 
+  it("guards one-shot provider fetches and appends the strict-policy authentication hint", async () => {
+    execFileMock.mockImplementation(
+      (
+        _command: string,
+        _args: string[],
+        _options: unknown,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => callback(new Error("provider failed"), '{"error":"No usable credentials."}', "provider failed"),
+    );
+
+    const fetch = fetchProviderDetail(
+      { command: "/usr/local/bin/codexbar", source: "path", keychainAccessPolicy: "disabled" },
+      "claude",
+      { mode: "force" },
+    );
+
+    await expect(fetch).rejects.toThrow(
+      "No usable credentials.\n\nKeychain access is disabled. This Provider may require another authentication source.\n\nConfigure it in the CodexBar app or allow Keychain access and retry.",
+    );
+    expect(execFileMock.mock.calls[0]?.[2]).toMatchObject({
+      env: expect.objectContaining({ [CODEXBAR_DISABLE_KEYCHAIN_ACCESS_ENV]: "1" }),
+    });
+  });
+
   it("bypasses CodexBar serve for forced provider detail fetches", async () => {
     mockExecSuccess('{"provider":"codex","usage":{"primary":{"usedPercent":20}}}');
     mockServeResponses({ status: "ok" }, { provider: "codex", usage: { primary: { usedPercent: 99 } } });

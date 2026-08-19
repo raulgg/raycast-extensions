@@ -76,4 +76,22 @@ describe("presentation helpers", () => {
 
     expect(svg).toContain("&lt;boom&gt; &amp; &quot;bad&quot;");
   });
+
+  it("preserves paragraph breaks in error messages", () => {
+    const [svg] = extractSvgMarkup(
+      buildProviderErrorMarkdown("Load failed", new Error("Original error.\n\nWhat happened.\n\nWhat to do next.")),
+    );
+    const originalY = getTextY(svg, "Original error.");
+    const explanationY = getTextY(svg, "What happened.");
+    const recoveryY = getTextY(svg, "What to do next.");
+
+    expect(explanationY - originalY).toBeGreaterThan(24);
+    expect(recoveryY - explanationY).toBeGreaterThan(24);
+  });
 });
+
+function getTextY(svg: string, text: string): number {
+  const match = svg.match(new RegExp(`<text[^>]* y="(\\d+)"[^>]*>${text}</text>`));
+  expect(match).toBeTruthy();
+  return Number(match?.[1]);
+}

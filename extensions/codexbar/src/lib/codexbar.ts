@@ -88,6 +88,33 @@ export class CodexBarCliError extends Error {
   }
 }
 
+export const KEYCHAIN_ACCESS_DISABLED_PROVIDER_ERROR_HINT =
+  "Keychain access is disabled. This Provider may require another authentication source.\n\nConfigure it in the CodexBar app or allow Keychain access and retry.";
+
+function appendKeychainAccessPolicyHint(error: unknown, binary: ResolvedCodexBarBinary): Error {
+  if (binary.keychainAccessPolicy !== "disabled") {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes(KEYCHAIN_ACCESS_DISABLED_PROVIDER_ERROR_HINT)) {
+    return error instanceof Error ? error : new Error(message);
+  }
+
+  const hintedMessage = `${message}\n\n${KEYCHAIN_ACCESS_DISABLED_PROVIDER_ERROR_HINT}`;
+  return error instanceof CodexBarCliError
+    ? new CodexBarCliError(error.kind, hintedMessage, error.detail)
+    : new Error(hintedMessage);
+}
+
+async function withProviderFetchErrorHint<T>(binary: ResolvedCodexBarBinary, fetch: () => Promise<T>): Promise<T> {
+  try {
+    return await fetch();
+  } catch (error) {
+    throw appendKeychainAccessPolicyHint(error, binary);
+  }
+}
+
 export type { InstallHelpState };
 
 export type CodexBarAvailability =
@@ -780,20 +807,22 @@ export async function fetchProviderDetail(
   options?: ProviderFetchOptions,
 ): Promise<ProviderDetailData> {
   const normalizedProviderId = assertFetchableProviderId(providerId);
-  if (binary.source === "mock" || isCodexBarMockMode()) {
-    return withRequestMetadata(
-      normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId),
-      options?.source,
-    );
-  }
+  return withProviderFetchErrorHint(binary, async () => {
+    if (binary.source === "mock" || isCodexBarMockMode()) {
+      return withRequestMetadata(
+        normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId),
+        options?.source,
+      );
+    }
 
-  const payload = await fetchProviderDetailPayload(binary, normalizedProviderId, options);
-  // Graft remembered sections (ADR-0007): flaky upstream payloads must not drop meters.
-  const detail = applyProviderUsageSectionMemory(
-    normalizeProviderDetailResponse(payload, normalizedProviderId),
-    binary.keychainAccessPolicy,
-  );
-  return withRequestMetadata(detail, options?.source);
+    const payload = await fetchProviderDetailPayload(binary, normalizedProviderId, options);
+    // Graft remembered sections (ADR-0007): flaky upstream payloads must not drop meters.
+    const detail = applyProviderUsageSectionMemory(
+      normalizeProviderDetailResponse(payload, normalizedProviderId),
+      binary.keychainAccessPolicy,
+    );
+    return withRequestMetadata(detail, options?.source);
+  });
 }
 
 export async function fetchProviderDetailFromServe(
@@ -802,19 +831,21 @@ export async function fetchProviderDetailFromServe(
   options?: ProviderFetchOptions,
 ): Promise<ProviderDetailData> {
   const normalizedProviderId = assertFetchableProviderId(providerId);
-  if (binary.source === "mock" || isCodexBarMockMode()) {
-    return withRequestMetadata(
-      normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId),
-      options?.source,
-    );
-  }
+  return withProviderFetchErrorHint(binary, async () => {
+    if (binary.source === "mock" || isCodexBarMockMode()) {
+      return withRequestMetadata(
+        normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId),
+        options?.source,
+      );
+    }
 
-  const payload = await executeCodexBarServe(binary, normalizedProviderId, options);
-  const detail = applyProviderUsageSectionMemory(
-    normalizeProviderDetailResponse(payload, normalizedProviderId),
-    binary.keychainAccessPolicy,
-  );
-  return withRequestMetadata(detail, options?.source);
+    const payload = await executeCodexBarServe(binary, normalizedProviderId, options);
+    const detail = applyProviderUsageSectionMemory(
+      normalizeProviderDetailResponse(payload, normalizedProviderId),
+      binary.keychainAccessPolicy,
+    );
+    return withRequestMetadata(detail, options?.source);
+  });
 }
 
 export async function fetchProviderDetailFromUsageCommand(
@@ -823,26 +854,28 @@ export async function fetchProviderDetailFromUsageCommand(
   options?: ProviderFetchOptions,
 ): Promise<ProviderDetailData> {
   const normalizedProviderId = assertFetchableProviderId(providerId);
-  if (binary.source === "mock" || isCodexBarMockMode()) {
-    return withRequestMetadata(
-      normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId),
-      options?.source,
-    );
-  }
+  return withProviderFetchErrorHint(binary, async () => {
+    if (binary.source === "mock" || isCodexBarMockMode()) {
+      return withRequestMetadata(
+        normalizeProviderDetailPayload(getMockProviderPayload(normalizedProviderId), normalizedProviderId),
+        options?.source,
+      );
+    }
 
-  const payload = await executeCodexBar(
-    binary,
-    buildProviderUsageCommandArgs(normalizedProviderId, {
-      source: options?.source,
-      interaction: options?.interaction,
-      capabilities: binary.capabilities,
-    }),
-  );
-  const detail = applyProviderUsageSectionMemory(
-    normalizeProviderDetailResponse(payload, normalizedProviderId),
-    binary.keychainAccessPolicy,
-  );
-  return withRequestMetadata(detail, options?.source);
+    const payload = await executeCodexBar(
+      binary,
+      buildProviderUsageCommandArgs(normalizedProviderId, {
+        source: options?.source,
+        interaction: options?.interaction,
+        capabilities: binary.capabilities,
+      }),
+    );
+    const detail = applyProviderUsageSectionMemory(
+      normalizeProviderDetailResponse(payload, normalizedProviderId),
+      binary.keychainAccessPolicy,
+    );
+    return withRequestMetadata(detail, options?.source);
+  });
 }
 
 export type ProviderUsageWithStatus = {
@@ -857,30 +890,32 @@ export async function fetchProviderUsageWithStatus(
   options?: ProviderFetchOptions,
 ): Promise<ProviderUsageWithStatus> {
   const normalizedProviderId = assertFetchableProviderId(providerId);
-  if (binary.source === "mock" || isCodexBarMockMode()) {
-    const payload = getMockProviderPayload(normalizedProviderId);
-    return {
-      detail: withRequestMetadata(normalizeProviderDetailPayload(payload, normalizedProviderId), options?.source),
-      status: extractProviderStatus(payload, normalizedProviderId),
-    };
-  }
+  return withProviderFetchErrorHint(binary, async () => {
+    if (binary.source === "mock" || isCodexBarMockMode()) {
+      const payload = getMockProviderPayload(normalizedProviderId);
+      return {
+        detail: withRequestMetadata(normalizeProviderDetailPayload(payload, normalizedProviderId), options?.source),
+        status: extractProviderStatus(payload, normalizedProviderId),
+      };
+    }
 
-  const payload = await executeCodexBar(
-    binary,
-    buildProviderUsageCommandArgs(normalizedProviderId, {
-      includeStatus: true,
-      source: options?.source,
-      interaction: options?.interaction,
-      capabilities: binary.capabilities,
-    }),
-  );
-  const status = extractProviderStatus(payload, normalizedProviderId);
-  const normalizedDetail = applyProviderUsageSectionMemory(
-    normalizeProviderDetailResponse(payload, normalizedProviderId),
-    binary.keychainAccessPolicy,
-  );
-  const detail = withRequestMetadata(normalizedDetail, options?.source);
-  return { detail, status };
+    const payload = await executeCodexBar(
+      binary,
+      buildProviderUsageCommandArgs(normalizedProviderId, {
+        includeStatus: true,
+        source: options?.source,
+        interaction: options?.interaction,
+        capabilities: binary.capabilities,
+      }),
+    );
+    const status = extractProviderStatus(payload, normalizedProviderId);
+    const normalizedDetail = applyProviderUsageSectionMemory(
+      normalizeProviderDetailResponse(payload, normalizedProviderId),
+      binary.keychainAccessPolicy,
+    );
+    const detail = withRequestMetadata(normalizedDetail, options?.source);
+    return { detail, status };
+  });
 }
 
 function assertFetchableProviderId(providerId: string): string {
