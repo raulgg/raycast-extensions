@@ -758,7 +758,7 @@ describe("codexbar runtime helpers", () => {
     });
 
     // Serve-sourced detail stays primary even when a status one-shot also runs.
-    expect(buildCachedProviderResults(["codex"])).toMatchObject({
+    expect(buildCachedProviderResults(["codex"], "default")).toMatchObject({
       codex: {
         detail: {
           id: "codex",
@@ -860,7 +860,7 @@ describe("codexbar runtime helpers", () => {
       usedServe: true,
     });
 
-    expect(buildCachedProviderResults(["codex"])).toMatchObject({
+    expect(buildCachedProviderResults(["codex"], "default")).toMatchObject({
       codex: {
         detail: {
           id: "codex",

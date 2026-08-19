@@ -5,6 +5,7 @@ import {
   cacheProviderDetail,
   recordProviderDetailFailure,
   recordProviderDetailSuccess,
+  pruneProviderDetailCaches,
   runProviderDetailFetches,
   shouldRefreshProviderAutomatically,
   shouldRefreshSelectedProvider,
@@ -73,9 +74,9 @@ describe("providerDetailCache", () => {
 
   it("hydrates provider results from fresh cached details", () => {
     const now = Date.parse("2026-04-15T12:05:00Z");
-    cacheProviderDetail(makeDetail("codex", "2026-04-15T12:00:00Z"));
+    cacheProviderDetail(makeDetail("codex", "2026-04-15T12:00:00Z"), "default");
 
-    expect(buildCachedProviderResults(["codex"], now)).toMatchObject({
+    expect(buildCachedProviderResults(["codex"], "default", now)).toMatchObject({
       codex: {
         detail: { id: "codex", sections: [{ kind: "usage", remainingPercent: 82 }] },
         cacheStatus: "fresh",
@@ -86,9 +87,9 @@ describe("providerDetailCache", () => {
 
   it("hydrates stale cached provider details up to one hour old", () => {
     const now = Date.parse("2026-04-15T12:10:01Z");
-    cacheProviderDetail(makeDetail("claude", "2026-04-15T12:00:00Z"));
+    cacheProviderDetail(makeDetail("claude", "2026-04-15T12:00:00Z"), "default");
 
-    expect(buildCachedProviderResults(["claude"], now)).toMatchObject({
+    expect(buildCachedProviderResults(["claude"], "default", now)).toMatchObject({
       claude: {
         detail: { id: "claude", sections: [{ kind: "usage", remainingPercent: 82 }] },
         cacheStatus: "stale",
@@ -99,9 +100,9 @@ describe("providerDetailCache", () => {
 
   it("ignores cached provider details older than one hour", () => {
     const now = Date.parse("2026-04-15T13:00:01Z");
-    cacheProviderDetail(makeDetail("cursor", "2026-04-15T12:00:00Z"));
+    cacheProviderDetail(makeDetail("cursor", "2026-04-15T12:00:00Z"), "default");
 
-    expect(buildCachedProviderResults(["cursor"], now)).toEqual({});
+    expect(buildCachedProviderResults(["cursor"], "default", now)).toEqual({});
   });
 
   it("refreshes selected providers when detail is older than ten minutes", () => {
@@ -191,9 +192,9 @@ describe("providerDetailCache", () => {
       },
     ]);
 
-    cacheProviderDetail(richDetail);
-    cacheProviderDetail(poorDetail);
-    expect(buildCachedProviderResults(["claude"], Date.parse("2026-04-15T12:02:00Z"))).toMatchObject({
+    cacheProviderDetail(richDetail, "default");
+    cacheProviderDetail(poorDetail, "default");
+    expect(buildCachedProviderResults(["claude"], "default", Date.parse("2026-04-15T12:02:00Z"))).toMatchObject({
       claude: {
         detail: {
           sections: [
@@ -230,9 +231,9 @@ describe("providerDetailCache", () => {
       },
     ]);
 
-    cacheProviderDetail(richDetail);
-    cacheProviderDetail(newerUsageDetail);
-    expect(buildCachedProviderResults(["claude"], Date.parse("2026-04-15T12:02:00Z"))).toMatchObject({
+    cacheProviderDetail(richDetail, "default");
+    cacheProviderDetail(newerUsageDetail, "default");
+    expect(buildCachedProviderResults(["claude"], "default", Date.parse("2026-04-15T12:02:00Z"))).toMatchObject({
       claude: { detail: { sections: [{ remainingPercent: 55 }] } },
     });
   });
@@ -262,9 +263,9 @@ describe("providerDetailCache", () => {
       },
     ]);
 
-    cacheProviderDetail(currentDetail);
-    cacheProviderDetail(richerDetail);
-    expect(buildCachedProviderResults(["codex"], Date.parse("2026-04-15T12:02:00Z"))).toMatchObject({
+    cacheProviderDetail(currentDetail, "default");
+    cacheProviderDetail(richerDetail, "default");
+    expect(buildCachedProviderResults(["codex"], "default", Date.parse("2026-04-15T12:02:00Z"))).toMatchObject({
       codex: {
         detail: {
           sections: [
@@ -302,10 +303,10 @@ describe("providerDetailCache", () => {
       },
     ]);
 
-    cacheProviderDetail(richDetail);
+    cacheProviderDetail(richDetail, "default");
 
-    cacheProviderDetail(poorDetail);
-    expect(buildCachedProviderResults(["codex"], now)).toMatchObject({
+    cacheProviderDetail(poorDetail, "default");
+    expect(buildCachedProviderResults(["codex"], "default", now)).toMatchObject({
       codex: {
         detail: {
           sections: [{ kind: "usage", title: "Primary" }],
@@ -315,14 +316,37 @@ describe("providerDetailCache", () => {
   });
 
   it("suppresses the first cached-data failure and surfaces the second", () => {
-    expect(shouldSurfaceProviderDetailFailure(true, recordProviderDetailFailure("claude"))).toBe(false);
-    expect(shouldSurfaceProviderDetailFailure(true, recordProviderDetailFailure("claude"))).toBe(true);
+    expect(shouldSurfaceProviderDetailFailure(true, recordProviderDetailFailure("claude", "default"))).toBe(false);
+    expect(shouldSurfaceProviderDetailFailure(true, recordProviderDetailFailure("claude", "default"))).toBe(true);
 
-    recordProviderDetailSuccess("claude");
-    expect(shouldSurfaceProviderDetailFailure(true, recordProviderDetailFailure("claude"))).toBe(false);
+    recordProviderDetailSuccess("claude", "default");
+    expect(shouldSurfaceProviderDetailFailure(true, recordProviderDetailFailure("claude", "default"))).toBe(false);
   });
 
   it("surfaces the first failure when no cached detail exists", () => {
-    expect(shouldSurfaceProviderDetailFailure(false, recordProviderDetailFailure("codex"))).toBe(true);
+    expect(shouldSurfaceProviderDetailFailure(false, recordProviderDetailFailure("codex", "default"))).toBe(true);
+  });
+
+  it("isolates cached details and failure counters by Keychain access policy", () => {
+    const now = Date.parse("2026-04-15T12:05:00Z");
+    cacheProviderDetail(makeDetail("codex", "2026-04-15T12:00:00Z"), "default");
+
+    expect(buildCachedProviderResults(["codex"], "disabled", now)).toEqual({});
+    expect(buildCachedProviderResults(["codex"], "default", now)).toHaveProperty("codex.detail.id", "codex");
+    expect(recordProviderDetailFailure("codex", "default")).toBe(1);
+    expect(recordProviderDetailFailure("codex", "disabled")).toBe(1);
+  });
+
+  it("physically removes expired details from both policy scopes", () => {
+    const cache = new Cache({ namespace: "provider-details" });
+    const fetchedAt = "2026-04-15T12:00:00Z";
+    cacheProviderDetail(makeDetail("codex", fetchedAt), "default");
+    cacheProviderDetail(makeDetail("codex", fetchedAt), "disabled");
+
+    pruneProviderDetailCaches([], Date.parse("2026-04-15T13:00:01Z"));
+
+    expect(buildCachedProviderResults(["codex"], "default", Date.parse("2026-04-15T13:00:01Z"))).toEqual({});
+    expect(buildCachedProviderResults(["codex"], "disabled", Date.parse("2026-04-15T13:00:01Z"))).toEqual({});
+    expect(cache.get("provider-details-v7:index")).toBeUndefined();
   });
 });

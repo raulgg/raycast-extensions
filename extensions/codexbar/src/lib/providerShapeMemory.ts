@@ -1,9 +1,13 @@
 import { Cache } from "@raycast/api";
 import type { ProviderDetailData, ProviderSupplementalUsageSection } from "../providers/types";
+import type { KeychainAccessPolicy } from "./keychainAccessPolicy";
 
 // Per-provider section memory (ADR-0007): upstream fetches sometimes drop
 // supplemental sections, so we restore remembered ones until they age out
-const SHAPE_MEMORY_SCHEMA_VERSION = "usage-sections-v1";
+const SHAPE_MEMORY_SCHEMA_VERSION = "usage-sections-v2";
+const LEGACY_SHAPE_MEMORY_SCHEMA_VERSION = "usage-sections-v1";
+const SHAPE_MEMORY_INDEX_KEY = `${SHAPE_MEMORY_SCHEMA_VERSION}:index`;
+const KEYCHAIN_ACCESS_POLICIES: KeychainAccessPolicy[] = ["default", "disabled"];
 
 export const SECTION_MEMORY_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -28,8 +32,8 @@ function getShapeMemoryCache(): Cache {
   return shapeMemoryCache;
 }
 
-function buildShapeMemoryKey(providerId: string): string {
-  return `${SHAPE_MEMORY_SCHEMA_VERSION}:${providerId}`;
+function buildShapeMemoryKey(providerId: string, keychainAccessPolicy: KeychainAccessPolicy): string {
+  return `${SHAPE_MEMORY_SCHEMA_VERSION}:${keychainAccessPolicy}:${providerId}`;
 }
 
 // Sections must never be restored across a different account or resolved
@@ -38,24 +42,38 @@ function buildMemoryIdentity(detail: ProviderDetailData): string {
   return `${detail.source ?? ""}:${detail.accountEmail ?? ""}`;
 }
 
-function readRememberedSections(providerId: string, identity: string): RememberedSection[] {
-  const serialized = getShapeMemoryCache().get(buildShapeMemoryKey(providerId));
+function readRememberedSections(
+  providerId: string,
+  identity: string,
+  keychainAccessPolicy: KeychainAccessPolicy,
+): RememberedSection[] {
+  const key = buildShapeMemoryKey(providerId, keychainAccessPolicy);
+  const serialized = getShapeMemoryCache().get(key);
   if (!serialized) {
     return [];
   }
 
   try {
     const parsed = JSON.parse(serialized) as SectionMemoryStore;
-    return parsed.identity === identity && Array.isArray(parsed.entries) ? parsed.entries : [];
+    if (typeof parsed.identity !== "string" || !Array.isArray(parsed.entries)) {
+      throw new Error("invalid provider shape memory");
+    }
+    return parsed.identity === identity ? parsed.entries.filter(isRememberedSection) : [];
   } catch {
+    getShapeMemoryCache().remove(key);
+    untrackShapeMemoryIdIfEmpty(providerId);
     return [];
   }
 }
 
 /** Track which supplemental usage sections appear in detail, and restore any recently seen ones it dropped. */
-export function applyProviderUsageSectionMemory(detail: ProviderDetailData, now = Date.now()): ProviderDetailData {
+export function applyProviderUsageSectionMemory(
+  detail: ProviderDetailData,
+  keychainAccessPolicy: KeychainAccessPolicy,
+  now = Date.now(),
+): ProviderDetailData {
   const identity = buildMemoryIdentity(detail);
-  const remembered = readRememberedSections(detail.id, identity).filter(
+  const remembered = readRememberedSections(detail.id, identity, keychainAccessPolicy).filter(
     (entry) => now - entry.lastSeenAt <= SECTION_MEMORY_TTL_MS,
   );
 
@@ -73,7 +91,14 @@ export function applyProviderUsageSectionMemory(detail: ProviderDetailData, now 
   });
 
   const store: SectionMemoryStore = { identity, entries: [...updated.values()] };
-  getShapeMemoryCache().set(buildShapeMemoryKey(detail.id), JSON.stringify(store));
+  const key = buildShapeMemoryKey(detail.id, keychainAccessPolicy);
+  if (store.entries.length > 0) {
+    getShapeMemoryCache().set(key, JSON.stringify(store));
+    trackShapeMemoryId(detail.id);
+  } else {
+    getShapeMemoryCache().remove(key);
+    untrackShapeMemoryIdIfEmpty(detail.id);
+  }
 
   const missing = remembered
     .filter((entry) => !presentKeys.has(entry.key))
@@ -88,4 +113,98 @@ export function applyProviderUsageSectionMemory(detail: ProviderDetailData, now 
   }
 
   return { ...detail, sections };
+}
+
+export function pruneProviderUsageSectionMemory(providerIds: string[] = [], now = Date.now()): void {
+  const trackedProviderIds = readShapeMemoryIndex();
+  const providerIdsToPrune = new Set([...trackedProviderIds, ...providerIds]);
+
+  for (const providerId of providerIdsToPrune) {
+    getShapeMemoryCache().remove(`${LEGACY_SHAPE_MEMORY_SCHEMA_VERSION}:${providerId}`);
+
+    for (const policy of KEYCHAIN_ACCESS_POLICIES) {
+      const key = buildShapeMemoryKey(providerId, policy);
+      const serialized = getShapeMemoryCache().get(key);
+      if (!serialized) continue;
+
+      try {
+        const store = JSON.parse(serialized) as SectionMemoryStore;
+        if (typeof store.identity !== "string" || !Array.isArray(store.entries)) {
+          throw new Error("invalid provider shape memory");
+        }
+        const entries = store.entries.filter(
+          (entry) => isRememberedSection(entry) && now - entry.lastSeenAt <= SECTION_MEMORY_TTL_MS,
+        );
+        if (entries.length === 0) {
+          getShapeMemoryCache().remove(key);
+        } else if (entries.length !== store.entries.length) {
+          getShapeMemoryCache().set(key, JSON.stringify({ ...store, entries } satisfies SectionMemoryStore));
+        }
+      } catch {
+        getShapeMemoryCache().remove(key);
+      }
+    }
+
+    if (!hasAnyShapeMemoryEntry(providerId)) {
+      trackedProviderIds.delete(providerId);
+    }
+  }
+
+  writeShapeMemoryIndex(trackedProviderIds);
+}
+
+function isRememberedSection(entry: unknown): entry is RememberedSection {
+  if (!entry || typeof entry !== "object") return false;
+  const candidate = entry as Partial<RememberedSection>;
+  return (
+    typeof candidate.key === "string" &&
+    typeof candidate.index === "number" &&
+    Number.isInteger(candidate.index) &&
+    typeof candidate.lastSeenAt === "number" &&
+    Number.isFinite(candidate.lastSeenAt) &&
+    candidate.section?.kind === "supplementalUsage"
+  );
+}
+
+function trackShapeMemoryId(providerId: string): void {
+  const providerIds = readShapeMemoryIndex();
+  providerIds.add(providerId);
+  writeShapeMemoryIndex(providerIds);
+}
+
+function untrackShapeMemoryIdIfEmpty(providerId: string): void {
+  if (hasAnyShapeMemoryEntry(providerId)) return;
+  const providerIds = readShapeMemoryIndex();
+  providerIds.delete(providerId);
+  writeShapeMemoryIndex(providerIds);
+}
+
+function hasAnyShapeMemoryEntry(providerId: string): boolean {
+  return KEYCHAIN_ACCESS_POLICIES.some((policy) =>
+    Boolean(getShapeMemoryCache().get(buildShapeMemoryKey(providerId, policy))),
+  );
+}
+
+function readShapeMemoryIndex(): Set<string> {
+  const serialized = getShapeMemoryCache().get(SHAPE_MEMORY_INDEX_KEY);
+  if (!serialized) return new Set();
+
+  try {
+    const providerIds = JSON.parse(serialized) as unknown;
+    if (!Array.isArray(providerIds) || !providerIds.every((providerId) => typeof providerId === "string")) {
+      throw new Error("invalid provider shape memory index");
+    }
+    return new Set(providerIds);
+  } catch {
+    getShapeMemoryCache().remove(SHAPE_MEMORY_INDEX_KEY);
+    return new Set();
+  }
+}
+
+function writeShapeMemoryIndex(providerIds: Set<string>): void {
+  if (providerIds.size === 0) {
+    getShapeMemoryCache().remove(SHAPE_MEMORY_INDEX_KEY);
+    return;
+  }
+  getShapeMemoryCache().set(SHAPE_MEMORY_INDEX_KEY, JSON.stringify([...providerIds]));
 }

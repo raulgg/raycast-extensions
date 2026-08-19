@@ -2,10 +2,12 @@ import { getMockConfiguredProviders, isCodexBarMockMode } from "../mocks/codexba
 import type { ConfiguredProvider } from "../providers/types";
 import {
   cacheProviderDetail,
+  pruneProviderDetailCaches,
   recordProviderDetailFailure,
   recordProviderDetailSuccess,
   runProviderDetailFetches,
 } from "./providerDetailCache";
+import { pruneProviderUsageSectionMemory } from "./providerShapeMemory";
 import { cacheProviderStatus, readProviderStatus } from "./providerStatusCache";
 import {
   ensureCodexBarServe,
@@ -70,6 +72,8 @@ export async function refreshUsageCache(): Promise<UsageCacheRefreshResult> {
   }
 
   const providerIds = providers.map((provider) => provider.id).filter(Boolean);
+  pruneProviderDetailCaches(providerIds);
+  pruneProviderUsageSectionMemory(providerIds);
   const providersById = new Map(providers.map((provider) => [provider.id, provider]));
   if (providerIds.length === 0) {
     return {
@@ -103,15 +107,15 @@ export async function refreshUsageCache(): Promise<UsageCacheRefreshResult> {
           provider,
           usedServe,
         );
-        cacheProviderDetail(detail);
-        recordProviderDetailSuccess(providerId);
+        cacheProviderDetail(detail, "default");
+        recordProviderDetailSuccess(providerId, "default");
         refreshedCount += 1;
         // Best effort only; never drop a prior cached status on miss.
         if (status) {
           cacheProviderStatus(providerId, status);
         }
       } catch (error) {
-        recordProviderDetailFailure(providerId);
+        recordProviderDetailFailure(providerId, "default");
         errors.push({ providerId, message: toErrorMessage(error) });
       }
     },

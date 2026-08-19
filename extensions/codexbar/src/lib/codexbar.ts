@@ -707,7 +707,10 @@ export async function fetchProviderDetail(
 
   const payload = await fetchProviderDetailPayload(binary, normalizedProviderId, options);
   // Graft remembered sections (ADR-0007): flaky upstream payloads must not drop meters.
-  const detail = applyProviderUsageSectionMemory(normalizeProviderDetailResponse(payload, normalizedProviderId));
+  const detail = applyProviderUsageSectionMemory(
+    normalizeProviderDetailResponse(payload, normalizedProviderId),
+    "default",
+  );
   return withRequestMetadata(detail, options?.source);
 }
 
@@ -726,7 +729,10 @@ export async function fetchProviderDetailFromServe(
   }
 
   const payload = await executeCodexBarServe(normalizedProviderId, options, binary.capabilities);
-  const detail = applyProviderUsageSectionMemory(normalizeProviderDetailResponse(payload, normalizedProviderId));
+  const detail = applyProviderUsageSectionMemory(
+    normalizeProviderDetailResponse(payload, normalizedProviderId),
+    "default",
+  );
   return withRequestMetadata(detail, options?.source);
 }
 
@@ -752,7 +758,10 @@ export async function fetchProviderDetailFromUsageCommand(
       capabilities: binary.capabilities,
     }),
   );
-  const detail = applyProviderUsageSectionMemory(normalizeProviderDetailResponse(payload, normalizedProviderId));
+  const detail = applyProviderUsageSectionMemory(
+    normalizeProviderDetailResponse(payload, normalizedProviderId),
+    "default",
+  );
   return withRequestMetadata(detail, options?.source);
 }
 
@@ -789,6 +798,7 @@ export async function fetchProviderUsageWithStatus(
   const status = extractProviderStatus(payload, normalizedProviderId);
   const normalizedDetail = applyProviderUsageSectionMemory(
     normalizeProviderDetailResponse(payload, normalizedProviderId),
+    "default",
   );
   const detail = withRequestMetadata(normalizedDetail, options?.source);
   return { detail, status };

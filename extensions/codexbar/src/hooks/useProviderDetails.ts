@@ -4,6 +4,7 @@ import {
   buildCachedProviderResults,
   cacheProviderDetail,
   PROVIDER_DETAIL_CONCURRENCY,
+  pruneProviderDetailCaches,
   recordProviderDetailFailure,
   recordProviderDetailSuccess,
   runProviderDetailFetches,
@@ -11,6 +12,7 @@ import {
   shouldSurfaceProviderDetailFailure,
   type ProviderDetailResults,
 } from "../lib/providerDetailCache";
+import { pruneProviderUsageSectionMemory } from "../lib/providerShapeMemory";
 import type { ConfiguredProvider } from "../providers/types";
 
 export type { ProviderDetailCacheStatus, ProviderDetailResults, ProviderDetailState } from "../lib/providerDetailCache";
@@ -47,7 +49,7 @@ export function useProviderDetails(
     [providerIdsKey],
   );
   const optimisticResults = useMemo(
-    () => buildCachedProviderResults(providerIds, Date.now(), providerSources),
+    () => buildCachedProviderResults(providerIds, "default", Date.now(), providerSources),
     [providerIdsKey],
   );
   const [results, setResults] = useState<ProviderDetailResults>({});
@@ -129,8 +131,8 @@ export function useProviderDetails(
         }
 
         completedRef.current.set(providerId, completedFetch?.generation ?? generation);
-        recordProviderDetailSuccess(providerId);
-        cacheProviderDetail(detail);
+        recordProviderDetailSuccess(providerId, "default");
+        cacheProviderDetail(detail, "default");
 
         setResults((current) => ({
           ...current,
@@ -154,7 +156,7 @@ export function useProviderDetails(
 
         completedRef.current.set(providerId, completedFetch?.generation ?? generation);
         const previousResult = resultsRef.current[providerId];
-        const failureCount = recordProviderDetailFailure(providerId);
+        const failureCount = recordProviderDetailFailure(providerId, "default");
         const surfacedError = shouldSurfaceProviderDetailFailure(Boolean(previousResult?.detail), failureCount)
           ? toError(error)
           : undefined;
@@ -207,6 +209,11 @@ export function useProviderDetails(
     },
     [fetchOneProvider, fetchProviderIfNeeded],
   );
+
+  useEffect(() => {
+    pruneProviderDetailCaches(providerIds);
+    pruneProviderUsageSectionMemory(providerIds);
+  }, [providerIdsKey]);
 
   useEffect(() => {
     const generation = generationRef.current + 1;
