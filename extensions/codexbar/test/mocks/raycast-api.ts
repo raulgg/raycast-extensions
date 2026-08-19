@@ -17,6 +17,16 @@ export const environment = {
   isDevelopment: false,
 } as const;
 
+export const Keyboard = {
+  Shortcut: {
+    Common: {
+      Copy: { modifiers: ["cmd", "shift"], key: "c" },
+      Open: { modifiers: ["cmd"], key: "o" },
+      OpenWith: { modifiers: ["cmd", "shift"], key: "o" },
+    },
+  },
+} as const;
+
 export function getPreferenceValues<T extends Record<string, unknown>>(): T {
   return {
     hidePersonalInfo: false,

@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Icon, List } from "@raycast/api";
+import { Action, ActionPanel, Icon, Keyboard, List } from "@raycast/api";
 import type { ProviderDetailCacheStatus } from "../lib/providerDetailCache";
 import type { ConfiguredProvider, ProviderDetailData, ProviderStatus, ProviderUsageSection } from "../providers/types";
 import { formatPercentRemaining } from "../lib/presentation";
@@ -79,7 +79,7 @@ export function ProviderListItem({
               title="Open Usage Dashboard"
               icon={Icon.BarChart}
               url={dashboardUrl}
-              shortcut={{ modifiers: ["cmd"], key: "o" }}
+              shortcut={Keyboard.Shortcut.Common.Open}
             />
           ) : null}
           {statusPageUrl ? (
@@ -87,7 +87,7 @@ export function ProviderListItem({
               title="Open Status Page"
               icon={Icon.Globe}
               url={statusPageUrl}
-              shortcut={{ modifiers: ["cmd", "shift"], key: "o" }}
+              shortcut={Keyboard.Shortcut.Common.OpenWith}
             />
           ) : null}
           {moveProviderActions(onMoveUp, onMoveDown)}
@@ -96,7 +96,7 @@ export function ProviderListItem({
             title="Copy CLI Command"
             content={fetchCommand}
             icon={Icon.Clipboard}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+            shortcut={Keyboard.Shortcut.Common.Copy}
           />
         </ActionPanel>
       }

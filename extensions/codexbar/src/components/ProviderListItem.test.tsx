@@ -30,6 +30,15 @@ vi.mock("@raycast/api", () => ({
       get: (_target, prop) => String(prop),
     },
   ),
+  Keyboard: {
+    Shortcut: {
+      Common: {
+        Copy: { modifiers: ["cmd", "shift"], key: "c" },
+        Open: { modifiers: ["cmd"], key: "o" },
+        OpenWith: { modifiers: ["cmd", "shift"], key: "o" },
+      },
+    },
+  },
   List,
 }));
 
