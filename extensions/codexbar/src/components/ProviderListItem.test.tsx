@@ -466,7 +466,13 @@ describe("ProviderListItem", () => {
 });
 
 function expectProgressAccessories(
-  accessories: { icon?: unknown; text?: string; tooltip?: string }[] | undefined,
+  accessories:
+    | ReadonlyArray<{
+        icon?: unknown;
+        text?: unknown;
+        tooltip?: string | null;
+      }>
+    | undefined,
   providerId: string,
   expected: {
     primary: number;

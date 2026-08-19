@@ -26,13 +26,13 @@ const TRACK_STROKE_OPACITY = {
   dark: 0.24,
 } as const;
 
-const twoBarAccessoryIconCache = new Map<string, Image.Image>();
+const twoBarAccessoryIconCache = new Map<string, Image>();
 
 export function buildTwoBarAccessoryIcon(
   providerId: string,
   topRemainingPercent: number,
   bottomRemainingPercent?: number,
-): Image.Image {
+): Image {
   const top = clampPercent(topRemainingPercent);
   const bottom = bottomRemainingPercent === undefined ? undefined : clampPercent(bottomRemainingPercent);
   const cacheKey = `${providerId}:${top}:${bottom ?? "missing"}`;
@@ -42,7 +42,7 @@ export function buildTwoBarAccessoryIcon(
   }
 
   const progressPalette = getProviderProgressPalette(providerId);
-  const icon: Image.Image = {
+  const icon: Image = {
     source: {
       light: buildIconDataUri({
         fillColor: progressPalette.lightFill,

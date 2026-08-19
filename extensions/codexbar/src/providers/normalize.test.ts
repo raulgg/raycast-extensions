@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { extractSvgMarkup } from "../../test/svg-markdown";
 import { buildProviderDetailMarkdown } from "./markdown";
 import { extractProviderErrorMessage, normalizeProviderDetailPayload } from "./normalize";
+import type { ProviderSection, ProviderUsagePacing } from "./types";
 
 const codexPayload = {
   provider: "codex",
@@ -797,6 +798,10 @@ describe("usage pacing gating", () => {
     return normalizeProviderDetailPayload({ provider, usage }, provider, NOW).sections;
   }
 
+  function usagePacing(section: ProviderSection | undefined): ProviderUsagePacing | undefined {
+    return section && section.kind !== "info" ? section.usagePacing : undefined;
+  }
+
   it("paces the codex/claude session window with the 300-min default when windowMinutes is absent", () => {
     for (const provider of ["codex", "claude"] as const) {
       const [primary] = pace(provider, { primary: { usedPercent: 60, resetsAt: SESSION_RESETS_AT } });
@@ -809,36 +814,36 @@ describe("usage pacing gating", () => {
 
   it("only paces the ollama session window when the payload carries an explicit windowMinutes", () => {
     const [withoutWindow] = pace("ollama", { primary: { usedPercent: 60, resetsAt: SESSION_RESETS_AT } });
-    expect(withoutWindow.usagePacing).toBeUndefined();
+    expect(usagePacing(withoutWindow)).toBeUndefined();
 
     const [withWindow] = pace("ollama", {
       primary: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
     });
-    expect(withWindow.usagePacing).toMatchObject({ context: "session" });
+    expect(usagePacing(withWindow)).toMatchObject({ context: "session" });
   });
 
   it("paces the antigravity session window when windowMinutes is omitted or exactly 300", () => {
     const [withoutWindow] = pace("antigravity", { primary: { usedPercent: 60, resetsAt: SESSION_RESETS_AT } });
-    expect(withoutWindow.usagePacing).toMatchObject({ stage: "over", context: "session" });
+    expect(usagePacing(withoutWindow)).toMatchObject({ stage: "over", context: "session" });
 
     const [withSessionWindow] = pace("antigravity", {
       primary: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
     });
-    expect(withSessionWindow.usagePacing).toMatchObject({ stage: "over", context: "session" });
+    expect(usagePacing(withSessionWindow)).toMatchObject({ stage: "over", context: "session" });
   });
 
   it("does not pace the antigravity session window when windowMinutes is present and not 300", () => {
     const [primary] = pace("antigravity", {
       primary: { windowMinutes: 10_080, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
     });
-    expect(primary.usagePacing).toBeUndefined();
+    expect(usagePacing(primary)).toBeUndefined();
   });
 
   it("never paces the session window for providers outside the whitelist", () => {
     const [primary] = pace("cursor", {
       primary: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
     });
-    expect(primary.usagePacing).toBeUndefined();
+    expect(usagePacing(primary)).toBeUndefined();
   });
 
   it("paces the codex secondary window with the 10080-min default when windowMinutes is absent", () => {
@@ -851,24 +856,24 @@ describe("usage pacing gating", () => {
 
   it("does not extend the codex default-window fallback to the tertiary slot", () => {
     const [tertiary] = pace("codex", { tertiary: { usedPercent: 50, resetsAt: WEEKLY_RESETS_AT } });
-    expect(tertiary.usagePacing).toBeUndefined();
+    expect(usagePacing(tertiary)).toBeUndefined();
   });
 
   it("only paces a generic provider's weekly window when windowMinutes is explicit", () => {
     const [withoutWindow] = pace("factory", { secondary: { usedPercent: 50, resetsAt: WEEKLY_RESETS_AT } });
-    expect(withoutWindow.usagePacing).toBeUndefined();
+    expect(usagePacing(withoutWindow)).toBeUndefined();
 
     const [withWindow] = pace("factory", {
       secondary: { windowMinutes: 10_080, usedPercent: 50, resetsAt: WEEKLY_RESETS_AT },
     });
-    expect(withWindow.usagePacing).toMatchObject({ context: "window" });
+    expect(usagePacing(withWindow)).toMatchObject({ context: "window" });
   });
 
   it("paces cursor billing-cycle windows that carry windowMinutes via the generic rule", () => {
     const [secondary] = pace("cursor", {
       secondary: { windowMinutes: 10_080, usedPercent: 50, resetsAt: WEEKLY_RESETS_AT },
     });
-    expect(secondary.usagePacing).toMatchObject({ context: "window" });
+    expect(usagePacing(secondary)).toMatchObject({ context: "window" });
   });
 
   it("paces named extra rate windows only when they carry windowMinutes", () => {
@@ -878,7 +883,7 @@ describe("usage pacing gating", () => {
         { id: "codex-spark", title: "Codex Spark", window: { usedPercent: 60, resetsAt: SESSION_RESETS_AT } },
       ],
     });
-    expect(withoutWindow.find((section) => section.title === "Codex Spark")?.usagePacing).toBeUndefined();
+    expect(usagePacing(withoutWindow.find((section) => section.title === "Codex Spark"))).toBeUndefined();
 
     const withWindow = pace("codex", {
       primary: { usedPercent: 40, resetsAt: SESSION_RESETS_AT },
@@ -890,7 +895,7 @@ describe("usage pacing gating", () => {
         },
       ],
     });
-    expect(withWindow.find((section) => section.title === "Codex Spark")?.usagePacing).toMatchObject({
+    expect(usagePacing(withWindow.find((section) => section.title === "Codex Spark"))).toMatchObject({
       context: "window",
     });
   });

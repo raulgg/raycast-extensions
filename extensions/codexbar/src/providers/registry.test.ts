@@ -1,6 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { Color, Icon } from "@raycast/api";
 import { describe, expect, it } from "vitest";
 import {
@@ -258,7 +257,7 @@ describe("provider registry", () => {
   });
 
   it("has a local svg asset for every providerIcon reference", () => {
-    const currentDir = path.dirname(fileURLToPath(import.meta.url));
+    const currentDir = path.join(process.cwd(), "src/providers");
     const registrySource = readFileSync(path.join(currentDir, "registry.ts"), "utf8");
     const providerIconSlugs = [...registrySource.matchAll(/providerIcon\("([^"]+)"/g)].map((match) => match[1]);
 

@@ -519,7 +519,7 @@ export function resolveProviderId(id: string): string {
   return PROVIDER_ID_ALIASES[id] ?? id;
 }
 
-export const PROVIDER_IDS = Object.keys(PROVIDER_DEFINITIONS);
+export const PROVIDER_IDS = Object.keys(PROVIDER_DEFINITIONS) as Array<keyof typeof PROVIDER_DEFINITIONS>;
 export const PROVIDER_SELECTOR_IDS = ["all", "both"] as const;
 const PROVIDER_SELECTOR_ID_SET = new Set<string>(PROVIDER_SELECTOR_IDS);
 
