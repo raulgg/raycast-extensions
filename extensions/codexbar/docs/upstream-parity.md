@@ -88,10 +88,13 @@ regexes, and diffs them. It exits non-zero on:
 - a **stale** `ALLOWED_DIVERGENCES` entry (see below);
 - an unaccounted dynamic override (surface 2).
 
-Both sides are parsed by regex over stable formatting. If a parser can no longer find what it expects
-it **throws loudly** rather than quietly verifying less — so a format change on either side is a
-failure to fix, not a silent gap. If you reformat `PROVIDER_DEFINITIONS`, keep the shape the parser
-expects (two-space-indented `id: {` … `},` blocks; one `usageSectionLabels: { … }` line).
+Both sides are parsed by regex over stable formatting. Descriptor fields are read from the
+`ProviderMetadata(` literal (not an earlier `displayName:` in a validator) and branding colors
+from `ProviderColor(red:green:blue:)` or `ProviderColor(hex: 0xRRGGBB)`. If a parser can no longer
+find what it expects it **throws loudly** rather than quietly verifying less — so a format change
+on either side is a failure to fix, not a silent gap. If you reformat `PROVIDER_DEFINITIONS`, keep
+the shape the parser expects (two-space-indented `id: {` … `},` blocks; one
+`usageSectionLabels: { … }` line).
 
 ### `ALLOWED_DIVERGENCES` — recording an intentional difference
 
@@ -120,18 +123,25 @@ update `ours`; the stale-entry failure is what tells you to.
 Static labels live in `usageSectionLabels`. On top of them, upstream's renderers relabel some bars
 **dynamically** from payload contents. We port these into `resolveSlotDisplayTitle` (`normalize.ts`):
 
+- **codex** — titles follow window length (`CodexConsumerProjection.rateTitle`): 5-hour → Session,
+  7-day → Weekly, 30-day → Monthly.
 - **factory** — switches to 5-hour / Weekly / Monthly whenever a tertiary window is present.
 - **grok** — relabels its primary bar by billing-window length (`windowMinutes`, else the distance to
   `resetsAt`).
 - **doubao** — relabels a windowless "requests"-style primary as "Requests".
+- **crof** — relabels a lone primary as "Credits", or "Requests" when a secondary window is present.
+- **amp** — dual-window accounts become "Other usage" / "Orb usage"; a lone primary keeps "Amp Free".
+- **alibabatokenplan** — a 5-hour primary becomes "5-hour", a 7-day secondary becomes "7-day".
+- **sub2api** — a present secondary window relabels primary as "Daily quota" (MenuCardView
+  shortens secondary/tertiary; we keep the descriptor's Weekly quota / Monthly quota).
 
 `upstream:check` scans the renderer files for override call sites and cross-checks them against two
 lists in `check-upstream.mjs`:
 
-- `IMPLEMENTED_DYNAMIC_OVERRIDES` — ported in `resolveSlotDisplayTitle` (`factory`, `grok`, `doubao`).
+- `IMPLEMENTED_DYNAMIC_OVERRIDES` — ported in `resolveSlotDisplayTitle` (`codex`, `factory`, `grok`,
+  `doubao`, `crof`, `amp`, `alibabatokenplan`, `sub2api`).
 - `UNPORTABLE_DYNAMIC_OVERRIDES` — cannot be ported because the CLI JSON lacks the field they key on
-  (e.g. `cursor`'s legacy "Requests" relabel keys on `cursorRequests`, which upstream marks live-only
-  and never serializes into `codexbar usage --json`).
+  (e.g. `cursor`'s legacy "Requests" relabel keys on `snapshot.detailRow(label: "Request quota")`).
 
 If upstream adds a dynamic override for a new provider, the check fails until you either port it (and
 add the id to `IMPLEMENTED_DYNAMIC_OVERRIDES`) or justify it as unportable. If upstream *removes* one,
@@ -144,6 +154,7 @@ Sources/CodexBar/MenuDescriptor.swift
 Sources/CodexBar/MenuCardView+ModelHelpers.swift
 Sources/CodexBar/UsageStore+WidgetSnapshot.swift
 Sources/CodexBarCLI/CLIRenderer.swift
+Sources/CodexBarCLI/DashboardSnapshotBuilder.swift
 ```
 
 A renamed/deleted file fails loudly on read. A **brand-new** renderer file is the one blind spot: it

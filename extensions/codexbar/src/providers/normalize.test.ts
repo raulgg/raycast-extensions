@@ -253,6 +253,28 @@ describe("provider normalization", () => {
     expect(usageTitles({ primary: { usedPercent: 40 } })).toEqual(["5-hour"]);
   });
 
+  it("relabels Codex windows by cadence like CodexConsumerProjection.rateTitle", () => {
+    const now = Date.parse("2026-03-23T10:30:00Z");
+    const usageTitles = (usage: Record<string, unknown>) =>
+      normalizeProviderDetailPayload({ provider: "codex", usage }, "codex", now)
+        .sections.filter((section) => section.kind === "usage")
+        .map((section) => (section.kind === "usage" ? section.displayTitle : section.title));
+
+    expect(usageTitles({ primary: { windowMinutes: 300, usedPercent: 10 } })).toEqual(["Session"]);
+    expect(usageTitles({ primary: { windowMinutes: 10_080, usedPercent: 10 } })).toEqual(["Weekly"]);
+    expect(usageTitles({ primary: { windowMinutes: 43_200, usedPercent: 10 } })).toEqual(["Monthly"]);
+    expect(
+      usageTitles({
+        primary: { windowMinutes: 43_200, usedPercent: 10 },
+        secondary: { windowMinutes: 300, usedPercent: 20 },
+      }),
+    ).toEqual(["Monthly", "Session"]);
+    expect(usageTitles({ primary: { usedPercent: 10 }, secondary: { usedPercent: 20 } })).toEqual([
+      "Session",
+      "Weekly",
+    ]);
+  });
+
   it("relabels factory windows as 5-hour/Weekly/Monthly when a tertiary window is present", () => {
     const now = Date.parse("2026-03-23T10:30:00Z");
     const usageTitles = (usage: Record<string, unknown>) =>
@@ -267,6 +289,67 @@ describe("provider normalization", () => {
       "Standard",
       "Premium",
     ]);
+  });
+
+  it("relabels crof's primary bar as Requests when a secondary window is present", () => {
+    const now = Date.parse("2026-03-23T10:30:00Z");
+    const usageTitles = (usage: Record<string, unknown>) =>
+      normalizeProviderDetailPayload({ provider: "crof", usage }, "crof", now)
+        .sections.filter((section) => section.kind === "usage")
+        .map((section) => (section.kind === "usage" ? section.displayTitle : section.title));
+
+    expect(usageTitles({ primary: { usedPercent: 10 } })).toEqual(["Credits"]);
+    expect(usageTitles({ primary: { usedPercent: 10 }, secondary: { usedPercent: 20 } })).toEqual([
+      "Requests",
+      "Credits",
+    ]);
+  });
+
+  it("relabels amp windows as Other usage / Orb usage when a secondary window is present", () => {
+    const now = Date.parse("2026-03-23T10:30:00Z");
+    const usageTitles = (usage: Record<string, unknown>) =>
+      normalizeProviderDetailPayload({ provider: "amp", usage }, "amp", now)
+        .sections.filter((section) => section.kind === "usage")
+        .map((section) => (section.kind === "usage" ? section.displayTitle : section.title));
+
+    expect(usageTitles({ primary: { usedPercent: 10 } })).toEqual(["Amp Free"]);
+    expect(usageTitles({ primary: { usedPercent: 10 }, secondary: { usedPercent: 20 } })).toEqual([
+      "Other usage",
+      "Orb usage",
+    ]);
+  });
+
+  it("relabels alibaba token-plan windows by duration", () => {
+    const now = Date.parse("2026-03-23T10:30:00Z");
+    const usageTitles = (usage: Record<string, unknown>) =>
+      normalizeProviderDetailPayload({ provider: "alibabatokenplan", usage }, "alibabatokenplan", now)
+        .sections.filter((section) => section.kind === "usage")
+        .map((section) => (section.kind === "usage" ? section.displayTitle : section.title));
+
+    expect(usageTitles({ primary: { usedPercent: 10 }, secondary: { usedPercent: 20 } })).toEqual(["Credits", "Usage"]);
+    expect(
+      usageTitles({
+        primary: { windowMinutes: 300, usedPercent: 10 },
+        secondary: { windowMinutes: 10_080, usedPercent: 20 },
+      }),
+    ).toEqual(["5-hour", "7-day"]);
+  });
+
+  it("relabels sub2api's primary bar as Daily quota when a secondary window is present", () => {
+    const now = Date.parse("2026-03-23T10:30:00Z");
+    const usageTitles = (usage: Record<string, unknown>) =>
+      normalizeProviderDetailPayload({ provider: "sub2api", usage }, "sub2api", now)
+        .sections.filter((section) => section.kind === "usage")
+        .map((section) => (section.kind === "usage" ? section.displayTitle : section.title));
+
+    expect(usageTitles({ primary: { usedPercent: 10 } })).toEqual(["Quota"]);
+    expect(
+      usageTitles({
+        primary: { usedPercent: 10 },
+        secondary: { usedPercent: 20 },
+        tertiary: { usedPercent: 30 },
+      }),
+    ).toEqual(["Daily quota", "Weekly quota", "Monthly quota"]);
   });
 
   it("attaches raw usage pacing to supported weekly sections and renders GUI-style footers", () => {

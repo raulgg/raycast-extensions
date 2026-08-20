@@ -63,9 +63,21 @@ describe("provider registry", () => {
       "litellm",
       "poe",
       "chutes",
-      "crossmodel",
       "clawrouter",
       "wayfinder",
+      "clinepass",
+      "qwencloud",
+      "fireworks",
+      "deepinfra",
+      "neuralwatt",
+      "longcat",
+      "sub2api",
+      "zenmux",
+      "aiand",
+      "zoommate",
+      "xai",
+      "notion",
+      "ibmbob",
     ];
 
     for (const providerId of upstreamEnumIds) {
@@ -89,9 +101,13 @@ describe("provider registry", () => {
     expect(resolveProviderId("sakana-ai")).toBe("sakana");
     expect(resolveProviderId("litellm-proxy")).toBe("litellm");
     expect(resolveProviderId("chutes.ai")).toBe("chutes");
-    expect(resolveProviderId("cm")).toBe("crossmodel");
     expect(resolveProviderId("claw-router")).toBe("clawrouter");
     expect(resolveProviderId("wayfinder-router")).toBe("wayfinder");
+    expect(resolveProviderId("qwen-cloud")).toBe("qwencloud");
+    expect(resolveProviderId("fw")).toBe("fireworks");
+    expect(resolveProviderId("ai&")).toBe("aiand");
+    expect(resolveProviderId("bob")).toBe("ibmbob");
+    expect(resolveProviderId("sub-2-api")).toBe("sub2api");
   });
 
   it("uses harvested upstream metadata for new providers", () => {
@@ -145,10 +161,20 @@ describe("provider registry", () => {
       brandColor: "#3184FF",
       usageSectionLabels: { primary: "4-hour quota", secondary: "Monthly quota" },
     });
-    expect(getProviderMetadata("crossmodel")).toMatchObject({
-      name: "CrossModel",
-      brandColor: "#7C3AED",
-      usageSectionLabels: { primary: "Credits", secondary: "Usage" },
+    expect(getProviderMetadata("clinepass")).toMatchObject({
+      name: "ClinePass",
+      brandColor: "#61A3FA",
+      usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
+    });
+    expect(getProviderMetadata("qwencloud")).toMatchObject({
+      name: "Qwen Cloud",
+      brandColor: "#615CED",
+      usageSectionLabels: { primary: "5-hour", secondary: "Weekly" },
+    });
+    expect(getProviderMetadata("sub2api")).toMatchObject({
+      name: "sub2api",
+      brandColor: "#2DC6D8",
+      usageSectionLabels: { primary: "Quota", secondary: "Weekly quota", tertiary: "Monthly quota" },
     });
     expect(getProviderMetadata("clawrouter")).toMatchObject({
       name: "ClawRouter",
@@ -167,7 +193,9 @@ describe("provider registry", () => {
     expect(getProviderMetadata("codex").dashboardUrl).toBe("https://chatgpt.com/codex/settings/usage");
     expect(getProviderMetadata("claude").dashboardUrl).toBe("https://console.anthropic.com/settings/billing");
     expect(getProviderMetadata("cursor").dashboardUrl).toBe("https://cursor.com/dashboard?tab=usage");
-    expect(getProviderMetadata("kimik2").dashboardUrl).toBe("https://kimrel.com/my-credits");
+    expect(getProviderMetadata("qwencloud").dashboardUrl).toBe(
+      "https://home.qwencloud.com/billing/subscription/token-plan-individual",
+    );
   });
 
   it("omits dashboardUrl for providers where upstream has no dashboard", () => {
@@ -252,7 +280,7 @@ describe("provider registry", () => {
         darkFill: "#629BF8",
       },
       usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
-      dashboardUrl: "https://opencode.ai",
+      dashboardUrl: "https://opencode.ai/auth",
     });
   });
 
@@ -282,14 +310,14 @@ describe("provider registry", () => {
     });
   });
 
-  it("harvests upstream subscription dashboard URLs for the five providers that have one", () => {
+  it("harvests upstream subscription dashboard URLs for providers that have one", () => {
     expect(getProviderMetadata("claude").subscriptionDashboardUrl).toBe("https://claude.ai/settings/usage");
     expect(getProviderMetadata("devin").subscriptionDashboardUrl).toBe("https://app.devin.ai/settings/usage");
     expect(getProviderMetadata("t3chat").subscriptionDashboardUrl).toBe("https://t3.chat/settings/subscription");
     expect(getProviderMetadata("elevenlabs").subscriptionDashboardUrl).toBe("https://elevenlabs.io/app/subscription");
-    expect(getProviderMetadata("commandcode").subscriptionDashboardUrl).toBe(
-      "https://commandcode.ai/sixhobbits/settings/billing",
-    );
+    expect(getProviderMetadata("commandcode").subscriptionDashboardUrl).toBe("https://commandcode.ai/settings/billing");
+    expect(getProviderMetadata("neuralwatt").subscriptionDashboardUrl).toBe("https://portal.neuralwatt.com/dashboard");
+    expect(getProviderMetadata("ibmbob").subscriptionDashboardUrl).toBe("https://bob.ibm.com");
   });
 
   it("omits subscriptionDashboardUrl for providers without one", () => {
@@ -352,7 +380,7 @@ describe("provider registry", () => {
       expect(resolveDashboardUrl("devin", undefined)).toBe("https://app.devin.ai/settings/usage");
       expect(resolveDashboardUrl("t3chat", "pro")).toBe("https://t3.chat/settings/subscription");
       expect(resolveDashboardUrl("elevenlabs", undefined)).toBe("https://elevenlabs.io/app/subscription");
-      expect(resolveDashboardUrl("commandcode", undefined)).toBe("https://commandcode.ai/sixhobbits/settings/billing");
+      expect(resolveDashboardUrl("commandcode", undefined)).toBe("https://commandcode.ai/settings/billing");
     });
 
     it("keeps the plain dashboard for providers without a subscription dashboard", () => {
@@ -368,8 +396,8 @@ describe("provider registry", () => {
 
   it("returns upstream usage section labels for semantic slots", () => {
     expect(getProviderUsageSectionDisplayTitle("cursor", "Primary")).toBe("Total");
-    expect(getProviderUsageSectionDisplayTitle("cursor", "Secondary")).toBe("Auto");
-    expect(getProviderUsageSectionDisplayTitle("cursor", "Tertiary")).toBe("API");
+    expect(getProviderUsageSectionDisplayTitle("cursor", "Secondary")).toBe("Cursor");
+    expect(getProviderUsageSectionDisplayTitle("cursor", "Tertiary")).toBe("Third Party");
     expect(getProviderUsageSectionDisplayTitle("amp", "Tertiary")).toBe("Tertiary");
     expect(getProviderUsageSectionDisplayTitle("codex", "Credits")).toBe("Credits");
   });

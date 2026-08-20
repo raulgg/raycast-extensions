@@ -56,11 +56,18 @@ const PROVIDER_DEFINITIONS = {
     subscriptionDashboardUrl: "https://claude.ai/settings/usage",
     statusPageUrl: "https://status.claude.com/",
   },
+  clinepass: {
+    name: "ClinePass",
+    icon: providerIcon("clinepass", Icon.Code),
+    brandColor: "#61A3FA",
+    usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
+    dashboardUrl: "https://app.cline.bot/dashboard/subscription?personal=true",
+  },
   cursor: {
     name: "Cursor",
     icon: providerIcon("cursor", Icon.ArrowRightCircle),
     brandColor: "#00BFA5",
-    usageSectionLabels: { primary: "Total", secondary: "Auto", tertiary: "API" },
+    usageSectionLabels: { primary: "Total", secondary: "Cursor", tertiary: "Third Party" },
     dashboardUrl: "https://cursor.com/dashboard?tab=usage",
     statusPageUrl: "https://status.cursor.com",
   },
@@ -69,14 +76,14 @@ const PROVIDER_DEFINITIONS = {
     icon: providerIcon("opencode", Icon.Code),
     brandColor: "#3B82F6",
     usageSectionLabels: { primary: "5-hour", secondary: "Weekly" },
-    dashboardUrl: "https://opencode.ai",
+    dashboardUrl: "https://opencode.ai/auth",
   },
   opencodego: {
     name: "OpenCode Go",
     icon: providerIcon("opencodego", Icon.Code),
     brandColor: "#3B82F6",
     usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
-    dashboardUrl: "https://opencode.ai",
+    dashboardUrl: "https://opencode.ai/auth",
   },
   alibaba: {
     name: "Alibaba",
@@ -93,6 +100,13 @@ const PROVIDER_DEFINITIONS = {
     usageSectionLabels: { primary: "Standard", secondary: "Premium" },
     dashboardUrl: "https://app.factory.ai/settings/billing",
     statusPageUrl: "https://status.factory.ai",
+  },
+  fireworks: {
+    name: "Fireworks",
+    icon: providerIcon("fireworks", Icon.Bolt),
+    brandColor: "#F25B1C",
+    usageSectionLabels: { primary: "Spend", secondary: "Spend" },
+    dashboardUrl: "https://app.fireworks.ai",
   },
   gemini: {
     name: "Gemini",
@@ -118,10 +132,10 @@ const PROVIDER_DEFINITIONS = {
     statusPageUrl: "https://www.githubstatus.com/",
   },
   zai: {
-    name: "z.ai",
+    name: "z.ai / GLM",
     icon: providerIcon("zai", Icon.Globe),
     brandColor: "#E85A6A",
-    usageSectionLabels: { primary: "Tokens", secondary: "MCP", tertiary: "5-hour" },
+    usageSectionLabels: { primary: "5-hour", secondary: "Weekly" },
     dashboardUrl: "https://z.ai/manage-apikey/coding-plan/personal/my-plan",
   },
   minimax: {
@@ -132,10 +146,10 @@ const PROVIDER_DEFINITIONS = {
     dashboardUrl: "https://platform.minimax.io/user-center/payment/coding-plan?cycle_type=3",
   },
   kimi: {
-    name: "Kimi",
+    name: "Kimi Code",
     icon: providerIcon("kimi"),
     brandColor: "#FE603C",
-    usageSectionLabels: { primary: "Weekly", secondary: "Rate Limit" },
+    usageSectionLabels: { primary: "7-day usage", secondary: "5-hour usage" },
     dashboardUrl: "https://www.kimi.com/code/console",
   },
   kilo: {
@@ -174,13 +188,6 @@ const PROVIDER_DEFINITIONS = {
     icon: providerIcon("jetbrains", Icon.AppWindow),
     brandColor: "#FF3399",
     usageSectionLabels: { primary: "Current", secondary: "Refill" },
-  },
-  kimik2: {
-    name: "Kimi K2 (unofficial)",
-    icon: Icon.Circle,
-    brandColor: "#4C00FF",
-    usageSectionLabels: { primary: "Credits", secondary: "Credits" },
-    dashboardUrl: "https://kimrel.com/my-credits",
   },
   amp: {
     name: "Amp",
@@ -249,6 +256,14 @@ const PROVIDER_DEFINITIONS = {
     dashboardUrl: "https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/token-plan",
     statusPageUrl: "https://status.aliyun.com",
   },
+  qwencloud: {
+    name: "Qwen Cloud",
+    icon: providerIcon("qwencloud", Icon.Globe),
+    brandColor: "#615CED",
+    usageSectionLabels: { primary: "5-hour", secondary: "Weekly" },
+    dashboardUrl: "https://home.qwencloud.com/billing/subscription/token-plan-individual",
+    statusPageUrl: "https://status.alibabacloud.com",
+  },
   manus: {
     name: "Manus",
     icon: providerIcon("manus"),
@@ -257,7 +272,7 @@ const PROVIDER_DEFINITIONS = {
     dashboardUrl: "https://manus.im",
   },
   moonshot: {
-    name: "Moonshot / Kimi API",
+    name: "Moonshot / Kimi Open Platform",
     icon: providerIcon("kimi"),
     brandColor: "#205DEB",
     usageSectionLabels: { primary: "Balance", secondary: "Balance" },
@@ -325,6 +340,14 @@ const PROVIDER_DEFINITIONS = {
     dashboardUrl: "https://platform.deepseek.com/usage",
     statusPageUrl: "https://status.deepseek.com",
   },
+  deepinfra: {
+    name: "DeepInfra",
+    icon: providerIcon("deepinfra", Icon.Cloud),
+    brandColor: "#2A3275",
+    usageSectionLabels: { primary: "Balance", secondary: "Balance" },
+    dashboardUrl: "https://deepinfra.com/dash",
+    statusPageUrl: "https://status.deepinfra.com",
+  },
   codebuff: {
     name: "Codebuff",
     icon: providerIcon("codebuff", Icon.Code),
@@ -336,7 +359,7 @@ const PROVIDER_DEFINITIONS = {
     name: "Crof",
     icon: providerIcon("crof"),
     brandColor: "#2EAB94",
-    usageSectionLabels: { primary: "Requests", secondary: "Credits" },
+    usageSectionLabels: { primary: "Credits", secondary: "Credits" },
     dashboardUrl: "https://crof.ai/dashboard",
   },
   venice: {
@@ -349,10 +372,10 @@ const PROVIDER_DEFINITIONS = {
   commandcode: {
     name: "Command Code",
     icon: providerIcon("commandcode", Icon.Terminal),
-    brandColor: "#000000",
-    usageSectionLabels: { primary: "Monthly credits", secondary: "Monthly" },
+    brandColor: "#A04DFD",
+    usageSectionLabels: { primary: "5-hour", secondary: "Weekly", tertiary: "Monthly" },
     dashboardUrl: "https://commandcode.ai/studio",
-    subscriptionDashboardUrl: "https://commandcode.ai/sixhobbits/settings/billing",
+    subscriptionDashboardUrl: "https://commandcode.ai/settings/billing",
   },
   stepfun: {
     name: "StepFun",
@@ -382,7 +405,7 @@ const PROVIDER_DEFINITIONS = {
     icon: providerIcon("groq", Icon.Bolt),
     brandColor: "#F56844",
     usageSectionLabels: { primary: "Requests", secondary: "Tokens" },
-    dashboardUrl: "https://console.groq.com/dashboard/metrics",
+    dashboardUrl: "https://console.groq.com/dashboard/usage",
     statusPageUrl: "https://status.groq.com",
   },
   llmproxy: {
@@ -447,12 +470,13 @@ const PROVIDER_DEFINITIONS = {
     usageSectionLabels: { primary: "4-hour quota", secondary: "Monthly quota" },
     dashboardUrl: "https://chutes.ai",
   },
-  crossmodel: {
-    name: "CrossModel",
-    icon: providerIcon("crossmodel", Icon.Wallet),
-    brandColor: "#7C3AED",
-    usageSectionLabels: { primary: "Credits", secondary: "Usage" },
-    dashboardUrl: "https://crossmodel.ai/console/usage",
+  neuralwatt: {
+    name: "Neuralwatt",
+    icon: providerIcon("neuralwatt", Icon.Bolt),
+    brandColor: "#38D98C",
+    usageSectionLabels: { primary: "Subscription", secondary: "Key allowance" },
+    dashboardUrl: "https://portal.neuralwatt.com/dashboard",
+    subscriptionDashboardUrl: "https://portal.neuralwatt.com/dashboard",
   },
   clawrouter: {
     name: "ClawRouter",
@@ -469,6 +493,66 @@ const PROVIDER_DEFINITIONS = {
     // Default gateway dashboard (WayfinderSettingsReader.dashboardURL with empty env).
     dashboardUrl: "http://127.0.0.1:8088/router",
   },
+  longcat: {
+    name: "LongCat",
+    icon: providerIcon("longcat", Icon.Bubble),
+    brandColor: "#FFD100",
+    usageSectionLabels: { primary: "Quota", secondary: "Fuel Pack" },
+    dashboardUrl: "https://longcat.chat/platform/",
+  },
+  sub2api: {
+    name: "sub2api",
+    icon: providerIcon("sub2api", Icon.Network),
+    brandColor: "#2DC6D8",
+    usageSectionLabels: { primary: "Quota", secondary: "Weekly quota", tertiary: "Monthly quota" },
+  },
+  zenmux: {
+    name: "ZenMux",
+    icon: providerIcon("zenmux", Icon.Network),
+    brandColor: "#6C5CE7",
+    usageSectionLabels: { primary: "5-hour quota", secondary: "Weekly quota" },
+    dashboardUrl: "https://zenmux.ai/platform/management",
+  },
+  aiand: {
+    name: "ai&",
+    icon: providerIcon("aiand", Icon.BarChart),
+    brandColor: "#E25C2B",
+    usageSectionLabels: { primary: "Spend", secondary: "Spend" },
+    dashboardUrl: "https://console.aiand.com",
+  },
+  zoommate: {
+    name: "ZoomMate",
+    icon: providerIcon("zoommate", Icon.TwoPeople),
+    brandColor: "#0B5CFF",
+    usageSectionLabels: { primary: "Credits", secondary: "Credits" },
+    dashboardUrl: "https://zoommate.zoom.us/#/?settings=credit-usage",
+    statusPageUrl: "https://www.zoomstatus.com/",
+  },
+  xai: {
+    name: "xAI",
+    icon: providerIcon("xai", Icon.Stars),
+    brandColor: "#8E8E93",
+    usageSectionLabels: { primary: "Spend", secondary: "Spend" },
+    dashboardUrl: "https://console.x.ai",
+    statusPageUrl: "https://status.x.ai",
+  },
+  notion: {
+    name: "Notion AI",
+    icon: providerIcon("notion", Icon.AppWindow),
+    brandColor: "#337EA9",
+    usageSectionLabels: { primary: "Rolling", secondary: "Monthly" },
+    dashboardUrl: "https://app.notion.com/",
+    statusPageUrl: "https://status.notion.so/",
+  },
+  ibmbob: {
+    name: "IBM Bob",
+    icon: providerIcon("ibmbob", Icon.Terminal),
+    brandColor: "#0E61FA",
+    usageSectionLabels: { primary: "Monthly Bobcoins", secondary: "Monthly Bobcoins" },
+    dashboardUrl: "https://bob.ibm.com",
+    subscriptionDashboardUrl: "https://bob.ibm.com",
+    statusPageUrl: "https://status.bob.ibm.com",
+  },
 } satisfies Record<string, ProviderDefinition>;
 
 // Alternate spellings the CLI accepts (cliName + aliases from upstream
@@ -479,6 +563,9 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   "alibaba-token-plan": "alibabatokenplan",
   "alibaba-token": "alibabatokenplan",
   "bailian-token-plan": "alibabatokenplan",
+  "qwen-cloud": "qwencloud",
+  qwen: "qwencloud",
+  "qwen-token-plan": "qwencloud",
   "azure-openai": "azureopenai",
   aoai: "azureopenai",
   "openai-api": "openai",
@@ -493,14 +580,18 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   dg: "deepgram",
   "deep-seek": "deepseek",
   ds: "deepseek",
+  "deep-infra": "deepinfra",
+  di: "deepinfra",
   volcengine: "doubao",
   ark: "doubao",
   bytedance: "doubao",
   "11labs": "elevenlabs",
   eleven: "elevenlabs",
+  fw: "fireworks",
   "llm-api-key-proxy": "llmproxy",
   "llm-proxy": "llmproxy",
   "xiaomi-mimo": "mimo",
+  "mini-max": "minimax",
   "mistral-ai": "mistral",
   "step-fun": "stepfun",
   sf: "stepfun",
@@ -510,9 +601,28 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   "sakana-ai": "sakana",
   "litellm-proxy": "litellm",
   "chutes.ai": "chutes",
-  cm: "crossmodel",
   "claw-router": "clawrouter",
   "wayfinder-router": "wayfinder",
+  "kilo-ai": "kilo",
+  "kimi-ai": "kimi",
+  "warp-ai": "warp",
+  "warp-terminal": "warp",
+  "synthetic.new": "synthetic",
+  or: "openrouter",
+  "z.ai": "zai",
+  nw: "neuralwatt",
+  neural: "neuralwatt",
+  "long-cat": "longcat",
+  lc: "longcat",
+  "sub-2-api": "sub2api",
+  "zen-mux": "zenmux",
+  "ai&": "aiand",
+  "ai-and": "aiand",
+  "notion-ai": "notion",
+  notionai: "notion",
+  "ibm-bob": "ibmbob",
+  bob: "ibmbob",
+  bobshell: "ibmbob",
 };
 
 export function resolveProviderId(id: string): string {
@@ -679,10 +789,9 @@ export function resolveDashboardUrl(providerId: string, planText?: string): stri
       ? (metadata.subscriptionDashboardUrl ?? metadata.dashboardUrl)
       : metadata.dashboardUrl;
   }
-  // Other dual-URL providers (devin, t3chat, elevenlabs, commandcode) have no plan
-  // detection, and the usage this extension meters is their subscription usage — so the
-  // subscription dashboard is the better target when upstream provides one. Deliberate
-  // divergence from upstream, which only plan-switches Claude.
+  // Other dual-URL providers have no plan detection, and the usage this extension meters
+  // is their subscription usage — so the subscription dashboard is the better target when
+  // upstream provides one. Deliberate divergence from upstream, which only plan-switches Claude.
   return metadata.subscriptionDashboardUrl ?? metadata.dashboardUrl;
 }
 

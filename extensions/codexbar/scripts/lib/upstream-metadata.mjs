@@ -72,24 +72,71 @@ export function providerColorToHex(red, green, blue) {
   return `#${channel(red)}${channel(green)}${channel(blue)}`.toUpperCase();
 }
 
+function extractBalancedCall(source, callee, fileName) {
+  const match = source.match(new RegExp(`(?<![\\w])${callee}\\(`));
+  if (!match) {
+    return undefined;
+  }
+
+  const open = match.index + match[0].length - 1;
+  let depth = 0;
+  for (let index = open; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === "(") {
+      depth += 1;
+    } else if (character === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(open + 1, index);
+      }
+    }
+  }
+
+  throw new Error(`${fileName} has an unbalanced ${callee}( literal.`);
+}
+
+function parseBrandColor(brandingSource, fileName) {
+  const colorBody = brandingSource.match(/color:\s*ProviderColor\(([\s\S]*?)\)/)?.[1]?.trim();
+  if (!colorBody) {
+    throw new Error(`${fileName} has no parseable branding color.`);
+  }
+
+  const hexMatch = colorBody.match(/^hex:\s*0x([0-9A-Fa-f]{6})$/);
+  if (hexMatch) {
+    return `#${hexMatch[1].toUpperCase()}`;
+  }
+
+  const rgbMatch = colorBody.match(/red:\s*([^,]+),\s*green:\s*([^,]+),\s*blue:\s*([^)]+)/);
+  if (!rgbMatch) {
+    throw new Error(`${fileName} has an unrecognized ProviderColor: "${colorBody}"`);
+  }
+
+  return providerColorToHex(rgbMatch[1], rgbMatch[2], rgbMatch[3]);
+}
+
 export function parseDescriptorMetadata(swiftSource, fileName = "descriptor") {
   const metadataCount = swiftSource.split("ProviderMetadata(").length - 1;
   if (metadataCount !== 1) {
     throw new Error(`${fileName} contains ${metadataCount} ProviderMetadata literals; expected exactly 1.`);
   }
 
-  const id = swiftSource.match(/ProviderMetadata\(\s*id:\s*\.(\w+)/)?.[1];
+  const metadata = extractBalancedCall(swiftSource, "ProviderMetadata", fileName);
+  if (!metadata) {
+    throw new Error(`${fileName} has no extractable ProviderMetadata literal.`);
+  }
+
+  const id = metadata.match(/^\s*id:\s*\.(\w+)/)?.[1];
   if (!id) {
     throw new Error(`${fileName} has no parseable ProviderMetadata id.`);
   }
 
-  const string = (name) => swiftSource.match(new RegExp(`(?<![\\w])${name}:\\s*"([^"]*)"`))?.[1];
+  const string = (name) => metadata.match(new RegExp(`(?<![\\w])${name}:\\s*"([^"]*)"`))?.[1];
   // URL fields are sometimes Swift expressions (e.g. `ZaiAPIRegion.global.dashboardURL
   // .absoluteString`) that a regex cannot resolve. Surface them as "expr:<code>" so the
   // comparison demands an explicit ALLOWED_DIVERGENCES entry recording the manually
   // verified value — which goes stale (and fails) if the upstream expression changes.
   const stringOrExpression = (name) => {
-    const raw = swiftSource.match(new RegExp(`(?<![\\w])${name}:\\s*([^\\n,]+)`))?.[1]?.trim();
+    const raw = metadata.match(new RegExp(`(?<![\\w])${name}:\\s*([^\\n,]+)`))?.[1]?.trim();
     if (raw === undefined) {
       return undefined;
     }
@@ -101,7 +148,11 @@ export function parseDescriptorMetadata(swiftSource, fileName = "descriptor") {
     const expression = raw.replace(/\)+$/, "").trim();
     return expression === "nil" || expression === "" ? undefined : `expr:${expression}`;
   };
-  const colorMatch = swiftSource.match(/ProviderColor\(\s*red:\s*([^,]+),\s*green:\s*([^,]+),\s*blue:\s*([^)]+)\)/);
+
+  const branding = extractBalancedCall(swiftSource, "ProviderBranding", fileName);
+  if (!branding) {
+    throw new Error(`${fileName} has no parseable ProviderBranding literal.`);
+  }
 
   return {
     id,
@@ -113,7 +164,7 @@ export function parseDescriptorMetadata(swiftSource, fileName = "descriptor") {
     subscriptionDashboardURL: stringOrExpression("subscriptionDashboardURL"),
     statusPageURL: stringOrExpression("statusPageURL"),
     statusLinkURL: stringOrExpression("statusLinkURL"),
-    brandColorHex: colorMatch ? providerColorToHex(colorMatch[1], colorMatch[2], colorMatch[3]) : undefined,
+    brandColorHex: parseBrandColor(branding, fileName),
     // Descriptors that define a contextual label helper participate in dynamic
     // relabelling even before any renderer references them.
     definesDynamicPrimaryLabel: /static func primaryLabel\(/.test(swiftSource),
@@ -124,10 +175,12 @@ export function parseDescriptorMetadata(swiftSource, fileName = "descriptor") {
 // Dynamic label overrides (renderer call sites)
 // ---------------------------------------------------------------------------
 
-// Overrides show up in two shapes across the GUI/widget/CLI renderers:
-//   - `XxxProviderDescriptor.primaryLabel(...)` calls (grok, doubao)
+// Overrides show up in three shapes across the GUI/widget/CLI renderers:
+//   - `XxxProviderDescriptor.primaryLabel(...)` / `.displayLabel(...)` calls
 //   - `provider == .xxx` conditionals inside rateWindowLabels-style helpers
 //     (factory tertiary, cursor legacy requests)
+//   - `descriptor.presentation.rateWindowLabels(...)` — CLI renderers that
+//     delegate to each descriptor's presentation labeler (v0.53+)
 //
 // Known blind spots of this heuristic (accepted — a Swift parser is not worth it):
 // a `provider == .x` conditional in a function other than rateWindowLabels stays
@@ -137,7 +190,7 @@ export function parseDescriptorMetadata(swiftSource, fileName = "descriptor") {
 export function parseDynamicOverrideProviders(rendererSources) {
   const providers = new Set();
   for (const { path: filePath, content } of rendererSources) {
-    for (const match of content.matchAll(/(\w+)ProviderDescriptor\.primaryLabel\(/g)) {
+    for (const match of content.matchAll(/(\w+)ProviderDescriptor\.(?:primaryLabel|displayLabel)\(/g)) {
       providers.add(match[1].toLowerCase());
     }
 
@@ -148,8 +201,13 @@ export function parseDynamicOverrideProviders(rendererSources) {
       for (const match of body.matchAll(/provider == \.(\w+)/g)) {
         providers.add(match[1]);
       }
-    } else if (!/ProviderDescriptor\.primaryLabel\(/.test(content)) {
-      throw new Error(`${filePath} has neither rateWindowLabels nor primaryLabel call sites — did upstream move them?`);
+    } else if (
+      !/ProviderDescriptor\.(?:primaryLabel|displayLabel)\(/.test(content) &&
+      !/presentation\.rateWindowLabels\(/.test(content)
+    ) {
+      throw new Error(
+        `${filePath} has neither rateWindowLabels, primaryLabel/displayLabel, nor presentation.rateWindowLabels call sites — did upstream move them?`,
+      );
     }
   }
   return providers;

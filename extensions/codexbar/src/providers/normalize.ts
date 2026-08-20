@@ -258,10 +258,9 @@ function resolveGrokPrimaryDisplayTitle(durationMs: number): string | undefined 
 }
 
 // Upstream MenuDescriptor.rateWindowLabels layers dynamic overrides on top of the
-// static registry labels: Factory switches to 5-hour/Weekly/Monthly whenever a tertiary
-// window is present, Grok relabels its primary bar by billing-window length
-// (windowMinutes when the payload carries it, otherwise the distance to resetsAt), and
-// Doubao relabels a windowless "requests"-style primary as "Requests".
+// static registry labels: factory (tertiary → 5-hour/Weekly/Monthly), grok (primary
+// by window length), doubao (windowless requests), crof/amp/sub2api (secondary
+// present), alibabatokenplan (5-hour / 7-day), codex (title follows windowMinutes).
 function resolveSlotDisplayTitle(
   providerId: string,
   slotTitle: SlotTitle,
@@ -270,6 +269,7 @@ function resolveSlotDisplayTitle(
     resetsAt?: string;
     resetDescription?: string;
     factoryHasTertiary: boolean;
+    hasSecondary: boolean;
     now: number;
   },
 ): string {
@@ -277,8 +277,20 @@ function resolveSlotDisplayTitle(
     return slotTitle === "Primary" ? "5-hour" : slotTitle === "Secondary" ? "Weekly" : "Monthly";
   }
 
+  if (providerId === "codex" && (slotTitle === "Primary" || slotTitle === "Secondary")) {
+    if (options.windowMinutes === 5 * 60) {
+      return "Session";
+    }
+    if (options.windowMinutes === 7 * 24 * 60) {
+      return "Weekly";
+    }
+    if (options.windowMinutes === 30 * 24 * 60) {
+      return "Monthly";
+    }
+  }
+
   // Deliberate widening vs upstream: options.resetsAt includes the payload-level
-  // sessionResetsAt/resetsAt fallbacks, while GrokProviderDescriptor.primaryLabel reads
+  // sessionResetsAt/resetsAt fallbacks, while GrokProviderDescriptor.displayLabel reads
   // only the primary window's own resetsAt. Real CLI payloads carry no top-level reset
   // fields, and the label should agree with whatever countdown the section renders.
   if (providerId === "grok" && slotTitle === "Primary") {
@@ -303,6 +315,32 @@ function resolveSlotDisplayTitle(
     options.resetDescription?.toLowerCase().includes("request")
   ) {
     return "Requests";
+  }
+
+  if (providerId === "crof" && slotTitle === "Primary") {
+    return options.hasSecondary ? "Requests" : "Credits";
+  }
+
+  if (providerId === "amp" && options.hasSecondary) {
+    if (slotTitle === "Primary") {
+      return "Other usage";
+    }
+    if (slotTitle === "Secondary") {
+      return "Orb usage";
+    }
+  }
+
+  if (providerId === "alibabatokenplan") {
+    if (slotTitle === "Primary" && options.windowMinutes === 5 * 60) {
+      return "5-hour";
+    }
+    if (slotTitle === "Secondary" && options.windowMinutes === 7 * 24 * 60) {
+      return "7-day";
+    }
+  }
+
+  if (providerId === "sub2api" && slotTitle === "Primary" && options.hasSecondary) {
+    return "Daily quota";
   }
 
   return getProviderUsageSectionDisplayTitle(providerId, slotTitle);
@@ -420,9 +458,9 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
       resetTimestamp: undefined,
     },
   ];
-  // Mirrors upstream's `snapshot.tertiary != nil` check for the Factory relabel: the
-  // extension's equivalent of a present tertiary window is one that will render.
+  // A present window is one that will render — upstream's `snapshot.* != nil` check.
   const factoryHasTertiary = toFiniteNumber(toRecord(usage?.tertiary)?.usedPercent) !== undefined;
+  const hasSecondary = toFiniteNumber(toRecord(usage?.secondary)?.usedPercent) !== undefined;
 
   for (const slot of slotFallbacks) {
     const record = slot.record ?? {};
@@ -456,6 +494,7 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
           resetsAt: resolvedResetsAt,
           resetDescription: toTrimmedString(record.resetDescription),
           factoryHasTertiary,
+          hasSecondary,
           now,
         }),
         remainingPercent: clampPercent(progressPercent),

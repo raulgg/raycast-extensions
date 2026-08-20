@@ -125,6 +125,26 @@ describe("parseDescriptorMetadata", () => {
     expect(metadata.dashboardURL).toBe("expr:ZaiAPIRegion.global.dashboardURL.absoluteString");
   });
 
+  it("reads displayName from the ProviderMetadata literal, not an earlier displayName", () => {
+    const metadata = parseDescriptorMetadata(
+      `enum Fixture {
+            static let credentials = ProviderCredentialAdapter.regionValidator(displayName: "Alibaba Coding Plan")
+            ${descriptorFixture({ displayName: "Alibaba" })}
+        }`,
+    );
+    expect(metadata.displayName).toBe("Alibaba");
+  });
+
+  it("parses ProviderColor(hex:) branding colors", () => {
+    const metadata = parseDescriptorMetadata(
+      descriptorFixture().replace(
+        "color: ProviderColor(red: 73 / 255, green: 163 / 255, blue: 176 / 255)",
+        "color: ProviderColor(hex: 0xA04DFD)",
+      ),
+    );
+    expect(metadata.brandColorHex).toBe("#A04DFD");
+  });
+
   it("treats trailing-paren nil values as absent", () => {
     const metadata = parseDescriptorMetadata(descriptorFixture({ statusPageURL: "nil", statusLinkURL: "nil" }));
     expect(metadata.statusPageURL).toBeUndefined();
@@ -190,6 +210,16 @@ describe("parseDynamicOverrideProviders", () => {
     expect(() => parseDynamicOverrideProviders([{ path: "Gone.swift", content: "// nothing here" }])).toThrow(
       /Gone.swift/,
     );
+  });
+
+  it("accepts CLI renderers that delegate to presentation.rateWindowLabels", () => {
+    const providers = parseDynamicOverrideProviders([
+      {
+        path: "CLIRenderer.swift",
+        content: "let labels = descriptor.presentation.rateWindowLabels(metadata: meta, snapshot: snap)",
+      },
+    ]);
+    expect(providers.size).toBe(0);
   });
 });
 

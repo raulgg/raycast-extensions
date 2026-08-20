@@ -49,7 +49,6 @@ const MOCK_SOURCES: Record<string, string> = {
   vertexai: "oauth",
   augment: "web",
   jetbrains: "local",
-  kimik2: "api",
   amp: "web",
   ollama: "web",
   synthetic: "api",
@@ -86,9 +85,21 @@ const MOCK_SOURCES: Record<string, string> = {
   litellm: "api",
   poe: "api",
   chutes: "api",
-  crossmodel: "api",
   clawrouter: "api",
   wayfinder: "api",
+  clinepass: "api",
+  qwencloud: "web",
+  fireworks: "api",
+  deepinfra: "api",
+  neuralwatt: "api",
+  longcat: "web",
+  sub2api: "api",
+  zenmux: "api",
+  aiand: "api",
+  zoommate: "web",
+  xai: "api",
+  notion: "web",
+  ibmbob: "api",
 };
 
 const MOCK_VERSIONS: Record<string, string | null> = {
@@ -649,24 +660,6 @@ function buildJetBrains(now: Date): RawProviderPayload {
   });
 }
 
-function buildKimiK2(now: Date): RawProviderPayload {
-  return buildPayload("kimik2", {
-    source: MOCK_SOURCES.kimik2,
-    version: null,
-    status: null,
-    usage: buildUsage(
-      now,
-      buildWindow(now, 40, null, "Credits: 120/500"),
-      null,
-      null,
-      buildIdentity("kimik2", null, null, null),
-    ),
-    credits: null,
-    antigravityPlanInfo: null,
-    openaiDashboard: null,
-  });
-}
-
 function buildAmp(now: Date): RawProviderPayload {
   return buildPayload("amp", {
     source: MOCK_SOURCES.amp,
@@ -821,7 +814,6 @@ const MOCK_BUILDERS: Record<string, MockBuilder> = {
   vertexai: buildVertexAI,
   augment: buildAugment,
   jetbrains: buildJetBrains,
-  kimik2: buildKimiK2,
   amp: buildAmp,
   ollama: buildOllama,
   synthetic: buildSynthetic,
@@ -858,9 +850,21 @@ const MOCK_BUILDERS: Record<string, MockBuilder> = {
   litellm: buildGenericProvider("litellm"),
   poe: buildGenericProvider("poe"),
   chutes: buildGenericProvider("chutes"),
-  crossmodel: buildGenericProvider("crossmodel"),
   clawrouter: buildGenericProvider("clawrouter"),
   wayfinder: buildGenericProvider("wayfinder"),
+  clinepass: buildGenericProvider("clinepass"),
+  qwencloud: buildGenericProvider("qwencloud"),
+  fireworks: buildGenericProvider("fireworks"),
+  deepinfra: buildGenericProvider("deepinfra"),
+  neuralwatt: buildGenericProvider("neuralwatt"),
+  longcat: buildGenericProvider("longcat"),
+  sub2api: buildGenericProvider("sub2api"),
+  zenmux: buildGenericProvider("zenmux"),
+  aiand: buildGenericProvider("aiand"),
+  zoommate: buildGenericProvider("zoommate"),
+  xai: buildGenericProvider("xai"),
+  notion: buildGenericProvider("notion"),
+  ibmbob: buildGenericProvider("ibmbob"),
 };
 
 const missingMockProviderIds = PROVIDER_IDS.filter((id) => !MOCK_BUILDERS[id]);

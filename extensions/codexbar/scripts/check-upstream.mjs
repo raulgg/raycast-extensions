@@ -38,20 +38,30 @@ const RENDERER_PATHS = [
   "Sources/CodexBar/MenuCardView+ModelHelpers.swift",
   "Sources/CodexBar/UsageStore+WidgetSnapshot.swift",
   "Sources/CodexBarCLI/CLIRenderer.swift",
+  "Sources/CodexBarCLI/DashboardSnapshotBuilder.swift",
 ];
 
 // Dynamic overrides ported to normalize.ts (resolveSlotDisplayTitle). When upstream
 // adds a provider to its renderers, this check fails until the override is ported and
 // listed here.
-const IMPLEMENTED_DYNAMIC_OVERRIDES = new Set(["factory", "grok", "doubao"]);
+const IMPLEMENTED_DYNAMIC_OVERRIDES = new Set([
+  "codex",
+  "factory",
+  "grok",
+  "doubao",
+  "crof",
+  "amp",
+  "alibabatokenplan",
+  "sub2api",
+]);
 
 // Dynamic overrides that CANNOT be ported: the CLI JSON payload the extension consumes
 // lacks the data they key on.
 const UNPORTABLE_DYNAMIC_OVERRIDES = {
   // MenuCardView relabels legacy request-quota Cursor plans as "Requests" based on
-  // snapshot.cursorRequests, which UsageSnapshot.CodingKeys deliberately excludes from
-  // serialization ("live-only") — the field never reaches `codexbar usage --json`.
-  cursor: "keyed on cursorRequests, which upstream never serializes into the CLI payload",
+  // snapshot.detailRow(label: "Request quota"), a live GUI detail the CLI JSON
+  // does not expose as a usage-bar field.
+  cursor: "keyed on snapshot.detailRow(label: \"Request quota\"), which the CLI JSON does not expose as a usage-bar field",
 };
 
 // Known intentional differences from upstream, keyed provider → field. Entries record
@@ -85,6 +95,13 @@ const ALLOWED_DIVERGENCES = {
       ours: "https://qoder.com/account/usage",
       upstream: "expr:QoderWebSite.international.dashboardURL.absoluteString",
       reason: "upstream computes the URL per site; ours is the resolved .international constant",
+    },
+  },
+  qwencloud: {
+    dashboardUrl: {
+      ours: "https://home.qwencloud.com/billing/subscription/token-plan-individual",
+      upstream: "expr:QwenCloudUsageFetcher.dashboardURL.absoluteString",
+      reason: "upstream computes the URL from QWEN_CLOUD_HOST; ours is the empty-env default",
     },
   },
   wayfinder: {
