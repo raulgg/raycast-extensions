@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { extractSvgMarkup } from "../../test/svg-markdown";
+import {
+  DETAIL_PANEL,
+  DETAIL_SECTION_LAYOUT,
+  DETAIL_SVG_LAYOUT,
+  DETAIL_TEXT_LAYOUT,
+  DETAIL_TYPOGRAPHY,
+  getPanelHeight,
+  getTextBaselineY,
+  getTextBottomY,
+} from "../lib/detailMarkdown";
 import { buildProviderDetailMarkdown, buildProviderLoadingMarkdown } from "./markdown";
-
-const TEXT_TOP_INSET_RATIO = 0.8;
-const TEXT_BOTTOM_INSET_RATIO = 0.25;
 
 function getTextY(svg: string, text: string): number {
   const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -38,11 +45,7 @@ function getRectXs(svg: string, width: number, height: number): number[] {
 }
 
 function getTextTopY(baselineY: number, fontSize: number): number {
-  return baselineY - Math.ceil(fontSize * TEXT_TOP_INSET_RATIO);
-}
-
-function getTextBottomY(baselineY: number, fontSize: number): number {
-  return baselineY + Math.ceil(fontSize * TEXT_BOTTOM_INSET_RATIO);
+  return baselineY - Math.ceil(fontSize * DETAIL_TEXT_LAYOUT.topInsetRatio);
 }
 
 describe("provider markdown", () => {
@@ -451,6 +454,35 @@ describe("provider markdown", () => {
     ).toBe("No data available");
   });
 
+  it("sizes the generated usage image to the content with no extra vertical canvas padding", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        sections: [
+          {
+            kind: "usage",
+            title: "Primary",
+            displayTitle: "Session",
+            remainingPercent: 53,
+            resetsIn: "1h 30m",
+          },
+        ],
+      },
+      "light",
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+    const lastFooterY = getTextY(svg, "53% left");
+    const expectedHeight = getPanelHeight(getTextBottomY(lastFooterY, DETAIL_TYPOGRAPHY.rowValueSize));
+    const viewBoxMatch = svg.match(new RegExp(`viewBox="0 0 ${DETAIL_PANEL.width} (\\d+(?:\\.\\d+)?)"`));
+
+    expect(getTextY(svg, "Codex")).toBe(getTextBaselineY(DETAIL_PANEL.paddingTop, DETAIL_TYPOGRAPHY.headerTitleSize));
+    expect(viewBoxMatch?.[1]).toBe(String(expectedHeight));
+    expect(markdown).toContain(`raycast-width=${DETAIL_PANEL.width}`);
+    expect(markdown).toContain(`raycast-height=${expectedHeight}`);
+  });
+
   it("places the next divider below the rendered footer text, not its baseline", () => {
     const markdown = buildProviderDetailMarkdown(
       {
@@ -486,11 +518,12 @@ describe("provider markdown", () => {
     const infoTitleY = getTextY(svg, "OpenRouter");
     const infoDividerY = getLineYAfterText(svg, "Resets in 7d");
 
-    const gapAboveDivider = infoDividerY - getTextBottomY(weeklyFooterY, 12);
-    const gapBelowDivider = getTextTopY(infoTitleY, 14) - infoDividerY;
+    const expectedHalfGap = DETAIL_SECTION_LAYOUT.dividerPaddingY + DETAIL_SVG_LAYOUT.dividerStrokeWidth / 2;
+    const gapAboveDivider = infoDividerY - getTextBottomY(weeklyFooterY, DETAIL_TYPOGRAPHY.rowValueSize);
+    const gapBelowDivider = getTextTopY(infoTitleY, DETAIL_TYPOGRAPHY.sectionTitleSize) - infoDividerY;
 
-    expect(gapAboveDivider).toBeCloseTo(16.5);
-    expect(gapBelowDivider).toBeCloseTo(16.5);
+    expect(gapAboveDivider).toBeCloseTo(expectedHalfGap);
+    expect(gapBelowDivider).toBeCloseTo(expectedHalfGap);
   });
 
   it("renders incident status as a subtle footer below the usage sections", () => {

@@ -15,15 +15,15 @@ export const DETAIL_PANEL = {
   width: 440,
   paddingTop: 0,
   paddingRight: 0,
-  paddingBottom: 2,
+  paddingBottom: 0,
   paddingLeft: 0,
   minimumHeight: 64,
 } as const;
 
 export const DETAIL_TYPOGRAPHY = {
-  headerTitleSize: 22,
+  headerTitleSize: 16,
   headerSubtitleSize: 12,
-  sectionTitleSize: 14,
+  sectionTitleSize: 12,
   rowLabelSize: 12,
   rowValueSize: 12,
 } as const;
@@ -34,13 +34,12 @@ export const DETAIL_TEXT_LAYOUT = {
 } as const;
 
 export const DETAIL_FONT_WEIGHT = {
-  medium: 500,
-  semibold: 600,
-  bold: 700,
+  medium: 300,
+  semibold: 400,
+  bold: 600,
 } as const;
 
 export const DETAIL_HEADER_LAYOUT = {
-  titleBaselineY: 24,
   titleToSubtitleOffset: 18,
 } as const;
 
@@ -218,7 +217,7 @@ export function buildHeaderMarkup(
   documentTitle?: string,
 ): { markup: string[]; contentBottomY: number } {
   const palette = DETAIL_PALETTES[appearance];
-  const titleY = DETAIL_PANEL.paddingTop + DETAIL_HEADER_LAYOUT.titleBaselineY;
+  const titleY = getTextBaselineY(DETAIL_PANEL.paddingTop, DETAIL_TYPOGRAPHY.headerTitleSize);
   const markup: string[] = [
     `<rect x="0" y="0" width="${DETAIL_PANEL.width}" height="${DETAIL_SVG_LAYOUT.transparentCanvasHeight}" fill="transparent"/>`,
     `<title>${escapeSvgText(documentTitle ?? title)}</title>`,

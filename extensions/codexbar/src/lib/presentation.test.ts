@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DETAIL_TYPOGRAPHY } from "./detailMarkdown";
 import {
   buildProviderErrorMarkdown,
   formatLocalDateTime,
@@ -56,7 +57,7 @@ describe("presentation helpers", () => {
     expect(markdown).toContain("data:image/svg+xml;base64,");
     expect(svg).toContain(">Load failed<");
     expect(svg).toContain(">boom<");
-    expect(svg).toContain('font-size="22"');
+    expect(svg).toContain(`font-size="${DETAIL_TYPOGRAPHY.headerTitleSize}"`);
     expect(svg).toContain('fill="#111827"');
     expect(svg).toContain('stroke="#E5E7EB"');
     expect(svg).toContain('fill="#FF6B6B"');
