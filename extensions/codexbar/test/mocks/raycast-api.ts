@@ -1,3 +1,5 @@
+import { vi } from "vitest";
+
 export const Icon = new Proxy(
   {},
   {
@@ -11,6 +13,23 @@ export const Color = {
   Yellow: "raycast-yellow",
   Red: "raycast-red",
 } as const;
+
+export const LaunchType = {
+  UserInitiated: "userInitiated",
+  Background: "background",
+} as const;
+
+export const Toast = {
+  Style: {
+    Animated: "animated",
+    Success: "success",
+    Failure: "failure",
+  },
+} as const;
+
+export const launchCommand = vi.fn(async () => undefined);
+export const showToast = vi.fn(async () => undefined);
+export const updateCommandMetadata = vi.fn(async () => undefined);
 
 export const environment = {
   appearance: "light",
