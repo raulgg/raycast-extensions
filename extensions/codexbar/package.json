@@ -25,7 +25,7 @@
       "title": "Refresh Usage Cache",
       "description": "Refresh cached usage data and provider status in the background so the overview opens instantly",
       "mode": "no-view",
-      "interval": "5m"
+      "interval": "10m"
     }
   ],
   "preferences": [

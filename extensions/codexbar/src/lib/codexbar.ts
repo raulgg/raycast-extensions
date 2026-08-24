@@ -56,6 +56,10 @@ export type CodexBarCapabilities = {
   serveForceRefresh: boolean;
 };
 
+export function canForceRefreshViaServe(binary: ResolvedCodexBarBinary): boolean {
+  return binary.capabilities?.serveForceRefresh === true;
+}
+
 type ProviderFetchOptions = {
   mode?: "auto" | "force";
   source?: ProviderSourceMode;
@@ -711,7 +715,10 @@ async function executeCodexBarServe(
   if (binary.capabilities?.interactionModes) {
     params.set("interaction", options?.interaction ?? "background");
   }
-  if (options?.mode === "force" && binary.capabilities?.serveForceRefresh) {
+  if (options?.mode === "force") {
+    if (!canForceRefreshViaServe(binary)) {
+      throw new Error("CodexBar serve cannot force-refresh.");
+    }
     params.set("refresh", "true");
   }
   return requestCodexBarServeJson(`/usage?${params.toString()}`, CODEXBAR_SERVE_REQUEST_TIMEOUT_SECONDS * 1000);
@@ -729,7 +736,7 @@ async function fetchProviderDetailPayload(
   });
 
   // Older CLIs without serve force-refresh always use a fresh one-shot command for forced refreshes.
-  if (options?.mode === "force" && !binary.capabilities?.serveForceRefresh) {
+  if (options?.mode === "force" && !canForceRefreshViaServe(binary)) {
     return executeCodexBar(binary, usageCommandArgs);
   }
 

@@ -2,7 +2,9 @@
 
 ## [Initial Version] - {PR_MERGE_DATE}
 
-- Opening Usage Overview now arms the 5-minute Refresh Usage Cache background refresh on first use
+- Refresh Usage Cache runs every 10 minutes and requests a live serve copy (`refresh=true`)
+- Usage Overview does not start serve or enable the background command. If serve is down it uses a one-shot CLI fetch
+- CodexBar serve daemons started by background refresh use a 10-minute response cache TTL
 - Usage overview for every provider the CodexBar CLI supports (69 provider ids matching CodexBar v0.53.0, with alias resolution and shared `~/.codexbar/config.json` ordering)
 - Background refresh restarts the CodexBar serve daemon when it predates the installed CLI binary, so payload shapes stay consistent across app updates
 - Usage payloads that nondeterministically omit supplemental sections (e.g. Claude's scoped extra rate windows) are repaired from a per-provider section memory, keeping meter sets stable across refresh paths

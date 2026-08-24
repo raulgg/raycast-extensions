@@ -10,6 +10,7 @@ import {
 import { pruneProviderUsageSectionMemory } from "./providerShapeMemory";
 import { cacheProviderStatus, readProviderStatus } from "./providerStatusCache";
 import {
+  canForceRefreshViaServe,
   ensureCodexBarServe,
   fetchProviderDetailFromServe,
   fetchProviderDetailFromUsageCommand,
@@ -88,10 +89,11 @@ export async function refreshUsageCache(): Promise<UsageCacheRefreshResult> {
     };
   }
 
-  const usedServe =
+  const serveEnsured =
     availability.binary.source !== "mock" && !isCodexBarMockMode()
       ? await ensureCodexBarServe(availability.binary)
       : false;
+  const usedServe = serveEnsured && canForceRefreshViaServe(availability.binary);
   const errors: UsageCacheRefreshError[] = [];
   let refreshedCount = 0;
   const unchangedCount = 0;
@@ -106,7 +108,7 @@ export async function refreshUsageCache(): Promise<UsageCacheRefreshResult> {
         const { detail, status } = await fetchProviderDetailAndStatusForBackground(
           availability.binary,
           provider,
-          usedServe,
+          serveEnsured,
         );
         cacheProviderDetail(detail, availability.binary.keychainAccessPolicy);
         recordProviderDetailSuccess(providerId, availability.binary.keychainAccessPolicy);
@@ -141,14 +143,14 @@ async function readBackgroundConfiguredProviders(binary: ResolvedCodexBarBinary)
   return readConfiguredProvidersFromConfig();
 }
 
-// Serve-preferred (ADR-0002) for detail; status is CLI-only (ADR-0003) and
+// Force-refresh serve detail (ADR-0002). Status is CLI-only (ADR-0003) and
 // refreshed only when the dedicated status cache is empty or past TTL.
 async function fetchProviderDetailAndStatusForBackground(
   binary: ResolvedCodexBarBinary,
   provider: ConfiguredProvider,
   preferServe: boolean,
 ): Promise<ProviderUsageWithStatus> {
-  const options = { source: provider.source, interaction: "background" as const };
+  const options = { source: provider.source, interaction: "background" as const, mode: "force" as const };
   if (preferServe) {
     try {
       const detail = await fetchProviderDetailFromServe(binary, provider.id, options);

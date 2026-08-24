@@ -22,7 +22,7 @@ macOS app.
 ```
 src/
   usage-overview.tsx          Command: Usage Overview (view). The main UI entry point.
-  refresh-usage-cache.ts      Command: no-view, 5-min interval. Warms caches + serve. (ADR-0002/0003)
+  refresh-usage-cache.ts      Command: no-view, 10-min interval. Warms caches + serve. (ADR-0002/0003)
   preferences.ts              Typed access to Raycast preferences (Hide Personal Information).
 
   lib/
@@ -32,6 +32,7 @@ src/
                               direct file write. (ADR-0001/0004)
     providerStatusCache.ts    Dedicated status cache (provider-status:<id>, 30-min TTL). (ADR-0003)
     backgroundRefresh.ts      Orchestration for refresh-usage-cache.
+    refreshUsageCacheLaunch.ts  Unused by Overview (kept); UserInitiated launch helper.
     presentation.ts           Formatting helpers (percentages, durations, currency).
     detailMarkdown.ts, svg.ts, twoBarAccessoryIcon.ts   Rendering helpers.
 
@@ -92,7 +93,7 @@ These surprise people. Each has an ADR with the full reasoning; the short versio
 - **Status comes only from the CLI, only in the background.** Incident badges are sourced from
   `usage --status` and cached separately (`provider-status:<id>`, 30-min TTL). Serve mode can't
   produce status, so when serve supplies detail the background path issues a status one-shot only
-  if that provider's status cache is missing or past TTL — not on every 5-minute refresh. If the
+  if that provider's status cache is missing or past TTL — not on every 10-minute refresh. If the
   background refresh is disabled, badges simply don't appear — graceful absence, no error, no lazy
   foreground fetch. → **ADR-0003**.
 - **The shared config is written two ways.** Enable/disable goes through `codexbar config

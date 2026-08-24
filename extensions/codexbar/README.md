@@ -33,11 +33,11 @@ with the extension's Manage Providers action, too.
 
 - **Usage Overview** — one row per configured provider with usage meters; open a provider for reset
   windows, pacing, run-out projections, and supplemental meters.
-- **Refresh Usage Cache** — optional background refresh (every 5 minutes) that keeps usage data warm
-  so the overview opens instantly. When enabled, it may start the CodexBar CLI's serve daemon
-  (`codexbar serve`, bound to `127.0.0.1:17653` only), which keeps refreshing usage in the
-  background and can keep running after Raycast closes. Disable the command to stop starting it, or
-  quit the daemon with `pkill -f "codexbar serve"`.
+- **Refresh Usage Cache** — optional background refresh every 10 minutes so the overview can open
+  from cache. Enable it or run it once to start the CodexBar CLI's serve daemon (`codexbar serve`,
+  bound to `127.0.0.1:17653` only). Usage Overview does not start that daemon. If serve is down, the
+  overview uses a one-shot CLI command. Disable Refresh Usage Cache to stop starting serve, or quit a
+  running daemon with `pkill -f "codexbar serve"`.
 
 ## Privacy
 
