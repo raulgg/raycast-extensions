@@ -11,9 +11,27 @@ describe("inferredMonthlyWindowMinutes", () => {
 describe("resolveSlotPace", () => {
   const now = Date.parse("2026-03-23T10:30:00Z");
 
-  it("session-paces OpenCode Go primary as unsupported in the GUI", () => {
+  it("does not session-pace OpenCode Go's 5-hour primary", () => {
     expect(
       resolveSlotPace("opencodego", "Primary", { windowMinutes: 300, resetsAt: "2026-03-23T13:00:00Z" }, now),
     ).toBeUndefined();
+  });
+
+  it("does not generic-weekly-pace a factory tertiary, even mid-window", () => {
+    expect(
+      resolveSlotPace("factory", "Tertiary", { windowMinutes: 43_200, resetsAt: "2026-04-12T10:30:00Z" }, now),
+    ).toBeUndefined();
+  });
+
+  it("rescored alibaba monthly sentinel is not 43_200 minutes", () => {
+    const resolved = resolveSlotPace(
+      "alibaba",
+      "Tertiary",
+      { windowMinutes: 43_200, resetsAt: "2026-04-22T10:30:00Z" },
+      now,
+    );
+    expect(resolved?.context).toBe("window");
+    expect(resolved?.windowMinutes).not.toBe(43_200);
+    expect(resolved?.windowMinutes).toBe(inferredMonthlyWindowMinutes("2026-04-22T10:30:00Z"));
   });
 });

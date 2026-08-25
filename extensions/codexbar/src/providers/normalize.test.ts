@@ -923,8 +923,27 @@ describe("usage pacing gating", () => {
     expect(usagePacing(primary)).toBeUndefined();
   });
 
-  it("never paces the session window for providers outside the whitelist", () => {
-    const [primary] = pace("cursor", {
+  it("does not session-pace a factory 5-hour primary", () => {
+    const [primary] = pace("factory", {
+      primary: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
+    });
+    expect(usagePacing(primary)).toBeUndefined();
+  });
+
+  it("does not session-pace a Codex primary that is a 7-day or 30-day window", () => {
+    const [weekly] = pace("codex", {
+      primary: { windowMinutes: 10_080, usedPercent: 50, resetsAt: WEEKLY_RESETS_AT },
+    });
+    expect(usagePacing(weekly)).toBeUndefined();
+
+    const [monthly] = pace("codex", {
+      primary: { windowMinutes: 43_200, usedPercent: 50, resetsAt: "2026-04-12T10:30:00Z" },
+    });
+    expect(usagePacing(monthly)).toBeUndefined();
+  });
+
+  it("does not session-pace OpenCode Go's 5-hour primary", () => {
+    const [primary] = pace("opencodego", {
       primary: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
     });
     expect(usagePacing(primary)).toBeUndefined();
@@ -953,7 +972,15 @@ describe("usage pacing gating", () => {
     expect(usagePacing(withWindow)).toMatchObject({ context: "window" });
   });
 
-  it("paces cursor billing-cycle windows that carry windowMinutes via the generic rule", () => {
+  it("paces cursor billing-cycle windows that carry windowMinutes, including primary", () => {
+    const [primary] = pace("cursor", {
+      primary: { windowMinutes: 10_080, usedPercent: 50, resetsAt: WEEKLY_RESETS_AT },
+    });
+    expect(usagePacing(primary)).toMatchObject({ context: "window" });
+
+    const [untyped] = pace("cursor", { primary: { usedPercent: 50, resetsAt: WEEKLY_RESETS_AT } });
+    expect(usagePacing(untyped)).toBeUndefined();
+
     const [secondary] = pace("cursor", {
       secondary: { windowMinutes: 10_080, usedPercent: 50, resetsAt: WEEKLY_RESETS_AT },
     });
@@ -992,19 +1019,79 @@ describe("usage pacing gating", () => {
   });
 
   it("does not treat grok's Weekly display-label fallback as pace eligibility", () => {
-    const [primary] = pace("grok", { primary: { usedPercent: 50, resetsAt: "2026-04-06T10:30:00Z" } });
+    const [primary] = pace("grok", { primary: { usedPercent: 50, resetsAt: "2026-03-25T10:30:00Z" } });
     expect(primary).toMatchObject({ displayTitle: "Weekly" });
     expect(usagePacing(primary)).toBeUndefined();
   });
 
-  it("paces grok's secondary window only when windowMinutes is explicit", () => {
-    const [withoutWindow] = pace("grok", { secondary: { usedPercent: 50, resetsAt: WEEKLY_RESETS_AT } });
-    expect(usagePacing(withoutWindow)).toBeUndefined();
+  it("paces grok's secondary window when that window itself is Weekly-shaped", () => {
+    const [short] = pace("grok", { secondary: { usedPercent: 50, resetsAt: SESSION_RESETS_AT } });
+    expect(usagePacing(short)).toBeUndefined();
 
-    const [withWindow] = pace("grok", {
-      secondary: { windowMinutes: 10_080, usedPercent: 50, resetsAt: WEEKLY_RESETS_AT },
+    const [weekly] = pace("grok", { secondary: { usedPercent: 50, resetsAt: WEEKLY_RESETS_AT } });
+    expect(usagePacing(weekly)).toMatchObject({ context: "window" });
+  });
+
+  it("paces copilot primary from resetsAt by inferring the calendar month", () => {
+    const [primary] = pace("copilot", { primary: { usedPercent: 50, resetsAt: "2026-04-01T00:00:00Z" } });
+    expect(usagePacing(primary)).toMatchObject({ context: "window" });
+  });
+
+  it("paces kimi's 7-day primary as a window and the 5-hour secondary as a session", () => {
+    const [primary] = pace("kimi", {
+      primary: { windowMinutes: 10_080, usedPercent: 50, resetsAt: WEEKLY_RESETS_AT },
     });
-    expect(usagePacing(withWindow)).toMatchObject({ context: "window" });
+    expect(usagePacing(primary)).toMatchObject({ context: "window" });
+
+    const [secondary] = pace("kimi", {
+      secondary: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
+    });
+    expect(usagePacing(secondary)).toMatchObject({ context: "session" });
+  });
+
+  it("paces zai's 5-hour primary as a session and a sole MCP primary as a window", () => {
+    const [primary] = pace("zai", {
+      primary: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
+    });
+    expect(usagePacing(primary)).toMatchObject({ context: "session" });
+
+    const [other] = pace("zai", {
+      primary: { windowMinutes: 10_080, usedPercent: 50, resetsAt: WEEKLY_RESETS_AT },
+    });
+    expect(usagePacing(other)).toBeUndefined();
+
+    const [mcp] = pace("zai", {
+      primary: {
+        windowMinutes: 43_200,
+        usedPercent: 40,
+        resetsAt: "2026-04-22T10:30:00Z",
+        resetDescription: "MCP",
+      },
+    });
+    expect(usagePacing(mcp)).toMatchObject({ context: "window" });
+  });
+
+  it("paces notion rolling session windows of at most 6 hours", () => {
+    const [rolling] = pace("notion", {
+      primary: { windowMinutes: 360, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
+    });
+    expect(usagePacing(rolling)).toMatchObject({ context: "session" });
+
+    const [tooLong] = pace("notion", {
+      primary: { windowMinutes: 600, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
+    });
+    expect(usagePacing(tooLong)).toBeUndefined();
+  });
+
+  it("re-scores a 30-day sentinel as the real calendar month", () => {
+    const reset = "2026-04-22T10:30:00Z";
+    const [alibaba] = pace("alibaba", { tertiary: { windowMinutes: 43_200, usedPercent: 20, resetsAt: reset } });
+    expect(usagePacing(alibaba)).toMatchObject({ context: "window" });
+
+    const [factoryMidWindow] = pace("factory", {
+      tertiary: { windowMinutes: 43_200, usedPercent: 20, resetsAt: "2026-04-12T10:30:00Z" },
+    });
+    expect(usagePacing(factoryMidWindow)).toBeUndefined();
   });
 
   it("paces grok presentation meters with the same weekly reset-window rule", () => {

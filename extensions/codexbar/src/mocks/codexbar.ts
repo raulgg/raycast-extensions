@@ -18,6 +18,7 @@ type MockWindow = {
   resetsAt: string | null;
   resetDescription: string | null;
   nextRegenPercent?: number;
+  windowMinutes?: number;
 };
 
 type MockPayloadOptions = {
@@ -127,12 +128,14 @@ function buildWindow(
   resetOffsetMs: number | null,
   resetDescription: string | null = null,
   nextRegenPercent?: number,
+  windowMinutes?: number,
 ): MockWindow {
   return {
     usedPercent,
     resetsAt: resetOffsetMs === null ? null : offsetIso(now, resetOffsetMs),
     resetDescription,
     ...(nextRegenPercent === undefined ? {} : { nextRegenPercent }),
+    ...(windowMinutes === undefined ? {} : { windowMinutes }),
   };
 }
 
@@ -383,7 +386,7 @@ function buildCursor(now: Date): RawProviderPayload {
     status: buildStatus("Cursor operational", "https://status.cursor.com", now),
     usage: buildUsage(
       now,
-      buildWindow(now, 34, 3 * HOUR, "Resets in 3h"),
+      buildWindow(now, 34, 3 * HOUR, "Resets in 3h", undefined, 24 * 60),
       buildWindow(now, 68, 24 * HOUR, "Resets tomorrow"),
       buildWindow(now, 79, 7 * DAY, "Resets next week"),
       {
@@ -418,7 +421,7 @@ function buildOpenCodeGo(now: Date): RawProviderPayload {
       now,
       buildWindow(now, 24, 90 * MINUTE, null),
       buildWindow(now, 44, 5 * DAY, null),
-      buildWindow(now, 83, 30 * DAY, null),
+      buildWindow(now, 83, 20 * DAY, null, undefined, 43_200),
     ),
     credits: null,
     antigravityPlanInfo: null,
@@ -435,7 +438,7 @@ function buildAlibaba(now: Date): RawProviderPayload {
       now,
       buildWindow(now, 39, 5 * HOUR, "39 / 100 used"),
       buildWindow(now, 63, 24 * HOUR, "63 / 100 used"),
-      buildWindow(now, 88, 30 * DAY, "88 / 100 used"),
+      buildWindow(now, 88, 20 * DAY, "88 / 100 used", undefined, 43_200),
       buildIdentity("alibaba", null, null, "Pro"),
     ),
     credits: null,
@@ -509,7 +512,7 @@ function buildCopilot(now: Date): RawProviderPayload {
     status: buildStatus("GitHub Copilot operational", "https://www.githubstatus.com/", now),
     usage: buildUsage(
       now,
-      buildWindow(now, 45, null, null),
+      buildWindow(now, 45, 20 * DAY, null),
       buildWindow(now, 67, null, null),
       null,
       buildIdentity("copilot", null, null, "Business"),
@@ -527,7 +530,7 @@ function buildZai(now: Date): RawProviderPayload {
     status: null,
     usage: buildUsage(
       now,
-      buildWindow(now, 35, 4 * HOUR, "1 week window"),
+      buildWindow(now, 35, 4 * HOUR, "1 week window", undefined, 300),
       buildWindow(now, 58, 30 * DAY, "Monthly"),
       buildWindow(now, 74, 2 * HOUR, "5 hours window"),
       buildIdentity("zai", null, null, "Pro"),
@@ -563,8 +566,8 @@ function buildKimi(now: Date): RawProviderPayload {
     status: null,
     usage: buildUsage(
       now,
-      buildWindow(now, 49, 7 * DAY, "42/200 requests"),
-      buildWindow(now, 61, 5 * HOUR, "Rate: 15/60 per 5 hours"),
+      buildWindow(now, 49, 5 * DAY, "42/200 requests", undefined, 10_080),
+      buildWindow(now, 61, 90 * MINUTE, "Rate: 15/60 per 5 hours", undefined, 300),
       null,
       buildIdentity("kimi", null, null, null),
     ),
@@ -774,6 +777,24 @@ function hashSeed(value: string): number {
   return Math.abs(hash);
 }
 
+function buildNotion(now: Date): RawProviderPayload {
+  return buildPayload("notion", {
+    source: MOCK_SOURCES.notion,
+    version: null,
+    status: null,
+    usage: buildUsage(
+      now,
+      buildWindow(now, 38, 3 * HOUR, null, undefined, 360),
+      buildWindow(now, 71, 20 * DAY, null, undefined, 43_200),
+      null,
+      buildIdentity("notion", "dev@example.com", null, "Plus"),
+    ),
+    credits: null,
+    antigravityPlanInfo: null,
+    openaiDashboard: null,
+  });
+}
+
 function buildGrok(now: Date): RawProviderPayload {
   return buildPayload("grok", {
     source: MOCK_SOURCES.grok,
@@ -881,7 +902,7 @@ const MOCK_BUILDERS: Record<string, MockBuilder> = {
   aiand: buildGenericProvider("aiand"),
   zoommate: buildGenericProvider("zoommate"),
   xai: buildGenericProvider("xai"),
-  notion: buildGenericProvider("notion"),
+  notion: buildNotion,
   ibmbob: buildGenericProvider("ibmbob"),
 };
 

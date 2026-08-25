@@ -191,8 +191,9 @@ mirrors each descriptor's `pace: ProviderPaceCapability(...)`. `computeSlotUsage
 - **The formula** → `calculateUsagePacing` in [`usagePacing.ts`](../src/providers/usagePacing.ts),
   mirroring `UsagePace.swift`. Session default 300 minutes; weekly default 10_080. Calendar-month
   sentinels (43_200) are expanded to the real month via `inferredMonthlyWindowMinutes`.
-- **Gating** → `sessionPaceWindowRule` on primary (and Kimi's secondary), else `resetWindowPace` on
-  any slot, else the generic weekly rule (`windowMinutes` required except Codex secondary).
+- **Gating** → `sessionPaceWindowRule` on primary (and Kimi's secondary), else `resetWindowPace`.
+  Secondary (not tertiary) then uses the generic weekly rule (`windowMinutes` required except Codex
+  via `secondaryAllowsDefaultWindow`).
 - **Labels** → `formatUsagePacingLabels` in `usagePacing.ts`.
 
 `upstream:check` parses every descriptor `pace:` argument, diffs it against the table, and treats

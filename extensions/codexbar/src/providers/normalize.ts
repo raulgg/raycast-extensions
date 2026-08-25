@@ -1,5 +1,11 @@
-import { calculateUsagePacing } from "./usagePacing";
+import {
+  grokPrimaryDisplayTitle,
+  grokWindowDurationMs,
+  resolveSlotPace,
+  WEEKLY_PACE_DEFAULT_WINDOW_MINUTES,
+} from "./paceCapabilities";
 import { getProviderMetadata, getProviderUsageSectionDisplayTitle } from "./registry";
+import { calculateUsagePacing } from "./usagePacing";
 import { parseProviderStatus } from "./status";
 import type {
   ProviderDetailData,
@@ -153,61 +159,14 @@ function buildWindowReset(
   return undefined;
 }
 
-// Default window durations used only when a payload window omits an explicit
-// `windowMinutes`: session windows run on a 5h cadence, weekly on the 7d cadence.
-const SESSION_PACE_DEFAULT_WINDOW_MINUTES = 300;
-const WEEKLY_PACE_DEFAULT_WINDOW_MINUTES = 10_080;
-
-// Session (primary) pace is a hand-maintained whitelist, mirroring upstream
-// UsagePaceText.sessionPace(provider:): only codex, claude, ollama, and
-// antigravity get a marker on the session bar. codex/claude fall back to the
-// 300-min default when the payload omits windowMinutes; ollama only paces when
-// windowMinutes is explicit; antigravity paces when windowMinutes is omitted or
-// exactly 300 (rejecting other explicit window lengths). It is a rule, not
-// registry data — no property of the payload tells you a provider qualifies.
-const SESSION_PACE_PROVIDER_IDS = new Set(["codex", "claude", "ollama", "antigravity"]);
-const SESSION_PACE_EXPLICIT_WINDOW_PROVIDER_IDS = new Set(["ollama"]);
-
 type UsagePacingInput = {
   usedPercent: number;
   remainingPercent: number;
   resetsAt: string;
   windowMinutes?: number;
+  resetDescription?: string;
 };
 
-function computeSessionUsagePacing(
-  providerId: string,
-  input: UsagePacingInput,
-  now: number,
-): ProviderUsagePacing | undefined {
-  if (!SESSION_PACE_PROVIDER_IDS.has(providerId)) {
-    return undefined;
-  }
-
-  if (SESSION_PACE_EXPLICIT_WINDOW_PROVIDER_IDS.has(providerId) && input.windowMinutes === undefined) {
-    return undefined;
-  }
-
-  // Upstream: if provider == .antigravity, let windowMinutes = window.windowMinutes,
-  // windowMinutes != 300 { return nil } — only reject when defined and not 300.
-  if (
-    providerId === "antigravity" &&
-    input.windowMinutes !== undefined &&
-    input.windowMinutes !== SESSION_PACE_DEFAULT_WINDOW_MINUTES
-  ) {
-    return undefined;
-  }
-
-  const pacing = calculateUsagePacing(input, now, SESSION_PACE_DEFAULT_WINDOW_MINUTES);
-  return pacing ? { ...pacing, context: "session" } : undefined;
-}
-
-// Weekly/other windows (secondary, tertiary, extra rate windows) pace whenever
-// they carry an explicit windowMinutes, mirroring upstream UsageStore.weeklyPace.
-// The 10080-min fallback is only allowed for the codex secondary window and for
-// Grok's Weekly-labeled primary credits window — using it everywhere would
-// fabricate a weekly pace for non-weekly windows (e.g. Factory monthly with
-// only resetsAt).
 function computeWeeklyUsagePacing(
   input: UsagePacingInput,
   now: number,
@@ -227,58 +186,29 @@ function computeSlotUsagePacing(
   input: UsagePacingInput,
   now: number,
 ): ProviderUsagePacing | undefined {
-  if (slotTitle === "Primary") {
-    if (providerId === "grok") {
-      if (!grokPrimarySupportsResetWindowPace(input, now)) {
-        return undefined;
-      }
-      return computeWeeklyUsagePacing(input, now, true);
-    }
-    return computeSessionUsagePacing(providerId, input, now);
-  }
-
-  const allowDefaultWindowFallback = providerId === "codex" && slotTitle === "Secondary";
-  return computeWeeklyUsagePacing(input, now, allowDefaultWindowFallback);
-}
-
-type SlotTitle = "Primary" | "Secondary" | "Tertiary";
-
-function grokWindowDurationMs(windowMinutes: number | undefined, resetsAt: string | undefined, now: number): number {
-  if (windowMinutes !== undefined) {
-    return windowMinutes * 60 * 1000;
-  }
-
-  if (resetsAt) {
-    return Date.parse(resetsAt) - now;
-  }
-
-  return Number.NaN;
-}
-
-// Mirrors GrokProviderDescriptor.primaryLabel(duration:): Grok's primary window is a
-// generic credits pool whose cadence depends on the plan, so upstream relabels the bar
-// by billing-window length — "Weekly" for ~4-12 day windows, "Monthly" for ~20-45 days.
-function resolveGrokPrimaryDisplayTitle(durationMs: number): string | undefined {
-  if (!Number.isFinite(durationMs) || durationMs <= 60 * 60 * 1000) {
+  const resolved = resolveSlotPace(
+    providerId,
+    slotTitle,
+    {
+      windowMinutes: input.windowMinutes,
+      resetsAt: input.resetsAt,
+      resetDescription: input.resetDescription,
+    },
+    now,
+  );
+  if (!resolved) {
     return undefined;
   }
 
-  const days = Math.round(durationMs / (24 * 60 * 60 * 1000));
-  if (days >= 4 && days <= 12) {
-    return "Weekly";
-  }
-
-  if (days >= 20 && days <= 45) {
-    return "Monthly";
-  }
-
-  return undefined;
+  const pacing = calculateUsagePacing(
+    { ...input, windowMinutes: resolved.windowMinutes },
+    now,
+    resolved.defaultWindowMinutes,
+  );
+  return pacing ? { ...pacing, context: resolved.context } : undefined;
 }
 
-// primaryLabel, not displayLabel: a short untyped window can still read Weekly.
-function grokPrimarySupportsResetWindowPace(input: UsagePacingInput, now: number): boolean {
-  return resolveGrokPrimaryDisplayTitle(grokWindowDurationMs(input.windowMinutes, input.resetsAt, now)) === "Weekly";
-}
+type SlotTitle = "Primary" | "Secondary" | "Tertiary";
 
 // Upstream MenuDescriptor.rateWindowLabels layers dynamic overrides on top of the
 // static registry labels: factory (tertiary → 5-hour/Weekly/Monthly), grok (primary
@@ -318,7 +248,7 @@ function resolveSlotDisplayTitle(
   // fields, and the label should agree with whatever countdown the section renders.
   if (providerId === "grok" && slotTitle === "Primary") {
     const durationMs = grokWindowDurationMs(options.windowMinutes, options.resetsAt, options.now);
-    const dynamicTitle = resolveGrokPrimaryDisplayTitle(durationMs);
+    const dynamicTitle = grokPrimaryDisplayTitle(durationMs);
     if (dynamicTitle) {
       return dynamicTitle;
     }
@@ -504,6 +434,7 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
               remainingPercent: progressPercent,
               resetsAt: resolvedResetsAt,
               windowMinutes: toFiniteNumber(record.windowMinutes),
+              resetDescription: toTrimmedString(record.resetDescription),
             },
             now,
           )
@@ -632,7 +563,13 @@ function buildPresentationMeterSections(
         ? computeSlotUsagePacing(
             providerId,
             title,
-            { usedPercent: resolvedUsedPercent, remainingPercent, resetsAt, windowMinutes },
+            {
+              usedPercent: resolvedUsedPercent,
+              remainingPercent,
+              resetsAt,
+              windowMinutes,
+              resetDescription: toTrimmedString(meter.resetDescription),
+            },
             now,
           )
         : undefined;

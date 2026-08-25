@@ -39,6 +39,7 @@ export type PaceCapability = {
   tertiary?: PaceLane;
   sessionPaceWindowRule: PaceWindowRule;
   secondarySessionPace?: boolean;
+  secondaryAllowsDefaultWindow?: boolean;
   showsHeadroomHint?: boolean;
 };
 
@@ -239,6 +240,10 @@ export function resolveSlotPace(
     };
   };
 
+  if (slot === "Tertiary") {
+    return resetPace();
+  }
+
   if (slot === "Primary" || (slot === "Secondary" && capability.secondarySessionPace)) {
     return resetPace() ?? sessionPace();
   }
@@ -248,8 +253,7 @@ export function resolveSlotPace(
     return reset;
   }
 
-  const allowDefaultWindowFallback = providerId === "codex" && slot === "Secondary";
-  if (window.windowMinutes === undefined && !allowDefaultWindowFallback) {
+  if (window.windowMinutes === undefined && !capability.secondaryAllowsDefaultWindow) {
     return undefined;
   }
 
@@ -260,7 +264,7 @@ export function resolveSlotPace(
   };
 }
 
-// Keep this table in the shape parsePaceCapabilities expects (two-space `id: {` blocks).
+// Keep this table in the shape parsePaceCapabilitiesTable expects (two-space `id: {` blocks).
 export const PACE_CAPABILITIES: Record<string, PaceCapability> = {
   alibaba: {
     resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
@@ -296,6 +300,7 @@ export const PACE_CAPABILITIES: Record<string, PaceCapability> = {
     primary: { kind: "session", maximumMinutes: 300 },
     secondary: { kind: "weekly" },
     sessionPaceWindowRule: { type: "custom", id: "codexSessionRejectsWeeklyMonthly" },
+    secondaryAllowsDefaultWindow: true,
     showsHeadroomHint: true,
   },
   commandcode: {
