@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  comparePaceCapabilities,
   compareProviders,
   parseDescriptorMetadata,
+  parseDescriptorPace,
   parseDynamicOverrideProviders,
+  parsePaceCapabilitiesTable,
   parseRegistryEntries,
   providerColorToHex,
 } from "./lib/upstream-metadata.mjs";
@@ -299,3 +302,109 @@ describe("compareProviders", () => {
     expect(problems).toContainEqual(expect.stringContaining("ghost: ALLOWED_DIVERGENCES entry"));
   });
 });
+
+describe("parseDescriptorPace", () => {
+  it("defaults to unsupported when pace is omitted", () => {
+    expect(parseDescriptorPace(descriptorFixture(), "Codex.swift")).toEqual({
+      resetWindowPace: { type: "unsupported" },
+      inferredMonthlyDuration: { type: "unsupported" },
+      sessionPaceWindowRule: { type: "unsupported" },
+    });
+  });
+
+  it("expands .calendarMonthResetWindow", () => {
+    const source = descriptorFixture({ extra: "pace: .calendarMonthResetWindow," });
+    expect(parseDescriptorPace(source, "Amp.swift").resetWindowPace).toEqual({
+      type: "windowDuration",
+      minutes: 43_200,
+    });
+  });
+
+  it("parses Cursor windowDurationPresent and Grok custom fingerprints", () => {
+    const cursor = `
+            pace: ProviderPaceCapability(resetWindowPace: .windowDurationPresent),
+    `;
+    expect(parseDescriptorPace(descriptorFixture({ extra: cursor }), "Cursor.swift").resetWindowPace).toEqual({
+      type: "windowDurationPresent",
+    });
+
+    const grok = `
+            pace: ProviderPaceCapability(
+                resetWindowPace: .custom { window, now in
+                    guard Self.primaryLabel(window: window, now: now) == "Weekly",
+                          let resetsAt = window.resetsAt
+                    else { return false }
+                    let windowMinutes = window.windowMinutes ?? 7 * 24 * 60
+                    let timeUntilReset = resetsAt.timeIntervalSince(now)
+                    return windowMinutes > 0
+                        && timeUntilReset > 0
+                        && timeUntilReset <= TimeInterval(windowMinutes) * 60
+                }),
+    `;
+    const parsed = parseDescriptorPace(descriptorFixture({ extra: grok }), "Grok.swift");
+    expect(parsed.resetWindowPace.type).toBe("custom");
+    expect(parsed.resetWindowPace.fingerprint).toContain('primaryLabel(window: window, now: now) == "Weekly"');
+  });
+
+  it("throws on an unparseable pace value", () => {
+    expect(() => parseDescriptorPace(descriptorFixture({ extra: "pace: .mystery," }), "X.swift")).toThrow(
+      /unparseable pace/,
+    );
+  });
+});
+
+describe("parsePaceCapabilitiesTable", () => {
+  it("parses custom ids and sentinel minutes", () => {
+    const source = `
+export const PACE_CAPABILITIES = {
+  grok: {
+    resetWindowPace: { type: "custom", id: "grokWeeklyCredits" },
+    inferredMonthlyDuration: { type: "unsupported" },
+    sessionPaceWindowRule: { type: "unsupported" },
+  },
+  alibaba: {
+    resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
+    inferredMonthlyDuration: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
+    sessionPaceWindowRule: { type: "unsupported" },
+  },
+} satisfies Record<string, PaceCapability>;
+`;
+    const entries = parsePaceCapabilitiesTable(source);
+    expect(entries.get("grok").resetWindowPace).toEqual({ type: "custom", id: "grokWeeklyCredits" });
+    expect(entries.get("alibaba").resetWindowPace).toEqual({ type: "windowDuration", minutes: 43_200 });
+  });
+});
+
+describe("comparePaceCapabilities", () => {
+  it("maps matching custom fingerprints onto ids", () => {
+    const ours = parsePaceCapabilitiesTable(`
+export const PACE_CAPABILITIES = {
+  grok: {
+    resetWindowPace: { type: "custom", id: "grokWeeklyCredits" },
+    inferredMonthlyDuration: { type: "unsupported" },
+    sessionPaceWindowRule: { type: "unsupported" },
+  },
+} satisfies Record<string, PaceCapability>;
+`);
+    const grok = parseDescriptorPace(
+      descriptorFixture({
+        extra: `
+            pace: ProviderPaceCapability(
+                resetWindowPace: .custom { window, now in
+                    guard Self.primaryLabel(window: window, now: now) == "Weekly"
+                    else { return false }
+                }),
+    `,
+      }),
+      "Grok.swift",
+    );
+    const { problems } = comparePaceCapabilities(ours, new Map([["grok", { pace: grok }]]), {
+      "grok.resetWindowPace": {
+        id: "grokWeeklyCredits",
+        fingerprint: grok.resetWindowPace.fingerprint,
+      },
+    });
+    expect(problems).toEqual([]);
+  });
+});
+

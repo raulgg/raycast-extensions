@@ -5,7 +5,7 @@ Maintainer and contributor documentation for the CodexBar Raycast extension.
 - **[maintaining.md](maintaining.md)** — start here. Repo layout, dev/test/lint commands, runtime
   quirks, and the recurring upstream-sync chore.
 - **[upstream-parity.md](upstream-parity.md)** — the parity reference. Every surface where the
-  extension tracks the CodexBar macOS app, the two drift-guard scripts, and the quirks. Read before
+  extension tracks the CodexBar macOS app, the drift-guard scripts, and the quirks. Read before
   touching provider metadata, pacing, or icons.
 - **[../CONTEXT.md](../CONTEXT.md)** — domain glossary. The vocabulary the code and docs use.
 - **[adr/](adr/)** — architecture decision records, one per accepted trade-off:

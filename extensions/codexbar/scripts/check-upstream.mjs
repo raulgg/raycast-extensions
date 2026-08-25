@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
-// Checks src/providers/registry.ts against the upstream CodexBar provider descriptors
-// so the Raycast extension shows the same provider names, usage-bar labels, dashboard
-// and status URLs, and brand colors as the CodexBar GUI. Also verifies that every
-// dynamic label override in the upstream renderers is either ported to normalize.ts
-// or documented as unportable.
+// Checks src/providers/registry.ts and paceCapabilities.ts against the upstream
+// CodexBar provider descriptors so the Raycast extension shows the same provider
+// names, usage-bar labels, dashboard and status URLs, brand colors, and pace
+// gating as the CodexBar GUI. Also verifies that every dynamic label override in
+// the upstream renderers is either ported to normalize.ts or documented as unportable.
 //
 // Usage:
 //   npm run upstream:check                      # compare against the latest release tag
 //   CODEXBAR_REF=main npm run upstream:check    # compare against a branch/tag/sha
 //   CODEXBAR_DIR=~/code/CodexBar npm run ...    # compare against a local checkout
 //
-// Exits 1 on any undocumented divergence, missing provider, stale allowlist entry, or
-// unported dynamic override.
+// Exits 1 on any undocumented divergence, missing provider, stale allowlist entry,
+// unported dynamic override, or pace-capability mismatch.
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -20,14 +20,20 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { createUpstreamSource, readFilesWithConcurrency } from "./lib/upstream.mjs";
 import {
+  comparePaceCapabilities,
   compareProviders,
   parseDescriptorMetadata,
+  parseDescriptorPace,
   parseDynamicOverrideProviders,
+  parseKimiSecondarySessionPace,
+  parsePaceCapabilitiesTable,
+  parsePresentationPaceFlags,
   parseRegistryEntries,
 } from "./lib/upstream-metadata.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REGISTRY_PATH = path.resolve(__dirname, "../src/providers/registry.ts");
+const PACE_CAPABILITIES_PATH = path.resolve(__dirname, "../src/providers/paceCapabilities.ts");
 const DESCRIPTOR_DIR = "Sources/CodexBarCore/Providers";
 // Every upstream surface that renders usage-bar titles; a dynamic override added to
 // any of them must be ported (or documented below) for the extension to stay aligned.
@@ -40,6 +46,60 @@ const RENDERER_PATHS = [
   "Sources/CodexBarCLI/CLIRenderer.swift",
   "Sources/CodexBarCLI/DashboardSnapshotBuilder.swift",
 ];
+
+// Menu card files that special-case pace outside descriptor `pace:` (Kimi secondary
+// sessionPaceDetail). Kept separate from RENDERER_PATHS so a file without label
+// sites does not break the dynamic-override scan.
+const PACE_RENDERER_PATHS = [
+  "Sources/CodexBar/MenuCardView.swift",
+  "Sources/CodexBar/MenuCardView+ModelHelpers.swift",
+];
+
+// Custom Swift closures in ProviderPaceCapability, keyed provider.field.
+// The fingerprint is whitespace-normalized closure body; if upstream edits the
+// predicate, this entry goes stale and must be re-reviewed.
+const CUSTOM_PACE_RULES = {
+  "antigravity.sessionPaceWindowRule": {
+    id: "antigravitySession",
+    fingerprint: "window, _ in window.windowMinutes == nil || window.windowMinutes == 300",
+  },
+  "claude.sessionPaceWindowRule": {
+    id: "claudeSessionAlways",
+    fingerprint: "_, _ in true",
+  },
+  "codex.sessionPaceWindowRule": {
+    id: "codexSessionRejectsWeeklyMonthly",
+    fingerprint:
+      "window, _ in guard let minutes = window.windowMinutes else { return true } return minutes != 7 * 24 * 60 && minutes != 30 * 24 * 60",
+  },
+  "grok.resetWindowPace": {
+    id: "grokWeeklyCredits",
+    fingerprint:
+      'window, now in guard Self.primaryLabel(window: window, now: now) == "Weekly", let resetsAt = window.resetsAt else { return false } let windowMinutes = window.windowMinutes ?? 7 * 24 * 60 let timeUntilReset = resetsAt.timeIntervalSince(now) return windowMinutes > 0 && timeUntilReset > 0 && timeUntilReset <= TimeInterval(windowMinutes) * 60',
+  },
+  "notion.sessionPaceWindowRule": {
+    id: "notionRollingSession",
+    fingerprint:
+      "window, _ in guard let minutes = window.windowMinutes else { return false } return minutes <= Self.rollingWindowMaxMinutes",
+  },
+  "zai.resetWindowPace": {
+    id: "zaiMonthlyMcp",
+    fingerprint: "window, _ in Self.isMonthlyMCPWindow(window)",
+  },
+  "zai.inferredMonthlyDuration": {
+    id: "zaiMonthlyMcp",
+    fingerprint: "window in Self.isMonthlyMCPWindow(window)",
+  },
+};
+
+const UNPORTABLE_PRESENTATION_PACE = {
+  abacus: {
+    usesAbacusPace: "billing-cycle copy on the primary bar, not UsagePace",
+  },
+  synthetic: {
+    usesSyntheticRollingRegen: "rolling regen detail, not usage pace",
+  },
+};
 
 // Dynamic overrides ported to normalize.ts (resolveSlotDisplayTitle). When upstream
 // adds a provider to its renderers, this check fails until the override is ported and
@@ -115,6 +175,7 @@ const ALLOWED_DIVERGENCES = {
 
 async function main() {
   const registryEntries = parseRegistryEntries(await readFile(REGISTRY_PATH, "utf8"));
+  const paceEntries = parsePaceCapabilitiesTable(await readFile(PACE_CAPABILITIES_PATH, "utf8"));
   const source = await createUpstreamSource();
 
   // `<Name>ProviderDescriptor.swift` files only — the bare ProviderDescriptor.swift is
@@ -125,18 +186,24 @@ async function main() {
   if (descriptorPaths.length === 0) {
     throw new Error(`No provider descriptors found under ${DESCRIPTOR_DIR} in ${source.label}.`);
   }
-  const [descriptorFiles, rendererFiles] = await Promise.all([
+  const [descriptorFiles, rendererFiles, paceRendererFiles] = await Promise.all([
     readFilesWithConcurrency(source, descriptorPaths),
     readFilesWithConcurrency(source, RENDERER_PATHS),
+    readFilesWithConcurrency(source, PACE_RENDERER_PATHS),
   ]);
 
   const upstreamById = new Map();
+  const presentationFlagsById = new Map();
   for (const { path: filePath, content } of descriptorFiles) {
     const metadata = parseDescriptorMetadata(content, filePath);
+    metadata.pace = parseDescriptorPace(content, filePath);
     upstreamById.set(metadata.id, metadata);
+    presentationFlagsById.set(metadata.id, parsePresentationPaceFlags(content));
   }
 
   const problems = compareProviders(registryEntries, upstreamById, ALLOWED_DIVERGENCES);
+  const paceComparison = comparePaceCapabilities(paceEntries, upstreamById, CUSTOM_PACE_RULES);
+  problems.push(...paceComparison.problems);
 
   const dynamicOverrides = parseDynamicOverrideProviders(rendererFiles);
   for (const metadata of upstreamById.values()) {
@@ -162,6 +229,40 @@ async function main() {
     }
   }
 
+  const kimiRendererSession = parseKimiSecondarySessionPace(paceRendererFiles);
+  const kimiTableSession = paceEntries.get("kimi")?.secondarySessionPace === true;
+  if (kimiRendererSession !== kimiTableSession) {
+    problems.push(
+      kimiRendererSession
+        ? "kimi: MenuCardView session-paces the secondary window but paceCapabilities.ts is missing secondarySessionPace: true"
+        : "kimi: paceCapabilities.ts sets secondarySessionPace but MenuCardView no longer session-paces that slot",
+    );
+  }
+
+  const usedPresentation = new Set();
+  for (const [id, flags] of presentationFlagsById) {
+    const allowance = UNPORTABLE_PRESENTATION_PACE[id] ?? {};
+    for (const flag of ["usesAbacusPace", "usesSyntheticRollingRegen"]) {
+      if (!flags[flag]) {
+        continue;
+      }
+      if (!allowance[flag]) {
+        problems.push(
+          `${id}: descriptor sets ${flag} (presentation-only pace). Port it or add UNPORTABLE_PRESENTATION_PACE.`,
+        );
+        continue;
+      }
+      usedPresentation.add(`${id}.${flag}`);
+    }
+  }
+  for (const [id, flags] of Object.entries(UNPORTABLE_PRESENTATION_PACE)) {
+    for (const flag of Object.keys(flags)) {
+      if (!usedPresentation.has(`${id}.${flag}`)) {
+        problems.push(`${id}: stale UNPORTABLE_PRESENTATION_PACE entry for ${flag} — delete it.`);
+      }
+    }
+  }
+
   if (problems.length > 0) {
     console.error(`Registry out of sync with ${source.label}:\n`);
     for (const problem of problems) {
@@ -173,7 +274,8 @@ async function main() {
 
   console.log(
     `Registry in sync: ${registryEntries.size} providers match ${source.label} ` +
-      `(labels, names, URLs, colors, ${dynamicOverrides.size} dynamic overrides accounted for).`,
+      `(labels, names, URLs, colors, ${dynamicOverrides.size} dynamic overrides, ` +
+        `${paceEntries.size} pace capabilities accounted for).`,
   );
 }
 

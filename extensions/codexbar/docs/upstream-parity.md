@@ -54,15 +54,16 @@ compares against the wrong thing answers a question nobody asked.
 
 ## The parity surfaces at a glance
 
-There are six distinct surfaces where we track upstream. Two are **guarded by scripts** (drift fails
-CI-style), four are **hand-maintained** (drift is silent — you only catch it by re-reading Swift).
+There are six distinct surfaces where we track upstream. Three are **guarded by scripts** (drift
+fails CI-style), three are **hand-maintained** (drift is silent — you only catch it by re-reading
+Swift).
 
 | # | Surface | Where it lives here | How drift is caught | Upstream source |
 | - | --- | --- | --- | --- |
 | 1 | Provider metadata — names, labels, dashboard/status URLs, brand colors | `registry.ts` `PROVIDER_DEFINITIONS` | `npm run upstream:check` | `Sources/CodexBarCore/Providers/**/…ProviderDescriptor.swift` |
 | 2 | Dynamic usage-bar label overrides | `normalize.ts` `resolveSlotDisplayTitle` | `npm run upstream:check` | renderer files (see below) + descriptor `primaryLabel` |
 | 3 | Provider icons | `assets/provider-icons/*.svg` | `npm run upstream:sync-icons -- --check` | `Sources/CodexBar/Resources/ProviderIcon-<slug>.svg` |
-| 4 | Pacing — formula, gating, labels | `usagePacing.ts`, `registry.ts`, `normalize.ts` | ❌ hand-maintained | `UsagePace.swift`, `UsagePaceText.swift`, `MenuCardView*.swift` |
+| 4 | Pacing — formula, gating, labels | `paceCapabilities.ts`, `usagePacing.ts`, `normalize.ts` | `npm run upstream:check` | descriptor `pace:` + `UsagePace.swift`, `UsagePaceText.swift`, `MenuCardView*.swift` |
 | 5 | Supplemental usage shapes | `normalize.ts` mappers | ❌ hand-maintained | descriptor / snapshot shapes |
 | 6 | CLI install routine — the app's **Install CLI** button | `cliInstall.ts` `installCodexBarCli` | ❌ hand-maintained | `Sources/CodexBar/PreferencesAdvancedPane.swift` |
 | — | Provider id aliases | `registry.ts` `PROVIDER_ID_ALIASES` | ❌ hand-maintained | `ProviderCLIConfig` (`cliName` + aliases) |
@@ -178,45 +179,40 @@ registry entries whose `icon` isn't a `providerIcon(...)` (those use a bare Rayc
 SVG to sync — fine, but listed so you notice). Icons are tinted `Color.PrimaryText` at render time, so
 upstream's own fills don't matter; the geometry does.
 
-## Surface 4 — Pacing (hand-maintained)
-
-The pace marker/formula is **not** script-guarded. It's transcribed Swift, and the only way to catch
-drift is to re-read the upstream files. The full worked example is below; the short version:
-
-- **The formula** → `calculateUsagePacing` in [`usagePacing.ts`](../src/providers/usagePacing.ts),
-  mirroring `UsagePace.swift` (`expected = elapsed/duration * 100`, stage thresholds, run-out
-  projection). One function for every window; only the default window duration varies.
-- **Default window duration** (used when the payload omits `windowMinutes`) →
-  `USAGE_PACING_DEFAULT_WINDOW_MINUTES` in [`normalize.ts`](../src/providers/normalize.ts):
-  `primary: 300` (5h session), `secondary`/`tertiary: 10_080` (7d weekly).
-- **Which providers / slots** are eligible → `usagePacingSlots` on each registry entry.
-- **Labels** → `formatUsagePacingLabels` in `usagePacing.ts`.
-
-### Two deliberate divergences we keep (don't "fix" silently)
-
-1. **Labels.** We say *on track / X% ahead / X% behind* and *Runs out in X*. Upstream says *on pace /
-   X% in deficit / X% in reserve* and, for session windows, *Projected empty in X*. See the `Pacing`
-   entry in [`CONTEXT.md`](../CONTEXT.md). (There is an in-flight plan to adopt upstream wording;
-   until it lands, this is the intended state, not a bug.)
-2. **On-track marker.** Upstream hides the marker when a window is on track; we always draw it.
-
-If you close either gap, do it intentionally and update CONTEXT.md and this list.
-
-### Grok reset-window pace (not session pace)
+## Surface 4 — Pacing (`upstream:check`)
 
 *Verified against upstream `v0.55.0` (`061593ca`).*
 
-Grok's primary credits bar uses `ProviderPaceCapability.resetWindowPace` in
-`GrokProviderDescriptor.swift`, not `sessionPace`. The weekly pacer runs when
-`primaryLabel` is `"Weekly"` (a 4–12 day window), including untyped windows that omit
-`windowMinutes` (10080-min default). Monthly and short windows stay unpaced. `displayLabel` can
-still say Weekly near the end of an untyped window. That does not turn the pacer on.
+Eligibility lives in [`paceCapabilities.ts`](../src/providers/paceCapabilities.ts), a table that
+mirrors each descriptor's `pace: ProviderPaceCapability(...)`. `computeSlotUsagePacing` in
+`normalize.ts` evaluates that table the way the **app menu card** does, not the CLI's
+`resolvedKind` (those two disagree for some providers; the GUI wins).
+
+- **The formula** → `calculateUsagePacing` in [`usagePacing.ts`](../src/providers/usagePacing.ts),
+  mirroring `UsagePace.swift`. Session default 300 minutes; weekly default 10_080. Calendar-month
+  sentinels (43_200) are expanded to the real month via `inferredMonthlyWindowMinutes`.
+- **Gating** → `sessionPaceWindowRule` on primary (and Kimi's secondary), else `resetWindowPace` on
+  any slot, else the generic weekly rule (`windowMinutes` required except Codex secondary).
+- **Labels** → `formatUsagePacingLabels` in `usagePacing.ts`.
+
+`upstream:check` parses every descriptor `pace:` argument, diffs it against the table, and treats
+`.custom { ... }` closures as fingerprints in `CUSTOM_PACE_RULES`. An unknown custom, a changed
+body, or a new `pace:` on a previously-unsupported provider fails the check. Presentation-only
+paths (`usesAbacusPace`, `usesSyntheticRollingRegen`) and Kimi's secondary `sessionPaceDetail` in
+`MenuCardView.swift` are scanned the same way dynamic labels are.
+
+Do **not** session-pace OpenCode Go's 5-hour primary: `sessionPaceWindowRule` is `.unsupported` in
+the GUI even though the CLI `resolvedKind` lane would allow it.
+
+### One deliberate divergence we keep
+
+**On-track marker.** Upstream hides the marker when a window is on track; we always draw it.
 
 ### Out of scope — not the plain pace marker
 
-Upstream also draws something on the primary bar for `abacus` (billing-cycle pace), `cursor`
-(billing-cycle pace), and `synthetic` (rolling-regen detail). These are **separate code paths**, not
-the session-pace whitelist. Treat each as its own parity task if it comes up.
+Abacus billing-cycle copy and Synthetic rolling-regen detail are listed in
+`UNPORTABLE_PRESENTATION_PACE`. Codex `showsHeadroomHint` (1.5×), workday-aware pacing, and
+historical run-out probability are not implemented.
 
 ## Codex-only raw projection — weekly caps session
 
@@ -277,68 +273,24 @@ the title-cased fallback row.
 
 ---
 
-## Worked example: the session-pacing provider whitelist
+## Worked example: catching a new `pace:` row
 
-This is the case that motivated the guide. *Verified against upstream `eda747ba` (2026-06-10).*
+Session and reset-window eligibility used to be a hand-maintained whitelist. That drifted (Grok
+grew a weekly pacer; Cursor/Copilot/Kimi/Zai/Notion already had descriptor rules we were not
+running). The table is now `PACE_CAPABILITIES`, and `upstream:check` diffs it against every
+descriptor.
 
-**The question.** The app shows a pace marker on the **session (Primary)** bar for some providers,
-not only the **weekly (Secondary)** bar. Which providers, and how do we match it?
+When the check fails:
 
-**The upstream rule.** Session pace is gated by an explicit provider whitelist in
-`UsagePaceText.swift`:
+1. Read the descriptor `pace:` block. Parseable cases (`windowDurationPresent`,
+   `.calendarMonthResetWindow`, `.session(maximumMinutes:)`, …) go in the table as data. A
+   `.custom { }` needs a named function plus a `CUSTOM_PACE_RULES` fingerprint.
+2. `computeSlotUsagePacing` already evaluates the table. Add a gating test in
+   [`normalize.test.ts`](../src/providers/normalize.test.ts) for the new rule.
+3. Give the mock a window that actually satisfies it (reset inside the duration, enough elapsed
+   for `idealUsedPercentByNow ≥ 3%`) — see [`mocks/codexbar.ts`](../src/mocks/codexbar.ts).
 
-```swift
-static func sessionPace(provider: UsageProvider, window: RateWindow, now: Date) -> UsagePace? {
-    guard provider == .codex || provider == .claude || provider == .ollama else { return nil }
-    ...
-    return UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 300)
-}
-```
-
-Three things to take from this:
-
-- **It is a hand-maintained whitelist, not derivable.** Only `codex`, `claude`, and `ollama` get a
-  session-bar marker, even though many providers expose a session/5h window. There is no property of
-  the payload that tells you a provider qualifies — you must read the whitelist. Do **not** infer
-  eligibility from "has a 5h primary window".
-- **The window duration differs by slot.** Session uses `defaultWindowMinutes: 300` (5h); weekly
-  uses `10080` (7d). Same formula, different denominator. If you reuse the weekly default for a
-  session window, every reset more than 5h out is silently rejected and no marker appears.
-- **It only matters when the payload omits `windowMinutes`.** Real payloads often carry an explicit
-  `windowMinutes`; the default is the fallback. Mock data usually omits it, so the default is what
-  makes (or breaks) the marker in development.
-
-**How it maps here.** `usagePacingSlots` per provider plus the per-slot default duration:
-
-| Provider | `usagePacingSlots` | Session marker | Weekly marker |
-| --- | --- | --- | --- |
-| codex | `["primary", "secondary"]` | ✅ | ✅ |
-| claude | `["primary", "secondary"]` | ✅ | ✅ |
-| ollama | `["primary", "secondary"]` | ✅ | ✅ |
-| opencode | `["secondary"]` | ❌ | ✅ |
-| grok | primary when labeled Weekly | ❌ | ✅ (reset-window pace on primary) |
-| all others | — | ❌ | ❌ |
-
-```ts
-// normalize.ts — session windows reset on a 5h cadence, weekly on 7d.
-const USAGE_PACING_DEFAULT_WINDOW_MINUTES = {
-  primary: 300,
-  secondary: 10_080,
-  tertiary: 10_080,
-};
-```
-
-**Keeping this entry honest.** When upstream changes and you re-verify:
-
-1. Re-read the `guard provider == …` line in `sessionPace`. If the whitelist changed, update the
-   `usagePacingSlots` table above and in `registry.ts`, and the test in
-   [`registry.test.ts`](../src/providers/registry.test.ts) that pins the expected slots.
-2. Update the mock for any newly-eligible provider so its primary window is a valid session window
-   (reset within ~5h, enough elapsed for `idealUsedPercentByNow ≥ 3%`), otherwise the marker won't
-   render with mock data — see [`mocks/codexbar.ts`](../src/mocks/codexbar.ts).
-
-> **Note.** An in-flight plan replaces this per-provider whitelist with upstream's newer *generic*
-> gating rule (`UsageStore+HistoricalPace.swift`). Until it lands, the whitelist above is current.
-> When it lands, rewrite this section against the generic rule and delete the whitelist framing.
+Do not infer "has a 5-hour primary" from the payload. OpenCode Go is the reminder: the CLI lane
+would session-pace that bar, the GUI `sessionPaceWindowRule` would not.
 </content>
 </invoke>
