@@ -2,6 +2,7 @@
 
 ## [Initial Version] - {PR_MERGE_DATE}
 
+- Extension icon matches the official CodexBar app icon
 - Refresh Usage Cache runs every 10 minutes and requests a live serve copy (`refresh=true`)
 - Usage Overview does not start serve or enable the background command. If serve is down it uses a one-shot CLI fetch
 - CodexBar serve daemons started by background refresh use a 10-minute response cache TTL
