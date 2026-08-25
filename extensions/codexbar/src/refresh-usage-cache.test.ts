@@ -1,4 +1,3 @@
-import { updateCommandMetadata } from "@raycast/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { refreshUsageCacheMock } = vi.hoisted(() => ({
@@ -14,11 +13,9 @@ import Command from "./refresh-usage-cache";
 describe("refresh-usage-cache command", () => {
   beforeEach(() => {
     refreshUsageCacheMock.mockReset();
-    vi.mocked(updateCommandMetadata).mockReset();
-    vi.mocked(updateCommandMetadata).mockResolvedValue(undefined);
   });
 
-  it("clears a persisted Root Search subtitle", async () => {
+  it("runs a background refresh", async () => {
     refreshUsageCacheMock.mockResolvedValue({
       status: "skipped",
       reason: "codexbar-unavailable",
@@ -27,7 +24,6 @@ describe("refresh-usage-cache command", () => {
 
     await Command();
 
-    expect(updateCommandMetadata).toHaveBeenCalledWith({ subtitle: null });
     expect(refreshUsageCacheMock).toHaveBeenCalledTimes(1);
   });
 });
