@@ -204,9 +204,10 @@ function computeSessionUsagePacing(
 
 // Weekly/other windows (secondary, tertiary, extra rate windows) pace whenever
 // they carry an explicit windowMinutes, mirroring upstream UsageStore.weeklyPace.
-// The 10080-min fallback is only allowed for the codex secondary window — using
-// it everywhere would fabricate a weekly pace for non-weekly windows (e.g.
-// Factory monthly with only resetsAt).
+// The 10080-min fallback is only allowed for the codex secondary window and for
+// Grok's Weekly-labeled primary credits window — using it everywhere would
+// fabricate a weekly pace for non-weekly windows (e.g. Factory monthly with
+// only resetsAt).
 function computeWeeklyUsagePacing(
   input: UsagePacingInput,
   now: number,
@@ -227,6 +228,12 @@ function computeSlotUsagePacing(
   now: number,
 ): ProviderUsagePacing | undefined {
   if (slotTitle === "Primary") {
+    if (providerId === "grok") {
+      if (!grokPrimarySupportsResetWindowPace(input, now)) {
+        return undefined;
+      }
+      return computeWeeklyUsagePacing(input, now, true);
+    }
     return computeSessionUsagePacing(providerId, input, now);
   }
 
@@ -236,10 +243,21 @@ function computeSlotUsagePacing(
 
 type SlotTitle = "Primary" | "Secondary" | "Tertiary";
 
+function grokWindowDurationMs(windowMinutes: number | undefined, resetsAt: string | undefined, now: number): number {
+  if (windowMinutes !== undefined) {
+    return windowMinutes * 60 * 1000;
+  }
+
+  if (resetsAt) {
+    return Date.parse(resetsAt) - now;
+  }
+
+  return Number.NaN;
+}
+
 // Mirrors GrokProviderDescriptor.primaryLabel(duration:): Grok's primary window is a
 // generic credits pool whose cadence depends on the plan, so upstream relabels the bar
-// by billing-window length — "Weekly" for ~4-12 day windows, "Monthly" for ~20-45 days —
-// and keeps the static "Credits" label for anything else (short, unknown, or in-between).
+// by billing-window length — "Weekly" for ~4-12 day windows, "Monthly" for ~20-45 days.
 function resolveGrokPrimaryDisplayTitle(durationMs: number): string | undefined {
   if (!Number.isFinite(durationMs) || durationMs <= 60 * 60 * 1000) {
     return undefined;
@@ -255,6 +273,11 @@ function resolveGrokPrimaryDisplayTitle(durationMs: number): string | undefined 
   }
 
   return undefined;
+}
+
+// primaryLabel, not displayLabel: a short untyped window can still read Weekly.
+function grokPrimarySupportsResetWindowPace(input: UsagePacingInput, now: number): boolean {
+  return resolveGrokPrimaryDisplayTitle(grokWindowDurationMs(input.windowMinutes, input.resetsAt, now)) === "Weekly";
 }
 
 // Upstream MenuDescriptor.rateWindowLabels layers dynamic overrides on top of the
@@ -294,15 +317,14 @@ function resolveSlotDisplayTitle(
   // only the primary window's own resetsAt. Real CLI payloads carry no top-level reset
   // fields, and the label should agree with whatever countdown the section renders.
   if (providerId === "grok" && slotTitle === "Primary") {
-    const durationMs =
-      options.windowMinutes !== undefined
-        ? options.windowMinutes * 60 * 1000
-        : options.resetsAt
-          ? Date.parse(options.resetsAt) - options.now
-          : Number.NaN;
+    const durationMs = grokWindowDurationMs(options.windowMinutes, options.resetsAt, options.now);
     const dynamicTitle = resolveGrokPrimaryDisplayTitle(durationMs);
     if (dynamicTitle) {
       return dynamicTitle;
+    }
+    // Untyped window with resetsAt is the weekly pool (displayLabel / #2929).
+    if (options.windowMinutes === undefined && options.resetsAt) {
+      return "Weekly";
     }
   }
 

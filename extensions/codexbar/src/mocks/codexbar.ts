@@ -774,6 +774,24 @@ function hashSeed(value: string): number {
   return Math.abs(hash);
 }
 
+function buildGrok(now: Date): RawProviderPayload {
+  return buildPayload("grok", {
+    source: MOCK_SOURCES.grok,
+    version: null,
+    status: null,
+    usage: buildUsage(
+      now,
+      buildWindow(now, 42, 5 * DAY, null),
+      buildWindow(now, 8, 20 * DAY, null),
+      null,
+      buildIdentity("grok", "dev@example.com", null, "SuperGrok"),
+    ),
+    credits: null,
+    antigravityPlanInfo: null,
+    openaiDashboard: null,
+  });
+}
+
 function buildGenericProvider(providerId: string, windowCount: 1 | 2 = 2): MockBuilder {
   return (now) => {
     const seed = hashSeed(providerId);
@@ -839,7 +857,7 @@ const MOCK_BUILDERS: Record<string, MockBuilder> = {
   commandcode: buildGenericProvider("commandcode"),
   stepfun: buildGenericProvider("stepfun"),
   bedrock: buildGenericProvider("bedrock"),
-  grok: buildGenericProvider("grok"),
+  grok: buildGrok,
   groq: buildGenericProvider("groq"),
   llmproxy: buildGenericProvider("llmproxy"),
   deepgram: buildGenericProvider("deepgram"),

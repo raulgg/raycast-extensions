@@ -127,7 +127,7 @@ Static labels live in `usageSectionLabels`. On top of them, upstream's renderers
   7-day → Weekly, 30-day → Monthly.
 - **factory** — switches to 5-hour / Weekly / Monthly whenever a tertiary window is present.
 - **grok** — relabels its primary bar by billing-window length (`windowMinutes`, else the distance to
-  `resetsAt`).
+  `resetsAt`). Untyped windows with only `resetsAt` fall back to "Weekly" (`displayLabel`, #2929).
 - **doubao** — relabels a windowless "requests"-style primary as "Requests".
 - **crof** — relabels a lone primary as "Credits", or "Requests" when a secondary window is present.
 - **amp** — dual-window accounts become "Other usage" / "Orb usage"; a lone primary keeps "Amp Free".
@@ -201,6 +201,16 @@ drift is to re-read the upstream files. The full worked example is below; the sh
 2. **On-track marker.** Upstream hides the marker when a window is on track; we always draw it.
 
 If you close either gap, do it intentionally and update CONTEXT.md and this list.
+
+### Grok reset-window pace (not session pace)
+
+*Verified against upstream `v0.55.0` (`061593ca`).*
+
+Grok's primary credits bar uses `ProviderPaceCapability.resetWindowPace` in
+`GrokProviderDescriptor.swift`, not `sessionPace`. The weekly pacer runs when
+`primaryLabel` is `"Weekly"` (a 4–12 day window), including untyped windows that omit
+`windowMinutes` (10080-min default). Monthly and short windows stay unpaced. `displayLabel` can
+still say Weekly near the end of an untyped window. That does not turn the pacer on.
 
 ### Out of scope — not the plain pace marker
 
@@ -306,6 +316,7 @@ Three things to take from this:
 | claude | `["primary", "secondary"]` | ✅ | ✅ |
 | ollama | `["primary", "secondary"]` | ✅ | ✅ |
 | opencode | `["secondary"]` | ❌ | ✅ |
+| grok | primary when labeled Weekly | ❌ | ✅ (reset-window pace on primary) |
 | all others | — | ❌ | ❌ |
 
 ```ts

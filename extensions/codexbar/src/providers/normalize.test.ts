@@ -228,11 +228,12 @@ describe("provider normalization", () => {
     expect(usageTitles({ primary: { windowMinutes: 10_080, usedPercent: 40 } })).toEqual(["Weekly"]);
     // Without windowMinutes, the distance to resetsAt decides: ~30 days → Monthly.
     expect(usageTitles({ primary: { usedPercent: 40, resetsAt: "2026-04-22T10:30:00Z" } })).toEqual(["Monthly"]);
-    // Short or absent windows keep the static label.
+    // Short explicit windows keep the static label.
     expect(usageTitles({ primary: { windowMinutes: 30, usedPercent: 40 } })).toEqual(["Credits"]);
     expect(usageTitles({ primary: { usedPercent: 40 } })).toEqual(["Credits"]);
-    // In-between lengths (~2 weeks) match neither range and keep the static label.
-    expect(usageTitles({ primary: { usedPercent: 40, resetsAt: "2026-04-06T10:30:00Z" } })).toEqual(["Credits"]);
+    // Untyped window with a reset date stays Weekly even at ~2 weeks or ~2 days.
+    expect(usageTitles({ primary: { usedPercent: 40, resetsAt: "2026-04-06T10:30:00Z" } })).toEqual(["Weekly"]);
+    expect(usageTitles({ primary: { usedPercent: 40, resetsAt: "2026-03-25T10:30:00Z" } })).toEqual(["Weekly"]);
   });
 
   it("relabels doubao's primary bar as Requests for windowless request-style payloads", () => {
@@ -957,6 +958,77 @@ describe("usage pacing gating", () => {
       secondary: { windowMinutes: 10_080, usedPercent: 50, resetsAt: WEEKLY_RESETS_AT },
     });
     expect(usagePacing(secondary)).toMatchObject({ context: "window" });
+  });
+
+  it("paces grok's primary weekly credits window as a reset-window pacer, not session pace", () => {
+    const [primary] = pace("grok", {
+      primary: { windowMinutes: 10_080, usedPercent: 50, resetsAt: WEEKLY_RESETS_AT },
+    });
+    expect(primary).toMatchObject({
+      title: "Primary",
+      displayTitle: "Weekly",
+      usagePacing: { context: "window" },
+    });
+  });
+
+  it("paces grok's untyped weekly credits window with the 10080-min default", () => {
+    const [primary] = pace("grok", { primary: { usedPercent: 50, resetsAt: WEEKLY_RESETS_AT } });
+    expect(primary).toMatchObject({
+      displayTitle: "Weekly",
+      usagePacing: { context: "window" },
+    });
+  });
+
+  it("does not pace grok's monthly or short primary windows", () => {
+    const [monthly] = pace("grok", { primary: { usedPercent: 50, resetsAt: "2026-04-22T10:30:00Z" } });
+    expect(monthly).toMatchObject({ displayTitle: "Monthly" });
+    expect(usagePacing(monthly)).toBeUndefined();
+
+    const [short] = pace("grok", {
+      primary: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
+    });
+    expect(short).toMatchObject({ displayTitle: "Credits" });
+    expect(usagePacing(short)).toBeUndefined();
+  });
+
+  it("does not treat grok's Weekly display-label fallback as pace eligibility", () => {
+    const [primary] = pace("grok", { primary: { usedPercent: 50, resetsAt: "2026-04-06T10:30:00Z" } });
+    expect(primary).toMatchObject({ displayTitle: "Weekly" });
+    expect(usagePacing(primary)).toBeUndefined();
+  });
+
+  it("paces grok's secondary window only when windowMinutes is explicit", () => {
+    const [withoutWindow] = pace("grok", { secondary: { usedPercent: 50, resetsAt: WEEKLY_RESETS_AT } });
+    expect(usagePacing(withoutWindow)).toBeUndefined();
+
+    const [withWindow] = pace("grok", {
+      secondary: { windowMinutes: 10_080, usedPercent: 50, resetsAt: WEEKLY_RESETS_AT },
+    });
+    expect(usagePacing(withWindow)).toMatchObject({ context: "window" });
+  });
+
+  it("paces grok presentation meters with the same weekly reset-window rule", () => {
+    const [primary] = normalizeProviderDetailPayload(
+      {
+        provider: "grok",
+        presentation: {
+          schemaVersion: 1,
+          meters: [
+            {
+              kind: "primary",
+              label: "Weekly",
+              usedPercent: 50,
+              remainingPercent: 50,
+              windowMinutes: 10_080,
+              resetsAt: WEEKLY_RESETS_AT,
+            },
+          ],
+        },
+      },
+      "grok",
+      NOW,
+    ).sections;
+    expect(usagePacing(primary)).toMatchObject({ context: "window" });
   });
 
   it("paces named extra rate windows only when they carry windowMinutes", () => {
