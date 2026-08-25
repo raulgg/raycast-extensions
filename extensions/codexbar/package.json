@@ -17,15 +17,28 @@
     {
       "name": "usage-overview",
       "title": "Usage Overview",
+      "subtitle": "CodexBar",
       "description": "Show usage overview of all configured providers",
-      "mode": "view"
+      "mode": "view",
+      "keywords": [
+        "quota",
+        "limits",
+        "tokens",
+        "credits",
+        "reset"
+      ]
     },
     {
       "name": "refresh-usage-cache",
       "title": "Refresh Usage Cache",
+      "subtitle": "CodexBar",
       "description": "Refresh cached usage data and provider status in the background so the overview opens instantly",
       "mode": "no-view",
-      "interval": "10m"
+      "interval": "10m",
+      "keywords": [
+        "sync",
+        "reload"
+      ]
     }
   ],
   "preferences": [
