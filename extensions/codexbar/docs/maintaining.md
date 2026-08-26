@@ -42,6 +42,8 @@ src/
     normalize.ts              Raw payload -> ProviderSection[]. Dynamic label overrides
                               (resolveSlotDisplayTitle), pacing defaults, supplemental mappers.
     usagePacing.ts            The pace formula, mirroring UsagePace.swift. Parity surface 4.
+    usageMeter.ts             Usage-meter widget (title, bar, footer rows) for the detail card.
+    markdown.ts               Detail-card composer: header, meters, info, status, markdown wrap.
     status.ts                 Parse the CLI status object into a badge model.
     types.ts                  Shared types.
 
