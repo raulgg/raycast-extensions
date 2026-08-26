@@ -127,7 +127,8 @@ function renderUsageMeter({
   title,
   remainingPercent,
   resetsIn,
-  footerLines,
+  pacingLine,
+  regenLine,
   providerId,
   appearance,
   startY,
@@ -136,7 +137,8 @@ function renderUsageMeter({
   title: string;
   remainingPercent: number;
   resetsIn?: string;
-  footerLines: string[];
+  pacingLine?: string;
+  regenLine?: string;
   providerId: string;
   appearance: DetailAppearance;
   startY: number;
@@ -145,6 +147,7 @@ function renderUsageMeter({
   const palette = PANEL_PALETTES[appearance];
   const progressY = getUsageProgressY(startY);
   const titleText = `${title} ${formatPercentRemaining(remainingPercent)} left`;
+  const footerLines = [pacingLine, regenLine].filter((line): line is string => line !== undefined);
   const markup = [
     buildText(
       titleText,
@@ -209,18 +212,16 @@ export function renderMetricSection(
           fill: PACE_MARKER_FILLS[markerKind][appearance],
         }
       : undefined;
-  const footerLines = [
-    ...(usagePacing ? [formatUsagePacingLine(usagePacing)] : []),
-    ...(section.nextRegenPercent !== undefined
-      ? [`Regenerates ${formatPercentRemaining(section.nextRegenPercent)} next tick`]
-      : []),
-  ];
 
   return renderUsageMeter({
     title,
     remainingPercent: section.remainingPercent,
     resetsIn: section.resetsIn,
-    footerLines,
+    pacingLine: usagePacing ? formatUsagePacingLine(usagePacing) : undefined,
+    regenLine:
+      section.nextRegenPercent !== undefined
+        ? `Regenerates ${formatPercentRemaining(section.nextRegenPercent)} next tick`
+        : undefined,
     providerId,
     appearance,
     startY,
