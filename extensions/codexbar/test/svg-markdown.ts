@@ -74,8 +74,8 @@ export function parseSvg(svg: string): ParsedSvg {
     const attrs = parseAttributes(match[1]);
     texts.push({
       content: match[2],
-      x: Number(attrs.x),
-      y: Number(attrs.y),
+      x: requireNumber(attrs, "x"),
+      y: requireNumber(attrs, "y"),
       fill: attrs.fill,
       fontSize: optionalNumber(attrs["font-size"]),
       fontWeight: optionalNumber(attrs["font-weight"]),
@@ -86,10 +86,10 @@ export function parseSvg(svg: string): ParsedSvg {
   for (const match of svg.matchAll(/<rect\b([^>]*)\/?>/g)) {
     const attrs = parseAttributes(match[1]);
     rects.push({
-      x: Number(attrs.x),
-      y: Number(attrs.y),
-      width: Number(attrs.width),
-      height: Number(attrs.height),
+      x: requireNumber(attrs, "x"),
+      y: requireNumber(attrs, "y"),
+      width: requireNumber(attrs, "width"),
+      height: requireNumber(attrs, "height"),
       fill: attrs.fill,
       index: match.index ?? 0,
     });
@@ -98,10 +98,10 @@ export function parseSvg(svg: string): ParsedSvg {
   for (const match of svg.matchAll(/<line\b([^>]*)\/?>/g)) {
     const attrs = parseAttributes(match[1]);
     lines.push({
-      x1: Number(attrs.x1),
-      y1: Number(attrs.y1),
-      x2: Number(attrs.x2),
-      y2: Number(attrs.y2),
+      x1: requireNumber(attrs, "x1"),
+      y1: requireNumber(attrs, "y1"),
+      x2: requireNumber(attrs, "x2"),
+      y2: requireNumber(attrs, "y2"),
       index: match.index ?? 0,
     });
   }
@@ -158,6 +158,15 @@ function parseAttributes(tag: string): Record<string, string> {
   }
 
   return attrs;
+}
+
+function requireNumber(attrs: Record<string, string>, name: string): number {
+  const value = Number(attrs[name]);
+  if (!Number.isFinite(value)) {
+    throw new Error(`SVG ${name} is missing or not a number`);
+  }
+
+  return value;
 }
 
 function optionalNumber(value: string | undefined): number | undefined {
