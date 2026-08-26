@@ -114,12 +114,12 @@ export function parseDetailSvg(markdown: string): ParsedSvg {
 }
 
 export function requireText(parsed: ParsedSvg, content: string): SvgTextNode {
-  const node = parsed.texts.find((text) => text.content === content);
-  if (!node) {
-    throw new Error(`Could not find text node for "${content}"`);
+  const matches = parsed.texts.filter((text) => text.content === content);
+  if (matches.length !== 1) {
+    throw new Error(`Expected exactly one text node for "${content}", found ${matches.length}`);
   }
 
-  return node;
+  return matches[0];
 }
 
 export function textY(parsed: ParsedSvg, content: string): number {
