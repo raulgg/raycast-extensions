@@ -16,8 +16,6 @@ import {
 } from "../lib/detailMarkdown";
 import type { ProviderSection } from "./types";
 
-export type ProviderDetailAppearance = DetailAppearance;
-
 const TYPOGRAPHY = DETAIL_TYPOGRAPHY;
 const FONT_WEIGHT = DETAIL_FONT_WEIGHT;
 const PROGRESS_BAR = {
@@ -93,7 +91,7 @@ function buildProgressBar(
   x: number,
   y: number,
   width: number,
-  appearance: ProviderDetailAppearance,
+  appearance: DetailAppearance,
   providerId: string,
   marker?: ProgressMarker,
 ): string {
@@ -140,7 +138,7 @@ function renderUsageMeter({
   resetsIn?: string;
   footerLines: string[];
   providerId: string;
-  appearance: ProviderDetailAppearance;
+  appearance: DetailAppearance;
   startY: number;
   marker?: ProgressMarker;
 }): { markup: string[]; contentBottomY: number } {
@@ -194,7 +192,7 @@ function renderUsageMeter({
 export function renderMetricSection(
   section: ProviderSection,
   providerId: string,
-  appearance: ProviderDetailAppearance,
+  appearance: DetailAppearance,
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
   if (section.kind !== "usage" && section.kind !== "supplementalUsage") {
@@ -231,7 +229,7 @@ export function renderMetricSection(
 }
 
 function renderLoadingSkeletonSection(
-  appearance: ProviderDetailAppearance,
+  appearance: DetailAppearance,
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
   const palette = PANEL_PALETTES[appearance];
@@ -283,7 +281,7 @@ function renderLoadingSkeletonSection(
 export function renderMetricSections(
   sections: ProviderSection[],
   providerId: string,
-  appearance: ProviderDetailAppearance,
+  appearance: DetailAppearance,
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
   const markup: string[] = [];
@@ -305,7 +303,7 @@ export function renderMetricSections(
 }
 
 export function renderLoadingSkeletonSections(
-  appearance: ProviderDetailAppearance,
+  appearance: DetailAppearance,
   startY: number,
 ): { markup: string[]; contentBottomY: number } {
   const markup: string[] = [];
