@@ -216,6 +216,47 @@ describe("ProviderListItem", () => {
     expect(actions[6].props.shortcut).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
   });
 
+  it("still shows the two-bar adornment when includeInDetail is false", () => {
+    const accessories = buildProviderListItemAccessories(
+      "antigravity",
+      {
+        id: "antigravity",
+        name: "Antigravity",
+        fetchedAt: "2026-08-26T20:36:23Z",
+        sections: [
+          {
+            kind: "usage",
+            title: "Primary",
+            displayTitle: "Gemini Models",
+            remainingPercent: 100,
+            includeInDetail: false,
+          },
+          {
+            kind: "usage",
+            title: "Secondary",
+            displayTitle: "Claude and GPT",
+            remainingPercent: 100,
+            includeInDetail: false,
+          },
+          {
+            kind: "supplementalUsage",
+            title: "Gemini weekly",
+            remainingPercent: 100,
+          },
+        ],
+      },
+      undefined,
+      false,
+    );
+
+    expectProgressAccessories(accessories, "antigravity", {
+      primary: 100,
+      secondary: 100,
+      text: "100% • 100%",
+      tooltip: "Gemini Models: 100% remaining • Claude and GPT: 100% remaining",
+    });
+  });
+
   it("shows both primary and secondary usage in text, tooltip, and icon", () => {
     const accessories = buildProviderListItemAccessories("codex", makeDetail(82, 41), undefined, false);
 

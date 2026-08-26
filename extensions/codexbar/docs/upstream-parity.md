@@ -233,6 +233,10 @@ cases:
 
 - **Mapped:** Codex's "Code review" allowance (`codeReviewRemainingPercent`), named **extra rate
   windows** (`extraRateWindows`, e.g. "Codex Spark"), and OpenRouter key usage (`openRouterUsage`).
+  Antigravity extras whose ids start with `antigravity-quota-summary-` are what the detail card
+  draws. Primary and Secondary are copies for the list adornment, the same rule as
+  `antigravityMetrics` in `MenuCardView+ModelHelpers.swift`. Skip the slot-hiding rewrite when
+  presentation meters are already present.
 - **Deferred / unmapped:** `cursorRequests`, `zaiUsage`, `minimaxUsage`, `kiroUsage`, `mistralUsage`,
   `deepseekUsage`, `deepgramUsage`, `openAIAPIUsage`, `claudeAdminAPIUsage`, `antigravityPlanInfo`.
   These are deferred until we can sample their live JSON — **an unmapped shape renders nothing**

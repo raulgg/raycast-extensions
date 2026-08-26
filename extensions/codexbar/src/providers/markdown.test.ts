@@ -185,6 +185,53 @@ describe("provider markdown", () => {
     expect(svg).toContain(">Resets in 30m<");
   });
 
+  it("omits usage slots with includeInDetail false", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "antigravity",
+        name: "Antigravity",
+        sections: [
+          {
+            kind: "usage",
+            title: "Primary",
+            displayTitle: "Gemini Models",
+            remainingPercent: 100,
+            resetsIn: "7d",
+            includeInDetail: false,
+          },
+          {
+            kind: "usage",
+            title: "Secondary",
+            displayTitle: "Claude and GPT",
+            remainingPercent: 100,
+            resetsIn: "7d",
+            includeInDetail: false,
+          },
+          {
+            kind: "supplementalUsage",
+            title: "Gemini weekly",
+            remainingPercent: 100,
+            resetsIn: "7d",
+          },
+          {
+            kind: "supplementalUsage",
+            title: "Claude/GPT weekly",
+            remainingPercent: 100,
+            resetsIn: "7d",
+          },
+        ],
+      },
+      "light",
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+
+    expect(svg).toContain(">Gemini weekly 100% left<");
+    expect(svg).toContain(">Claude/GPT weekly 100% left<");
+    expect(svg).not.toContain(">Gemini Models 100% left<");
+    expect(svg).not.toContain(">Claude and GPT 100% left<");
+  });
+
   it("renders usage pacing as one footer line under the bar", () => {
     const detail = {
       id: "codex",

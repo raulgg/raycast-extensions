@@ -76,6 +76,7 @@ export type ProviderUsageSection = {
   resetsIn?: string;
   usagePacing?: ProviderUsagePacing;
   nextRegenPercent?: number;
+  includeInDetail?: boolean;
 };
 
 export type ProviderSupplementalUsageSection = {

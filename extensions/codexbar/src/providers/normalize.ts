@@ -514,6 +514,25 @@ function buildExtraRateWindowSections(payload: RawProviderPayload, now = Date.no
   return sections;
 }
 
+// MenuCardView+ModelHelpers.antigravityMetrics: extras with this prefix are the real
+// meters. Primary and Secondary are copies for the list adornment, so skip them on the card.
+const ANTIGRAVITY_QUOTA_SUMMARY_WINDOW_ID_PREFIX = "antigravity-quota-summary-";
+
+function hasAntigravityQuotaSummaryWindows(payload: RawProviderPayload): boolean {
+  const extraRateWindows = toRecord(payload.usage)?.extraRateWindows;
+  if (!Array.isArray(extraRateWindows)) {
+    return false;
+  }
+
+  return extraRateWindows.some((entry) =>
+    toTrimmedString(toRecord(entry)?.id)?.startsWith(ANTIGRAVITY_QUOTA_SUMMARY_WINDOW_ID_PREFIX),
+  );
+}
+
+function hideAntigravityRepresentativeSlots(sections: ProviderSection[]): ProviderSection[] {
+  return sections.map((section) => (section.kind === "usage" ? { ...section, includeInDetail: false } : section));
+}
+
 type PresentationMeterKind = "primary" | "secondary" | "tertiary" | "supplemental";
 
 function toPresentationMeterKind(value: unknown): PresentationMeterKind | undefined {
@@ -966,13 +985,17 @@ function normalizePayload(providerId: string, payload: RawProviderPayload, now =
   const accountEmail = extractAccountEmail(payload);
   const planText = formatPlanText(metadata.id, payload);
   const presentation = buildPresentationMeterSections(metadata.id, payload, now);
-  const sections = presentation?.sections ?? [
+  const rawSections = presentation?.sections ?? [
     ...buildUsageSections(metadata.id, payload, now),
     ...buildExtraRateWindowSections(payload, now),
     ...buildSupplementalUsageSections(payload, now),
     ...buildProviderSpecificUsageSections(payload, now),
     ...buildCodexResetCreditSection(metadata.id, payload, now),
   ];
+  const sections =
+    presentation === undefined && metadata.id === "antigravity" && hasAntigravityQuotaSummaryWindows(payload)
+      ? hideAntigravityRepresentativeSlots(rawSections)
+      : rawSections;
 
   return {
     id: metadata.id,

@@ -72,7 +72,10 @@ function splitRenderableSections(sections: ProviderSection[]): {
   metricSections: ProviderSection[];
   otherSections: ProviderSection[];
 } {
-  const metricSections = sections.filter((section) => section.kind === "usage" || section.kind === "supplementalUsage");
+  const metricSections = sections.filter(
+    (section) =>
+      section.kind === "supplementalUsage" || (section.kind === "usage" && section.includeInDetail !== false),
+  );
   const otherSections = sections.filter((section) => section.kind !== "usage" && section.kind !== "supplementalUsage");
 
   return { metricSections, otherSections };

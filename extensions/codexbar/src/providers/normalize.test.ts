@@ -534,6 +534,115 @@ describe("provider normalization", () => {
         nextRegenPercent: 5,
       },
     ]);
+    expect(detail.sections[0]).not.toHaveProperty("includeInDetail", false);
+  });
+
+  it("hides antigravity Primary and Secondary when quota-summary extras are present", () => {
+    const now = Date.parse("2026-08-26T20:36:23Z");
+    const weeklyReset = "2026-09-02T20:36:23Z";
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "antigravity",
+        usage: {
+          primary: { usedPercent: 0, windowMinutes: 10_080, resetsAt: weeklyReset },
+          secondary: { usedPercent: 0, windowMinutes: 10_080, resetsAt: weeklyReset },
+          extraRateWindows: [
+            {
+              id: "antigravity-quota-summary-gemini-weekly",
+              title: "Gemini weekly",
+              window: { usedPercent: 0, windowMinutes: 10_080, resetsAt: weeklyReset },
+            },
+            {
+              id: "antigravity-quota-summary-3p-weekly",
+              title: "Claude/GPT weekly",
+              window: { usedPercent: 0, windowMinutes: 10_080, resetsAt: weeklyReset },
+            },
+          ],
+        },
+      },
+      "antigravity",
+      now,
+    );
+
+    expect(detail.sections).toMatchObject([
+      {
+        kind: "usage",
+        title: "Primary",
+        displayTitle: "Gemini Models",
+        remainingPercent: 100,
+        includeInDetail: false,
+        resetsIn: "7d",
+      },
+      {
+        kind: "usage",
+        title: "Secondary",
+        displayTitle: "Claude and GPT",
+        remainingPercent: 100,
+        includeInDetail: false,
+        resetsIn: "7d",
+      },
+      { kind: "supplementalUsage", title: "Gemini weekly", remainingPercent: 100, resetsIn: "7d" },
+      { kind: "supplementalUsage", title: "Claude/GPT weekly", remainingPercent: 100, resetsIn: "7d" },
+    ]);
+  });
+
+  it("leaves antigravity Primary and Secondary visible without quota-summary extras", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "antigravity",
+        usage: {
+          primary: { usedPercent: 12, windowMinutes: 300 },
+          secondary: { usedPercent: 34, windowMinutes: 10_080 },
+        },
+      },
+      "antigravity",
+    );
+
+    expect(detail.sections).toMatchObject([
+      { kind: "usage", title: "Primary", displayTitle: "Gemini Models", remainingPercent: 88 },
+      { kind: "usage", title: "Secondary", displayTitle: "Claude and GPT", remainingPercent: 66 },
+    ]);
+    expect(detail.sections[0]).not.toHaveProperty("includeInDetail", false);
+    expect(detail.sections[1]).not.toHaveProperty("includeInDetail", false);
+  });
+
+  it("does not rewrite antigravity presentation meters when quota-summary extras exist", () => {
+    const detail = normalizeProviderDetailPayload(
+      {
+        provider: "antigravity",
+        presentation: {
+          schemaVersion: 1,
+          meters: [
+            {
+              id: "extra:gemini-weekly",
+              kind: "supplemental",
+              label: "Gemini weekly",
+              usedPercent: 0,
+              remainingPercent: 100,
+              windowMinutes: 10_080,
+              resetsAt: "2026-09-02T20:36:23Z",
+            },
+          ],
+        },
+        usage: {
+          primary: { usedPercent: 99 },
+          extraRateWindows: [
+            {
+              id: "antigravity-quota-summary-gemini-weekly",
+              title: "Gemini weekly",
+              window: { usedPercent: 0 },
+            },
+          ],
+        },
+      },
+      "antigravity",
+      Date.parse("2026-08-26T20:36:23Z"),
+    );
+
+    expect(detail.sections).toMatchObject([
+      { kind: "supplementalUsage", title: "Gemini weekly", remainingPercent: 100 },
+    ]);
+    expect(detail.sections).toHaveLength(1);
   });
 
   it("passes nextRegenPercent through slot windows and renders the regen footer", () => {

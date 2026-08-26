@@ -347,6 +347,6 @@ describe("providerDetailCache", () => {
 
     expect(buildCachedProviderResults(["codex"], "default", Date.parse("2026-04-15T13:00:01Z"))).toEqual({});
     expect(buildCachedProviderResults(["codex"], "disabled", Date.parse("2026-04-15T13:00:01Z"))).toEqual({});
-    expect(cache.get("provider-details-v7:index")).toBeUndefined();
+    expect(cache.get("provider-details-v8:index")).toBeUndefined();
   });
 });
