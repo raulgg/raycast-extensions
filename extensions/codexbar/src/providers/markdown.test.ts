@@ -6,15 +6,18 @@ import {
   parseDetailSvg,
   parseSvg,
   rectsWithSize,
+  requireText,
   textY,
 } from "../../test/svg-markdown";
 import {
+  DETAIL_PALETTES,
   DETAIL_PANEL,
   DETAIL_SECTION_LAYOUT,
   DETAIL_SVG_LAYOUT,
   DETAIL_TEXT_LAYOUT,
   DETAIL_TYPOGRAPHY,
   getPanelHeight,
+  getRightContentX,
   getTextBaselineY,
   getTextBottomY,
 } from "../lib/detailMarkdown";
@@ -215,6 +218,13 @@ describe("provider markdown", () => {
     expect(svg).not.toContain(">47% left<");
     expect(textY(parsed, "Weekly 47% left")).toBe(textY(parsed, "Resets in 11h 47m"));
     expect(textY(parsed, "40% in reserve · Lasts until reset")).toBeGreaterThan(textY(parsed, "Weekly 47% left"));
+    const reset = requireText(parsed, "Resets in 11h 47m");
+    const pacing = requireText(parsed, "40% in reserve · Lasts until reset");
+    expect(reset.x).toBe(getRightContentX());
+    expect(reset.textAnchor).toBe("end");
+    expect(reset.fill).toBe(DETAIL_PALETTES.light.labelFill);
+    expect(pacing.fill).toBe(DETAIL_PALETTES.light.labelFill);
+    expect(requireText(darkParsed, "40% in reserve · Lasts until reset").fill).toBe(DETAIL_PALETTES.dark.labelFill);
     expect(rectsWithSize(parsed, 3, 12)).toHaveLength(1);
     expect(rectsWithSize(parsed, 3, 12)[0].x).toBeGreaterThan(28);
     expect(rectsWithSize(parsed, 3, 12)[0].x).toBeLessThan(31);
@@ -303,8 +313,25 @@ describe("provider markdown", () => {
     );
 
     const parsed = parseDetailSvg(markdown);
+    const bar = rectsWithSize(parsed, DETAIL_PANEL.width, 8)[0];
 
     expect(rectsWithSize(parsed, 3, 12)).toEqual([]);
+    expect(parsed.texts.filter((text) => text.y > bar.y + bar.height)).toEqual([]);
+  });
+
+  it("composes remaining percent under 1% into the meter title", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        sections: [{ kind: "usage", title: "Primary", displayTitle: "Session", remainingPercent: 0.4 }],
+      },
+      "light",
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+
+    expect(svg).toContain("Session &lt;1% left");
   });
 
   it("supports overriding header subtitle while keeping sections", () => {
@@ -532,6 +559,7 @@ describe("provider markdown", () => {
     const viewBoxMatch = svg.match(new RegExp(`viewBox="0 0 ${DETAIL_PANEL.width} (\\d+(?:\\.\\d+)?)"`));
 
     expect(svg).toContain(">40% in reserve · Lasts until reset<");
+    expect(regenY).toBeGreaterThan(textY(parsed, "40% in reserve · Lasts until reset"));
     expect(viewBoxMatch?.[1]).toBe(String(expectedHeight));
     expect(markdown).toContain(`raycast-height=${expectedHeight}`);
   });

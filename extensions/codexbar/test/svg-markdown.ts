@@ -5,6 +5,7 @@ export type SvgTextNode = {
   fill?: string;
   fontSize?: number;
   fontWeight?: number;
+  textAnchor?: string;
   index: number;
 };
 
@@ -79,6 +80,7 @@ export function parseSvg(svg: string): ParsedSvg {
       fill: attrs.fill,
       fontSize: optionalNumber(attrs["font-size"]),
       fontWeight: optionalNumber(attrs["font-weight"]),
+      textAnchor: attrs["text-anchor"],
       index: match.index ?? 0,
     });
   }
