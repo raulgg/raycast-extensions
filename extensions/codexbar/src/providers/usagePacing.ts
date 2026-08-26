@@ -186,3 +186,12 @@ export function formatUsagePacingLabels(usagePacing: ProviderUsagePacing, now = 
     rightLabel: etaText === "now" ? "Runs out now" : `Runs out in ${etaText}`,
   };
 }
+
+// Hide onTrack. Deficit = actualUsed > expectedUsed (Color.red); else reserve (Color.green).
+export function paceMarkerKind(usagePacing: ProviderUsagePacing): "deficit" | "reserve" | undefined {
+  if (usagePacing.stage === "onTrack") {
+    return undefined;
+  }
+
+  return usagePacing.usedVsIdealDeltaPercent >= 0 ? "deficit" : "reserve";
+}

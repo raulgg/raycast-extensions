@@ -82,8 +82,6 @@ export const DETAIL_PALETTES: Record<
     progressTrackFill: string;
     progressTrackOpacity: number;
     progressFill: string;
-    progressMarkerFill: string;
-    progressMarkerOpacity: number;
   }
 > = {
   light: {
@@ -96,8 +94,6 @@ export const DETAIL_PALETTES: Record<
     progressTrackFill: "#000000",
     progressTrackOpacity: 0.057,
     progressFill: "#22B8CF",
-    progressMarkerFill: "#111827",
-    progressMarkerOpacity: 0.8,
   },
   dark: {
     titleFill: "#F3F4F6",
@@ -109,8 +105,6 @@ export const DETAIL_PALETTES: Record<
     progressTrackFill: "#FFFFFF",
     progressTrackOpacity: 0.054,
     progressFill: "#4EC8DD",
-    progressMarkerFill: "#F3F4F6",
-    progressMarkerOpacity: 0.86,
   },
 };
 

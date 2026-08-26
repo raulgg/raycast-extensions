@@ -1,6 +1,6 @@
 import { formatPercentRemaining, formatRelativeUpdateTime } from "../lib/presentation";
 import { buildSvgProgressBar, buildSvgRect, buildSvgWarningIcon } from "../lib/svg";
-import { formatUsagePacingLabels } from "./usagePacing";
+import { formatUsagePacingLabels, paceMarkerKind } from "./usagePacing";
 import { getProviderProgressPalette } from "./registry";
 import {
   buildHeaderMarkup,
@@ -45,7 +45,19 @@ const PROGRESS_MARKER = {
   height: 12,
   radius: 1.5,
   edgeInset: 1,
+  punchGutter: 3,
 } as const;
+
+// SwiftUI Color.red / Color.green (UsageProgressBar.swift, CodexBar v0.55.0, 061593ca).
+const PACE_MARKER_FILLS = {
+  deficit: { light: "#FF383C", dark: "#FF4245" },
+  reserve: { light: "#34C759", dark: "#30D158" },
+} as const;
+
+type ProgressMarker = {
+  percent: number;
+  fill: string;
+};
 
 const LOADING_SKELETON_LAYOUT = {
   sectionCount: 2,
@@ -200,7 +212,7 @@ function buildProgressBar(
   width: number,
   appearance: ProviderDetailAppearance,
   providerId: string,
-  targetRemainingPercent?: number,
+  marker?: ProgressMarker,
 ): string {
   const palette = PANEL_PALETTES[appearance];
   const progressPalette = getProviderProgressPalette(providerId);
@@ -216,18 +228,17 @@ function buildProgressBar(
     trackFill: palette.progressTrackFill,
     trackFillOpacity: palette.progressTrackOpacity,
     fill: progressFill,
-    marker:
-      typeof targetRemainingPercent === "number"
-        ? {
-            percent: targetRemainingPercent,
-            width: PROGRESS_MARKER.width,
-            height: PROGRESS_MARKER.height,
-            radius: PROGRESS_MARKER.radius,
-            edgeInset: PROGRESS_MARKER.edgeInset,
-            fill: palette.progressMarkerFill,
-            fillOpacity: palette.progressMarkerOpacity,
-          }
-        : undefined,
+    marker: marker
+      ? {
+          percent: marker.percent,
+          width: PROGRESS_MARKER.width,
+          height: PROGRESS_MARKER.height,
+          radius: PROGRESS_MARKER.radius,
+          edgeInset: PROGRESS_MARKER.edgeInset,
+          fill: marker.fill,
+          punchGutter: PROGRESS_MARKER.punchGutter,
+        }
+      : undefined,
   });
 }
 
@@ -238,7 +249,7 @@ function renderProgressSection(
   providerId: string,
   appearance: ProviderDetailAppearance,
   startY: number,
-  targetRemainingPercent?: number,
+  marker?: ProgressMarker,
 ): { markup: string[]; contentBottomY: number } {
   const palette = PANEL_PALETTES[appearance];
   const progressY = getUsageProgressY(startY);
@@ -252,15 +263,7 @@ function renderProgressSection(
       TYPOGRAPHY.sectionTitleSize,
       FONT_WEIGHT.bold,
     ),
-    buildProgressBar(
-      percent,
-      getLeftContentX(),
-      progressY,
-      getContentWidth(),
-      appearance,
-      providerId,
-      targetRemainingPercent,
-    ),
+    buildProgressBar(percent, getLeftContentX(), progressY, getContentWidth(), appearance, providerId, marker),
   ];
   let footerY = initialFooterY;
 
@@ -309,10 +312,16 @@ function renderMetricSection(
   }
 
   const title = section.kind === "usage" ? section.displayTitle : section.title;
-  const usagePacingFooter = section.usagePacing ? formatUsagePacingLabels(section.usagePacing) : undefined;
-  const targetRemainingPercent = section.usagePacing
-    ? Math.max(0, 100 - section.usagePacing.idealUsedPercentByNow)
-    : undefined;
+  const usagePacing = section.usagePacing;
+  const usagePacingFooter = usagePacing ? formatUsagePacingLabels(usagePacing) : undefined;
+  const markerKind = usagePacing ? paceMarkerKind(usagePacing) : undefined;
+  const marker =
+    usagePacing && markerKind
+      ? {
+          percent: Math.max(0, 100 - usagePacing.idealUsedPercentByNow),
+          fill: PACE_MARKER_FILLS[markerKind][appearance],
+        }
+      : undefined;
 
   return renderProgressSection(
     title,
@@ -330,7 +339,7 @@ function renderMetricSection(
     providerId,
     appearance,
     startY,
-    targetRemainingPercent,
+    marker,
   );
 }
 

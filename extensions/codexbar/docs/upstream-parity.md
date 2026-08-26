@@ -207,7 +207,10 @@ the GUI even though the CLI `resolvedKind` lane would allow it.
 
 ### One deliberate divergence we keep
 
-**On-track marker.** Upstream hides the marker when a window is on track; we always draw it.
+**Tick geometry.** Upstream's pace tip is a Canvas three-stripe punch (`UsageProgressBar.swift`);
+we keep a simple 3×12 rounded rect. We punch a transparent gutter through the bar around that tick
+so the color stays readable on similar brand fills. Color and hide-when-on-pace match the app
+(`v0.55.0`, `061593ca`): deficit is SwiftUI `Color.red`, reserve is `Color.green`.
 
 ### Out of scope — not the plain pace marker
 

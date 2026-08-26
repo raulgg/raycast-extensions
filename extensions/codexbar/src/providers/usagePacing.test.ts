@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { calculateUsagePacing, formatUsagePacingLabels } from "./usagePacing";
+import type { ProviderUsagePacing } from "./types";
+import { calculateUsagePacing, formatUsagePacingLabels, paceMarkerKind } from "./usagePacing";
 
 describe("provider usage pacing", () => {
   it("calculates reserve usage pacing for resettable weekly windows", () => {
@@ -102,5 +103,29 @@ describe("provider usage pacing", () => {
 
     expect(formatUsagePacingLabels({ ...usagePacing, context: "session" }).rightLabel).toBe("Lasts until reset");
     expect(formatUsagePacingLabels({ ...usagePacing, context: "window" }).rightLabel).toBe("Lasts until reset");
+  });
+});
+
+function pacing(overrides: Partial<ProviderUsagePacing>): ProviderUsagePacing {
+  return {
+    stage: "onTrack",
+    usedVsIdealDeltaPercent: 0,
+    idealUsedPercentByNow: 50,
+    actualUsedPercent: 50,
+    lastsUntilReset: true,
+    computedAt: "2026-04-16T12:30:00.000Z",
+    ...overrides,
+  };
+}
+
+describe("paceMarkerKind", () => {
+  it("hides the marker when usage pacing is on track", () => {
+    expect(paceMarkerKind(pacing({ stage: "onTrack", usedVsIdealDeltaPercent: 1.2 }))).toBeUndefined();
+    expect(paceMarkerKind(pacing({ stage: "onTrack", usedVsIdealDeltaPercent: -0.4 }))).toBeUndefined();
+  });
+
+  it("uses deficit when usage is over ideal and reserve when under", () => {
+    expect(paceMarkerKind(pacing({ stage: "over", usedVsIdealDeltaPercent: 8 }))).toBe("deficit");
+    expect(paceMarkerKind(pacing({ stage: "under", usedVsIdealDeltaPercent: -8 }))).toBe("reserve");
   });
 });

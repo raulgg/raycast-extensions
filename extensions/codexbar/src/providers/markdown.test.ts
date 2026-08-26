@@ -44,6 +44,17 @@ function getRectXs(svg: string, width: number, height: number): number[] {
   );
 }
 
+function getMarkerFills(svg: string): string[] {
+  return [...svg.matchAll(/<rect[^>]* width="3" height="12"[^>]*>/g)].map((match) => {
+    const fill = match[0].match(/fill="([^"]+)"/);
+    if (!fill) {
+      throw new Error("Pace marker rect is missing a fill");
+    }
+
+    return fill[1];
+  });
+}
+
 function getTextTopY(baselineY: number, fontSize: number): number {
   return baselineY - Math.ceil(fontSize * DETAIL_TEXT_LAYOUT.topInsetRatio);
 }
@@ -210,32 +221,30 @@ describe("provider markdown", () => {
   });
 
   it("renders usage pacing as a second footer row on metric sections", () => {
-    const markdown = buildProviderDetailMarkdown(
-      {
-        id: "codex",
-        name: "Codex",
-        sections: [
-          {
-            kind: "usage",
-            title: "Secondary",
-            displayTitle: "Weekly",
-            remainingPercent: 47,
-            resetsIn: "11h 47m",
-            usagePacing: {
-              stage: "farUnder",
-              usedVsIdealDeltaPercent: -39.98,
-              idealUsedPercentByNow: 92.98,
-              actualUsedPercent: 53,
-              lastsUntilReset: true,
-              computedAt: "2026-04-16T12:30:00.000Z",
-            },
+    const detail = {
+      id: "codex",
+      name: "Codex",
+      sections: [
+        {
+          kind: "usage" as const,
+          title: "Secondary" as const,
+          displayTitle: "Weekly",
+          remainingPercent: 47,
+          resetsIn: "11h 47m",
+          usagePacing: {
+            stage: "farUnder" as const,
+            usedVsIdealDeltaPercent: -39.98,
+            idealUsedPercentByNow: 92.98,
+            actualUsedPercent: 53,
+            lastsUntilReset: true,
+            computedAt: "2026-04-16T12:30:00.000Z",
           },
-        ],
-      },
-      "light",
-    );
-
+        },
+      ],
+    };
+    const markdown = buildProviderDetailMarkdown(detail, "light");
     const [svg] = extractSvgMarkup(markdown);
+    const [darkSvg] = extractSvgMarkup(buildProviderDetailMarkdown(detail, "dark"));
 
     expect(svg).toContain(">47% left<");
     expect(svg).toContain(">Resets in 11h 47m<");
@@ -246,9 +255,11 @@ describe("provider markdown", () => {
     expect(getRectXs(svg, 3, 12)).toHaveLength(1);
     expect(getRectXs(svg, 3, 12)[0]).toBeGreaterThan(28);
     expect(getRectXs(svg, 3, 12)[0]).toBeLessThan(31);
+    expect(getMarkerFills(svg)).toEqual(["#34C759"]);
+    expect(getMarkerFills(darkSvg)).toEqual(["#30D158"]);
   });
 
-  it("renders a usage pacing marker when usage pacing is on track", () => {
+  it("does not render a usage pacing marker when usage pacing is on track", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",
@@ -276,7 +287,37 @@ describe("provider markdown", () => {
 
     const [svg] = extractSvgMarkup(markdown);
 
-    expect(getRectXs(svg, 3, 12)).toHaveLength(1);
+    expect(svg).toContain(">On pace<");
+    expect(getRectXs(svg, 3, 12)).toEqual([]);
+  });
+
+  it("renders a deficit usage pacing marker in the app's system red", () => {
+    const detail = {
+      id: "codex",
+      name: "Codex",
+      sections: [
+        {
+          kind: "usage" as const,
+          title: "Secondary" as const,
+          displayTitle: "Weekly",
+          remainingPercent: 10,
+          resetsIn: "2d",
+          usagePacing: {
+            stage: "farOver" as const,
+            usedVsIdealDeltaPercent: 23.4,
+            idealUsedPercentByNow: 66.6,
+            actualUsedPercent: 90,
+            lastsUntilReset: false,
+            computedAt: "2026-04-16T12:30:00.000Z",
+          },
+        },
+      ],
+    };
+    const [lightSvg] = extractSvgMarkup(buildProviderDetailMarkdown(detail, "light"));
+    const [darkSvg] = extractSvgMarkup(buildProviderDetailMarkdown(detail, "dark"));
+
+    expect(getMarkerFills(lightSvg)).toEqual(["#FF383C"]);
+    expect(getMarkerFills(darkSvg)).toEqual(["#FF4245"]);
   });
 
   it("does not render a usage pacing marker when usage pacing is absent", () => {

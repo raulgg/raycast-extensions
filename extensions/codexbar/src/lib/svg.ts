@@ -50,6 +50,7 @@ type SvgProgressMarkerOptions = {
   edgeInset: number;
   fill: string;
   fillOpacity?: number;
+  punchGutter: number;
 };
 
 type SvgProgressBarOptions = {
@@ -144,6 +145,27 @@ export function buildSvgRect({
   return `<rect x="${x}" y="${y}" width="${width}" height="${height}"${radiusAttribute}${fillAttribute}${fillOpacityAttribute}${strokeAttribute}${strokeOpacityAttribute}${strokeWidthAttribute}/>`;
 }
 
+type MarkerRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type ProgressLayer = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  radius: number;
+  fill: string;
+  fillOpacity?: number;
+};
+
+function progressLayer(rect: ProgressLayer, punch?: MarkerRect): string {
+  return punch ? buildPunchedRoundedRect({ ...rect, punch }) : buildSvgRect(rect);
+}
+
 export function buildSvgProgressBar({
   percent,
   x,
@@ -158,28 +180,124 @@ export function buildSvgProgressBar({
 }: SvgProgressBarOptions): string {
   const normalized = renderedFillPercent(percent);
   const fillWidth = Math.round((normalized / 100) * width);
+  const punch = marker ? progressMarkerPunch(marker, x, y, width, height) : undefined;
+  const layer = { x, y, height, radius };
 
   return [
-    buildSvgRect({
-      x,
-      y,
-      width,
-      height,
-      radius,
-      fill: trackFill,
-      fillOpacity: trackFillOpacity,
-    }),
-    fillWidth > 0
-      ? buildSvgRect({
-          x,
-          y,
-          width: fillWidth,
-          height,
-          radius,
-          fill,
-        })
-      : "",
+    progressLayer({ ...layer, width, fill: trackFill, fillOpacity: trackFillOpacity }, punch),
+    fillWidth > 0 ? progressLayer({ ...layer, width: fillWidth, fill }, punch) : "",
     marker ? buildSvgProgressMarker(marker, x, y, width, height) : "",
+  ].join("");
+}
+
+function progressMarkerRect(
+  marker: SvgProgressMarkerOptions,
+  trackX: number,
+  trackY: number,
+  trackWidth: number,
+  trackHeight: number,
+): MarkerRect {
+  const normalizedPercent = clampPercent(marker.percent);
+  const markerCenterX = trackX + (normalizedPercent / 100) * trackWidth;
+  const minLeft = trackX + marker.edgeInset;
+  const maxLeft = trackX + trackWidth - marker.width - marker.edgeInset;
+  const markerX = Math.max(minLeft, Math.min(maxLeft, markerCenterX - marker.width / 2));
+  const markerY = trackY - (marker.height - trackHeight) / 2;
+
+  return {
+    x: svgNumber(markerX),
+    y: svgNumber(markerY),
+    width: marker.width,
+    height: marker.height,
+  };
+}
+
+function progressMarkerPunch(
+  marker: SvgProgressMarkerOptions,
+  trackX: number,
+  trackY: number,
+  trackWidth: number,
+  trackHeight: number,
+): MarkerRect {
+  const tick = progressMarkerRect(marker, trackX, trackY, trackWidth, trackHeight);
+  const punchWidth = Math.min(trackWidth, tick.width + marker.punchGutter * 2);
+  const punchX = Math.max(trackX, Math.min(trackX + trackWidth - punchWidth, tick.x - (punchWidth - tick.width) / 2));
+
+  return {
+    x: svgNumber(punchX),
+    y: trackY,
+    width: punchWidth,
+    height: trackHeight,
+  };
+}
+
+function buildPunchedRoundedRect({
+  x,
+  y,
+  width,
+  height,
+  radius,
+  fill,
+  fillOpacity,
+  punch,
+}: ProgressLayer & { punch: MarkerRect }): string {
+  const holeLeft = svgNumber(Math.max(x, punch.x));
+  const holeRight = svgNumber(Math.min(x + width, punch.x + punch.width));
+  const holeWidth = svgNumber(holeRight - holeLeft);
+  if (holeWidth <= 0) {
+    return buildSvgRect({ x, y, width, height, radius, fill, fillOpacity });
+  }
+
+  const leftWidth = svgNumber(holeLeft - x);
+  const rightWidth = svgNumber(x + width - holeRight);
+  const pieces: string[] = [];
+  if (leftWidth > 0) {
+    pieces.push(roundedRectCapPath(x, y, leftWidth, height, radius, "left"));
+  }
+  if (rightWidth > 0) {
+    pieces.push(roundedRectCapPath(holeRight, y, rightWidth, height, radius, "right"));
+  }
+
+  const fillOpacityAttribute = typeof fillOpacity === "number" ? ` fill-opacity="${fillOpacity}"` : "";
+  return pieces.map((d) => `<path d="${d}" fill="${fill}"${fillOpacityAttribute}/>`).join("");
+}
+
+function roundedRectCapPath(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  cap: "left" | "right",
+): string {
+  const corner = Math.min(radius, width / 2, height / 2);
+  const right = svgNumber(x + width);
+  const bottom = svgNumber(y + height);
+  if (corner <= 0) {
+    return `M${x} ${y}h${width}v${height}h${-width}z`;
+  }
+
+  if (cap === "left") {
+    return [
+      `M${svgNumber(x + corner)} ${y}`,
+      `H${right}`,
+      `V${bottom}`,
+      `H${svgNumber(x + corner)}`,
+      `A${corner} ${corner} 0 0 1 ${x} ${svgNumber(bottom - corner)}`,
+      `V${svgNumber(y + corner)}`,
+      `A${corner} ${corner} 0 0 1 ${svgNumber(x + corner)} ${y}`,
+      "z",
+    ].join("");
+  }
+
+  return [
+    `M${x} ${y}`,
+    `H${svgNumber(right - corner)}`,
+    `A${corner} ${corner} 0 0 1 ${right} ${svgNumber(y + corner)}`,
+    `V${svgNumber(bottom - corner)}`,
+    `A${corner} ${corner} 0 0 1 ${svgNumber(right - corner)} ${bottom}`,
+    `H${x}`,
+    "z",
   ].join("");
 }
 
@@ -190,22 +308,21 @@ function buildSvgProgressMarker(
   trackWidth: number,
   trackHeight: number,
 ): string {
-  const normalizedPercent = clampPercent(marker.percent);
-  const markerCenterX = trackX + (normalizedPercent / 100) * trackWidth;
-  const minLeft = trackX + marker.edgeInset;
-  const maxLeft = trackX + trackWidth - marker.width - marker.edgeInset;
-  const markerX = Math.max(minLeft, Math.min(maxLeft, markerCenterX - marker.width / 2));
-  const markerY = trackY - (marker.height - trackHeight) / 2;
+  const rect = progressMarkerRect(marker, trackX, trackY, trackWidth, trackHeight);
 
   return buildSvgRect({
-    x: markerX,
-    y: markerY,
-    width: marker.width,
-    height: marker.height,
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
     radius: marker.radius,
     fill: marker.fill,
     fillOpacity: marker.fillOpacity,
   });
+}
+
+function svgNumber(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function clampPercent(value: number): number {
