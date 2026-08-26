@@ -7,7 +7,7 @@ import {
   formatRelativeUpdateTime,
   getRelativeUpdateTimeRefreshDelay,
 } from "./presentation";
-import { extractSvgMarkup } from "../../test/svg-markdown";
+import { extractSvgMarkup, parseSvg, textY } from "../../test/svg-markdown";
 
 describe("presentation helpers", () => {
   it("formats remaining percent like upstream UsageFormatter.percentString", () => {
@@ -82,17 +82,12 @@ describe("presentation helpers", () => {
     const [svg] = extractSvgMarkup(
       buildProviderErrorMarkdown("Load failed", new Error("Original error.\n\nWhat happened.\n\nWhat to do next.")),
     );
-    const originalY = getTextY(svg, "Original error.");
-    const explanationY = getTextY(svg, "What happened.");
-    const recoveryY = getTextY(svg, "What to do next.");
+    const parsed = parseSvg(svg);
+    const originalY = textY(parsed, "Original error.");
+    const explanationY = textY(parsed, "What happened.");
+    const recoveryY = textY(parsed, "What to do next.");
 
     expect(explanationY - originalY).toBeGreaterThan(24);
     expect(recoveryY - explanationY).toBeGreaterThan(24);
   });
 });
-
-function getTextY(svg: string, text: string): number {
-  const match = svg.match(new RegExp(`<text[^>]* y="(\\d+)"[^>]*>${text}</text>`));
-  expect(match).toBeTruthy();
-  return Number(match?.[1]);
-}

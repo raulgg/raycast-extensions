@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { extractSvgMarkup } from "../../test/svg-markdown";
+import {
+  extractSvgMarkup,
+  lineYAfterText,
+  markerFills,
+  parseDetailSvg,
+  parseSvg,
+  rectsWithSize,
+  textY,
+} from "../../test/svg-markdown";
 import {
   DETAIL_PANEL,
   DETAIL_SECTION_LAYOUT,
@@ -11,49 +19,6 @@ import {
   getTextBottomY,
 } from "../lib/detailMarkdown";
 import { buildProviderDetailMarkdown, buildProviderLoadingMarkdown } from "./markdown";
-
-function getTextY(svg: string, text: string): number {
-  const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = svg.match(new RegExp(`<text[^>]* y="([^"]+)"[^>]*>${escapedText}</text>`));
-  if (!match) {
-    throw new Error(`Could not find text node for "${text}"`);
-  }
-
-  return Number(match[1]);
-}
-
-function getLineYAfterText(svg: string, text: string): number {
-  const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = svg.match(new RegExp(`${escapedText}</text>(.*?)<line[^>]* y1="([^"]+)"`, "s"));
-  if (!match) {
-    throw new Error(`Could not find divider after "${text}"`);
-  }
-
-  return Number(match[2]);
-}
-
-function getRectYs(svg: string, width: number, height: number): number[] {
-  return [...svg.matchAll(new RegExp(`<rect[^>]* y="([^"]+)"[^>]* width="${width}" height="${height}"`, "g"))].map(
-    (match) => Number(match[1]),
-  );
-}
-
-function getRectXs(svg: string, width: number, height: number): number[] {
-  return [...svg.matchAll(new RegExp(`<rect[^>]* x="([^"]+)"[^>]* width="${width}" height="${height}"`, "g"))].map(
-    (match) => Number(match[1]),
-  );
-}
-
-function getMarkerFills(svg: string): string[] {
-  return [...svg.matchAll(/<rect[^>]* width="3" height="12"[^>]*>/g)].map((match) => {
-    const fill = match[0].match(/fill="([^"]+)"/);
-    if (!fill) {
-      throw new Error("Pace marker rect is missing a fill");
-    }
-
-    return fill[1];
-  });
-}
 
 function getTextTopY(baselineY: number, fontSize: number): number {
   return baselineY - Math.ceil(fontSize * DETAIL_TEXT_LAYOUT.topInsetRatio);
@@ -244,19 +209,20 @@ describe("provider markdown", () => {
     };
     const markdown = buildProviderDetailMarkdown(detail, "light");
     const [svg] = extractSvgMarkup(markdown);
-    const [darkSvg] = extractSvgMarkup(buildProviderDetailMarkdown(detail, "dark"));
+    const parsed = parseSvg(svg);
+    const darkParsed = parseDetailSvg(buildProviderDetailMarkdown(detail, "dark"));
 
     expect(svg).toContain(">47% left<");
     expect(svg).toContain(">Resets in 11h 47m<");
     expect(svg).toContain(">40% in reserve<");
     expect(svg).toContain(">Lasts until reset<");
-    expect(getTextY(svg, "40% in reserve")).toBeGreaterThan(getTextY(svg, "47% left"));
-    expect(getTextY(svg, "Lasts until reset")).toBeGreaterThan(getTextY(svg, "Resets in 11h 47m"));
-    expect(getRectXs(svg, 3, 12)).toHaveLength(1);
-    expect(getRectXs(svg, 3, 12)[0]).toBeGreaterThan(28);
-    expect(getRectXs(svg, 3, 12)[0]).toBeLessThan(31);
-    expect(getMarkerFills(svg)).toEqual(["#34C759"]);
-    expect(getMarkerFills(darkSvg)).toEqual(["#30D158"]);
+    expect(textY(parsed, "40% in reserve")).toBeGreaterThan(textY(parsed, "47% left"));
+    expect(textY(parsed, "Lasts until reset")).toBeGreaterThan(textY(parsed, "Resets in 11h 47m"));
+    expect(rectsWithSize(parsed, 3, 12)).toHaveLength(1);
+    expect(rectsWithSize(parsed, 3, 12)[0].x).toBeGreaterThan(28);
+    expect(rectsWithSize(parsed, 3, 12)[0].x).toBeLessThan(31);
+    expect(markerFills(parsed)).toEqual(["#34C759"]);
+    expect(markerFills(darkParsed)).toEqual(["#30D158"]);
   });
 
   it("does not render a usage pacing marker when usage pacing is on track", () => {
@@ -286,9 +252,10 @@ describe("provider markdown", () => {
     );
 
     const [svg] = extractSvgMarkup(markdown);
+    const parsed = parseSvg(svg);
 
     expect(svg).toContain(">On pace<");
-    expect(getRectXs(svg, 3, 12)).toEqual([]);
+    expect(rectsWithSize(parsed, 3, 12)).toEqual([]);
   });
 
   it("renders a deficit usage pacing marker in the app's system red", () => {
@@ -313,11 +280,11 @@ describe("provider markdown", () => {
         },
       ],
     };
-    const [lightSvg] = extractSvgMarkup(buildProviderDetailMarkdown(detail, "light"));
-    const [darkSvg] = extractSvgMarkup(buildProviderDetailMarkdown(detail, "dark"));
+    const lightParsed = parseDetailSvg(buildProviderDetailMarkdown(detail, "light"));
+    const darkParsed = parseDetailSvg(buildProviderDetailMarkdown(detail, "dark"));
 
-    expect(getMarkerFills(lightSvg)).toEqual(["#FF383C"]);
-    expect(getMarkerFills(darkSvg)).toEqual(["#FF4245"]);
+    expect(markerFills(lightParsed)).toEqual(["#FF383C"]);
+    expect(markerFills(darkParsed)).toEqual(["#FF4245"]);
   });
 
   it("does not render a usage pacing marker when usage pacing is absent", () => {
@@ -338,9 +305,9 @@ describe("provider markdown", () => {
       "light",
     );
 
-    const [svg] = extractSvgMarkup(markdown);
+    const parsed = parseDetailSvg(markdown);
 
-    expect(getRectXs(svg, 3, 12)).toEqual([]);
+    expect(rectsWithSize(parsed, 3, 12)).toEqual([]);
   });
 
   it("supports overriding header subtitle while keeping sections", () => {
@@ -475,12 +442,13 @@ describe("provider markdown", () => {
     expect(svg).not.toContain(">Session<");
     expect(svg).toContain("<line ");
     expect(svg).not.toContain('fill="#6DB5C0"');
-    expect(getRectYs(svg, 88, 10)).toHaveLength(2);
-    expect(getRectYs(svg, 440, 8)).toHaveLength(2);
-    expect(getRectYs(svg, 76, 8)).toHaveLength(2);
-    expect(getRectYs(svg, 92, 8)).toHaveLength(2);
+    const parsed = parseSvg(svg);
+    expect(rectsWithSize(parsed, 88, 10)).toHaveLength(2);
+    expect(rectsWithSize(parsed, 440, 8)).toHaveLength(2);
+    expect(rectsWithSize(parsed, 76, 8)).toHaveLength(2);
+    expect(rectsWithSize(parsed, 92, 8)).toHaveLength(2);
 
-    const progressTrackYs = getRectYs(svg, 440, 8);
+    const progressTrackYs = rectsWithSize(parsed, 440, 8).map((rect) => rect.y);
     expect(progressTrackYs[1]).toBeGreaterThan(progressTrackYs[0]);
     expect(progressTrackYs[1] - progressTrackYs[0]).toBe(75);
   });
@@ -514,11 +482,12 @@ describe("provider markdown", () => {
     );
 
     const [svg] = extractSvgMarkup(markdown);
-    const lastFooterY = getTextY(svg, "53% left");
+    const parsed = parseSvg(svg);
+    const lastFooterY = textY(parsed, "53% left");
     const expectedHeight = getPanelHeight(getTextBottomY(lastFooterY, DETAIL_TYPOGRAPHY.rowValueSize));
     const viewBoxMatch = svg.match(new RegExp(`viewBox="0 0 ${DETAIL_PANEL.width} (\\d+(?:\\.\\d+)?)"`));
 
-    expect(getTextY(svg, "Codex")).toBe(getTextBaselineY(DETAIL_PANEL.paddingTop, DETAIL_TYPOGRAPHY.headerTitleSize));
+    expect(textY(parsed, "Codex")).toBe(getTextBaselineY(DETAIL_PANEL.paddingTop, DETAIL_TYPOGRAPHY.headerTitleSize));
     expect(viewBoxMatch?.[1]).toBe(String(expectedHeight));
     expect(markdown).toContain(`raycast-width=${DETAIL_PANEL.width}`);
     expect(markdown).toContain(`raycast-height=${expectedHeight}`);
@@ -555,9 +524,10 @@ describe("provider markdown", () => {
     );
 
     const [svg] = extractSvgMarkup(markdown);
-    const weeklyFooterY = getTextY(svg, "Resets in 7d");
-    const infoTitleY = getTextY(svg, "OpenRouter");
-    const infoDividerY = getLineYAfterText(svg, "Resets in 7d");
+    const parsed = parseSvg(svg);
+    const weeklyFooterY = textY(parsed, "Resets in 7d");
+    const infoTitleY = textY(parsed, "OpenRouter");
+    const infoDividerY = lineYAfterText(parsed, "Resets in 7d");
 
     const expectedHalfGap = DETAIL_SECTION_LAYOUT.dividerPaddingY + DETAIL_SVG_LAYOUT.dividerStrokeWidth / 2;
     const gapAboveDivider = infoDividerY - getTextBottomY(weeklyFooterY, DETAIL_TYPOGRAPHY.rowValueSize);

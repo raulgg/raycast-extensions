@@ -1,3 +1,36 @@
+export type SvgTextNode = {
+  content: string;
+  x: number;
+  y: number;
+  fill?: string;
+  fontSize?: number;
+  fontWeight?: number;
+  index: number;
+};
+
+export type SvgRectNode = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fill?: string;
+  index: number;
+};
+
+export type SvgLineNode = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  index: number;
+};
+
+export type ParsedSvg = {
+  texts: SvgTextNode[];
+  rects: SvgRectNode[];
+  lines: SvgLineNode[];
+};
+
 export function extractSvgMarkup(markdown: string): string[] {
   const imagePrefix = "data:image/svg+xml;base64,";
   const images: string[] = [];
@@ -21,4 +54,112 @@ export function extractSvgMarkup(markdown: string): string[] {
   }
 
   return images;
+}
+
+export function extractFirstSvg(markdown: string): string {
+  const [svg] = extractSvgMarkup(markdown);
+  if (!svg) {
+    throw new Error("No SVG image in markdown");
+  }
+
+  return svg;
+}
+
+export function parseSvg(svg: string): ParsedSvg {
+  const texts: SvgTextNode[] = [];
+  const rects: SvgRectNode[] = [];
+  const lines: SvgLineNode[] = [];
+
+  for (const match of svg.matchAll(/<text\b([^>]*)>([^<]*)<\/text>/g)) {
+    const attrs = parseAttributes(match[1]);
+    texts.push({
+      content: match[2],
+      x: Number(attrs.x),
+      y: Number(attrs.y),
+      fill: attrs.fill,
+      fontSize: optionalNumber(attrs["font-size"]),
+      fontWeight: optionalNumber(attrs["font-weight"]),
+      index: match.index ?? 0,
+    });
+  }
+
+  for (const match of svg.matchAll(/<rect\b([^>]*)\/?>/g)) {
+    const attrs = parseAttributes(match[1]);
+    rects.push({
+      x: Number(attrs.x),
+      y: Number(attrs.y),
+      width: Number(attrs.width),
+      height: Number(attrs.height),
+      fill: attrs.fill,
+      index: match.index ?? 0,
+    });
+  }
+
+  for (const match of svg.matchAll(/<line\b([^>]*)\/?>/g)) {
+    const attrs = parseAttributes(match[1]);
+    lines.push({
+      x1: Number(attrs.x1),
+      y1: Number(attrs.y1),
+      x2: Number(attrs.x2),
+      y2: Number(attrs.y2),
+      index: match.index ?? 0,
+    });
+  }
+
+  return { texts, rects, lines };
+}
+
+export function parseDetailSvg(markdown: string): ParsedSvg {
+  return parseSvg(extractFirstSvg(markdown));
+}
+
+export function requireText(parsed: ParsedSvg, content: string): SvgTextNode {
+  const node = parsed.texts.find((text) => text.content === content);
+  if (!node) {
+    throw new Error(`Could not find text node for "${content}"`);
+  }
+
+  return node;
+}
+
+export function textY(parsed: ParsedSvg, content: string): number {
+  return requireText(parsed, content).y;
+}
+
+export function lineYAfterText(parsed: ParsedSvg, content: string): number {
+  const text = requireText(parsed, content);
+  const line = parsed.lines.find((item) => item.index > text.index);
+  if (!line) {
+    throw new Error(`Could not find divider after "${content}"`);
+  }
+
+  return line.y1;
+}
+
+export function rectsWithSize(parsed: ParsedSvg, width: number, height: number): SvgRectNode[] {
+  return parsed.rects.filter((rect) => rect.width === width && rect.height === height);
+}
+
+export function markerFills(parsed: ParsedSvg): string[] {
+  return rectsWithSize(parsed, 3, 12).map((rect) => {
+    if (!rect.fill) {
+      throw new Error("Pace marker rect is missing a fill");
+    }
+
+    return rect.fill;
+  });
+}
+
+function parseAttributes(tag: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+
+  for (const match of tag.matchAll(/([a-zA-Z][a-zA-Z0-9-]*)="([^"]*)"/g)) {
+    attrs[match[1]] = match[2];
+  }
+
+  return attrs;
+}
+
+function optionalNumber(value: string | undefined): number | undefined {
+  return value === undefined ? undefined : Number(value);
 }

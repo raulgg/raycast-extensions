@@ -42,6 +42,7 @@ vi.mock("@raycast/api", () => ({
   },
 }));
 
+import { extractFirstSvg } from "../../test/svg-markdown";
 import { getProviderDetailHeaderTimestamp, ProviderDetail } from "./ProviderDetail";
 
 function makeDetail(): ProviderDetailData {
@@ -64,12 +65,6 @@ function makeDetail(): ProviderDetailData {
   };
 }
 
-function decodeFirstSvg(markdown: string): string {
-  const match = markdown.match(/data:image\/svg\+xml;base64,([^?]+)\?/);
-  expect(match).not.toBeNull();
-  return Buffer.from(match?.[1] ?? "", "base64").toString("utf8");
-}
-
 describe("ProviderDetail", () => {
   const provider = { id: "codex", name: "Codex", icon: "provider-icons/codex.svg" };
 
@@ -88,7 +83,7 @@ describe("ProviderDetail", () => {
     });
 
     expect(element.props.markdown).toContain("data:image/svg+xml;base64,");
-    const svg = decodeFirstSvg(element.props.markdown);
+    const svg = extractFirstSvg(element.props.markdown);
     expect(svg).toContain('fill="#111827"');
     expect(svg).toContain('fill="#49A3B0"');
     expect(svg).toContain(">dev@example.com<");
@@ -107,7 +102,7 @@ describe("ProviderDetail", () => {
       isLoading: false,
     });
 
-    const svg = decodeFirstSvg(element.props.markdown);
+    const svg = extractFirstSvg(element.props.markdown);
     expect(svg).toContain('fill="#F3F4F6"');
     expect(svg).toContain('fill="#6DB5C0"');
     expect(svg).toContain(">Session<");
@@ -121,7 +116,7 @@ describe("ProviderDetail", () => {
 
     expect(element.props.isLoading).toBe(true);
     expect(element.props.markdown).toContain("data:image/svg+xml;base64,");
-    const svg = decodeFirstSvg(element.props.markdown);
+    const svg = extractFirstSvg(element.props.markdown);
     expect(svg).toContain(">Codex<");
     expect(svg).toContain(">Updating...<");
     expect(svg).not.toContain(">Session<");
@@ -139,7 +134,7 @@ describe("ProviderDetail", () => {
     });
 
     expect(element.props.isLoading).toBe(true);
-    const svg = decodeFirstSvg(element.props.markdown);
+    const svg = extractFirstSvg(element.props.markdown);
     expect(svg).toContain(">Codex<");
     expect(svg).toContain(">Updating...<");
     expect(svg).toContain(">dev@example.com<");
@@ -160,7 +155,7 @@ describe("ProviderDetail", () => {
       relativeTimeNow: Date.parse("2026-04-05T17:40:00Z"),
     });
 
-    const svg = decodeFirstSvg(element.props.markdown);
+    const svg = extractFirstSvg(element.props.markdown);
     expect(svg).toContain(">Updating... | ⚠︎ Stale data<");
     expect(svg).toContain(">Session<");
   });
@@ -180,7 +175,7 @@ describe("ProviderDetail", () => {
       relativeTimeNow: Date.parse("2026-04-05T17:40:00Z"),
     });
 
-    const svg = decodeFirstSvg(element.props.markdown);
+    const svg = extractFirstSvg(element.props.markdown);
     expect(svg).toContain(">Updated 29m ago | ⚠︎ Stale data<");
     expect(svg).not.toContain(">Updated just now | ⚠︎ Stale data<");
     expect(svg).toContain(">Session<");
@@ -198,7 +193,7 @@ describe("ProviderDetail", () => {
       isLoading: false,
     });
 
-    const svg = decodeFirstSvg(element.props.markdown);
+    const svg = extractFirstSvg(element.props.markdown);
     expect(svg).toContain(">Codex<");
     expect(svg).not.toContain(">dev@example.com<");
     expect(svg).not.toContain(">Hidden<");
@@ -234,7 +229,7 @@ describe("ProviderDetail", () => {
       isLoading: false,
     });
 
-    const svg = decodeFirstSvg(element.props.markdown);
+    const svg = extractFirstSvg(element.props.markdown);
     expect(svg).not.toContain(">work<");
     expect(svg).not.toContain(">Example Labs<");
     expect(svg).not.toContain(">Identity<");
@@ -260,7 +255,7 @@ describe("ProviderDetail", () => {
     });
 
     expect(element.props.markdown).toContain("data:image/svg+xml;base64,");
-    const svg = decodeFirstSvg(element.props.markdown);
+    const svg = extractFirstSvg(element.props.markdown);
     expect(svg).toContain(">Codex<");
     expect(svg).toContain(">Timed out<");
     expect(svg).toContain('fill="#111827"');
@@ -277,7 +272,7 @@ describe("ProviderDetail", () => {
       isLoading: false,
     });
 
-    const svg = decodeFirstSvg(element.props.markdown);
+    const svg = extractFirstSvg(element.props.markdown);
     expect(svg).toContain('fill="#F3F4F6"');
     expect(svg).toContain('stroke="#374151"');
     expect(svg).toContain('fill="#FF6B6B"');
