@@ -564,7 +564,7 @@ describe("provider markdown", () => {
     expect(markdown).toContain(`raycast-height=${expectedHeight}`);
   });
 
-  it("places the next divider below the rendered footer text, not its baseline", () => {
+  it("places the next divider below the last usage-meter ink, not a text baseline", () => {
     const markdown = buildProviderDetailMarkdown(
       {
         id: "codex",
@@ -583,6 +583,14 @@ describe("provider markdown", () => {
             displayTitle: "Weekly",
             remainingPercent: 88,
             resetsIn: "7d",
+            usagePacing: {
+              stage: "farUnder",
+              usedVsIdealDeltaPercent: -39.98,
+              idealUsedPercentByNow: 92.98,
+              actualUsedPercent: 53,
+              lastsUntilReset: true,
+              computedAt: "2026-04-16T12:30:00.000Z",
+            },
           },
           {
             kind: "info",
@@ -596,12 +604,12 @@ describe("provider markdown", () => {
 
     const [svg] = extractSvgMarkup(markdown);
     const parsed = parseSvg(svg);
-    const weeklyBar = rectsWithSize(parsed, DETAIL_PANEL.width, 8)[1];
+    const pacing = requireText(parsed, "40% in reserve · Lasts until reset");
     const infoTitleY = textY(parsed, "OpenRouter");
-    const infoDividerY = lineYAfterText(parsed, "Resets in 7d");
+    const infoDividerY = lineYAfterText(parsed, "40% in reserve · Lasts until reset");
 
     const expectedHalfGap = DETAIL_SECTION_LAYOUT.dividerPaddingY + DETAIL_SVG_LAYOUT.dividerStrokeWidth / 2;
-    const gapAboveDivider = infoDividerY - (weeklyBar.y + weeklyBar.height);
+    const gapAboveDivider = infoDividerY - getTextBottomY(pacing.y, DETAIL_TYPOGRAPHY.rowLabelSize);
     const gapBelowDivider = getTextTopY(infoTitleY, DETAIL_TYPOGRAPHY.sectionTitleSize) - infoDividerY;
 
     expect(gapAboveDivider).toBeCloseTo(expectedHalfGap);
