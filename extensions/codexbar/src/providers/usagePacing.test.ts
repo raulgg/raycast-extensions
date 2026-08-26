@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ProviderUsagePacing } from "./types";
-import { calculateUsagePacing, formatUsagePacingLabels, paceMarkerKind } from "./usagePacing";
+import { calculateUsagePacing, formatUsagePacingLabels, formatUsagePacingLine, paceMarkerKind } from "./usagePacing";
 
 describe("provider usage pacing", () => {
   it("calculates reserve usage pacing for resettable weekly windows", () => {
@@ -103,6 +103,24 @@ describe("provider usage pacing", () => {
 
     expect(formatUsagePacingLabels({ ...usagePacing, context: "session" }).rightLabel).toBe("Lasts until reset");
     expect(formatUsagePacingLabels({ ...usagePacing, context: "window" }).rightLabel).toBe("Lasts until reset");
+  });
+
+  it("joins pacing labels with a middot for the meter footer", () => {
+    const usagePacing = calculateUsagePacing(
+      {
+        usedPercent: 53,
+        remainingPercent: 47,
+        resetsAt: "2026-04-17T00:17:00Z",
+        windowMinutes: 10_080,
+      },
+      Date.parse("2026-04-16T12:30:00Z"),
+    );
+    if (!usagePacing) {
+      throw new Error("Expected usage pacing");
+    }
+
+    expect(formatUsagePacingLine(usagePacing)).toBe("40% in reserve · Lasts until reset");
+    expect(formatUsagePacingLine(pacing({ stage: "onTrack", lastsUntilReset: false }))).toBe("On pace");
   });
 });
 

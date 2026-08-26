@@ -187,6 +187,11 @@ export function formatUsagePacingLabels(usagePacing: ProviderUsagePacing, now = 
   };
 }
 
+export function formatUsagePacingLine(usagePacing: ProviderUsagePacing, now = Date.now()): string {
+  const { leftLabel, rightLabel } = formatUsagePacingLabels(usagePacing, now);
+  return rightLabel ? `${leftLabel} · ${rightLabel}` : leftLabel;
+}
+
 // Hide onTrack. Deficit = actualUsed > expectedUsed (Color.red); else reserve (Color.green).
 export function paceMarkerKind(usagePacing: ProviderUsagePacing): "deficit" | "reserve" | undefined {
   if (usagePacing.stage === "onTrack") {

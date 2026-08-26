@@ -10,6 +10,7 @@
 - Grok weekly credits window shows the same pace marker as the CodexBar app
 - Pace ticks use the CodexBar app's red (deficit) and green (reserve) colors, and hide when a window is on pace
 - Pace ticks punch a gap through the usage meter so the color stays visible on similar brand fills
+- Detail usage meters put remaining percent and the reset countdown on the title row, with pacing as one line under the bar
 - Cursor, Copilot, Kimi, Zai, Notion, and calendar-month providers (Alibaba, Amp, Command Code, Doubao, MiMo, OpenCode Go, StepFun) show the same plain usage pacer as the CodexBar app
 - `npm run upstream:check` diffs each provider's `pace:` capability against `paceCapabilities.ts` so a new upstream pacer fails the check instead of drifting silently
 - Background refresh restarts the CodexBar serve daemon when it predates the installed CLI binary, so payload shapes stay consistent across app updates

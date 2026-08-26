@@ -88,7 +88,7 @@ describe("ProviderDetail", () => {
     expect(svg).toContain('fill="#49A3B0"');
     expect(svg).toContain(">dev@example.com<");
     expect(svg).toContain(">Pro<");
-    expect(svg).toContain(">Session<");
+    expect(svg).toContain(">Session 53% left<");
     expect(element.props.metadata).toBeUndefined();
   });
 
@@ -105,7 +105,7 @@ describe("ProviderDetail", () => {
     const svg = extractFirstSvg(element.props.markdown);
     expect(svg).toContain('fill="#F3F4F6"');
     expect(svg).toContain('fill="#6DB5C0"');
-    expect(svg).toContain(">Session<");
+    expect(svg).toContain(">Session 53% left<");
   });
 
   it("renders a loading markdown state when no cached detail exists", () => {
@@ -140,7 +140,7 @@ describe("ProviderDetail", () => {
     expect(svg).toContain(">dev@example.com<");
     expect(svg).toContain(">Pro<");
     expect(svg).not.toContain(">Updated ");
-    expect(svg).toContain(">Session<");
+    expect(svg).toContain(">Session 53% left<");
   });
 
   it("shows stale warning copy while refreshing stale cached detail", () => {
@@ -157,7 +157,7 @@ describe("ProviderDetail", () => {
 
     const svg = extractFirstSvg(element.props.markdown);
     expect(svg).toContain(">Updating... | ⚠︎ Stale data<");
-    expect(svg).toContain(">Session<");
+    expect(svg).toContain(">Session 53% left<");
   });
 
   it("keeps stale cached detail visible after refresh errors", () => {
@@ -178,7 +178,7 @@ describe("ProviderDetail", () => {
     const svg = extractFirstSvg(element.props.markdown);
     expect(svg).toContain(">Updated 29m ago | ⚠︎ Stale data<");
     expect(svg).not.toContain(">Updated just now | ⚠︎ Stale data<");
-    expect(svg).toContain(">Session<");
+    expect(svg).toContain(">Session 53% left<");
     expect(svg).not.toContain(">Timed out<");
   });
 

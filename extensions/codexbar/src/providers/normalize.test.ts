@@ -164,12 +164,10 @@ describe("provider normalization", () => {
     expect(detailSvg).toContain(">dev@example.com<");
     expect(detailSvg).toContain(">Pro<");
     expect(detailSvg).toContain(`>Updated ${expectedHeaderUpdated}<`);
-    expect(detailSvg).toContain(">Session<");
-    expect(detailSvg).toContain(">Weekly<");
-    expect(detailSvg).toContain(">53% left<");
+    expect(detailSvg).toContain(">Session 53% left<");
+    expect(detailSvg).toContain(">Weekly 88% left<");
     expect(detailSvg).toContain(">Resets in 1h 30m");
-    expect(detailSvg).toContain(">Code review<");
-    expect(detailSvg).toContain(">78% left<");
+    expect(detailSvg).toContain(">Code review 78% left<");
     // Credits, Cost, and General are no longer surfaced — usage meters only.
     expect(detailSvg).not.toContain(">Credits<");
     expect(detailSvg).not.toContain(">General<");
@@ -210,10 +208,8 @@ describe("provider normalization", () => {
       },
     ]);
     expect(markdown).toContain("data:image/svg+xml;base64,");
-    expect(detailSvg).toContain(">Session<");
-    expect(detailSvg).toContain(">Weekly<");
-    expect(detailSvg).toContain(">80% left<");
-    expect(detailSvg).toContain(">55% left<");
+    expect(detailSvg).toContain(">Session 80% left<");
+    expect(detailSvg).toContain(">Weekly 55% left<");
     expect(detailSvg).toContain(">Resets in 1d 1h<");
   });
 
@@ -386,10 +382,9 @@ describe("provider normalization", () => {
         },
       },
     ]);
-    expect(detailSvg).toContain(">47% left<");
+    expect(detailSvg).toContain(">Weekly 47% left<");
     expect(detailSvg).toContain(">Resets in 11h 47m<");
-    expect(detailSvg).toContain(">40% in reserve<");
-    expect(detailSvg).toContain(">Lasts until reset<");
+    expect(detailSvg).toContain(">40% in reserve · Lasts until reset<");
   });
 
   it("omits zero-value countdown units", () => {

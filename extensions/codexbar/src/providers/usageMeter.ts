@@ -1,6 +1,6 @@
 import { formatPercentRemaining } from "../lib/presentation";
 import { buildSvgProgressBar, buildSvgRect } from "../lib/svg";
-import { formatUsagePacingLabels, paceMarkerKind } from "./usagePacing";
+import { formatUsagePacingLine, paceMarkerKind } from "./usagePacing";
 import { getProviderProgressPalette } from "./registry";
 import {
   buildText,
@@ -48,8 +48,8 @@ const LOADING_SKELETON_LAYOUT = {
   sectionCount: 2,
   titleWidth: 88,
   titleHeight: 10,
-  footerLeftWidth: 76,
-  footerRightWidth: 92,
+  footerWidth: 76,
+  resetWidth: 92,
   footerHeight: 8,
   titleRadius: 4,
   footerRadius: 4,
@@ -125,63 +125,70 @@ function buildProgressBar(
   });
 }
 
-function renderProgressSection(
-  title: string,
-  percent: number,
-  footerRows: Array<{ left: string; right?: string }>,
-  providerId: string,
-  appearance: ProviderDetailAppearance,
-  startY: number,
-  marker?: ProgressMarker,
-): { markup: string[]; contentBottomY: number } {
+function renderUsageMeter({
+  title,
+  remainingPercent,
+  resetsIn,
+  footerLines,
+  providerId,
+  appearance,
+  startY,
+  marker,
+}: {
+  title: string;
+  remainingPercent: number;
+  resetsIn?: string;
+  footerLines: string[];
+  providerId: string;
+  appearance: ProviderDetailAppearance;
+  startY: number;
+  marker?: ProgressMarker;
+}): { markup: string[]; contentBottomY: number } {
   const palette = PANEL_PALETTES[appearance];
   const progressY = getUsageProgressY(startY);
-  const initialFooterY = getUsageFooterY(progressY);
+  const titleText = `${title} ${formatPercentRemaining(remainingPercent)} left`;
   const markup = [
     buildText(
-      title,
+      titleText,
       getLeftContentX(),
       startY,
       palette.sectionTitleFill,
       TYPOGRAPHY.sectionTitleSize,
       FONT_WEIGHT.bold,
     ),
-    buildProgressBar(percent, getLeftContentX(), progressY, getContentWidth(), appearance, providerId, marker),
+    buildProgressBar(remainingPercent, getLeftContentX(), progressY, getContentWidth(), appearance, providerId, marker),
   ];
-  let footerY = initialFooterY;
 
-  for (const [index, footerRow] of footerRows.entries()) {
+  if (resetsIn) {
     markup.push(
       buildText(
-        footerRow.left,
-        getLeftContentX(),
-        footerY,
-        palette.valueFill,
-        TYPOGRAPHY.rowValueSize,
-        FONT_WEIGHT.semibold,
+        `Resets in ${resetsIn}`,
+        getRightContentX(),
+        startY,
+        palette.labelFill,
+        TYPOGRAPHY.rowLabelSize,
+        FONT_WEIGHT.medium,
+        "end",
       ),
     );
+  }
 
-    if (footerRow.right) {
-      markup.push(
-        buildText(
-          footerRow.right,
-          getRightContentX(),
-          footerY,
-          palette.labelFill,
-          TYPOGRAPHY.rowLabelSize,
-          FONT_WEIGHT.medium,
-          "end",
-        ),
-      );
-    }
+  if (footerLines.length === 0) {
+    return { markup, contentBottomY: progressY + PROGRESS_BAR.height };
+  }
 
-    if (index < footerRows.length - 1) {
+  let footerY = getUsageFooterY(progressY);
+  for (const [index, line] of footerLines.entries()) {
+    markup.push(
+      buildText(line, getLeftContentX(), footerY, palette.labelFill, TYPOGRAPHY.rowLabelSize, FONT_WEIGHT.medium),
+    );
+
+    if (index < footerLines.length - 1) {
       footerY += USAGE_LAYOUT.footerRowGap;
     }
   }
 
-  return { markup, contentBottomY: getTextBottomY(footerY, TYPOGRAPHY.rowValueSize) };
+  return { markup, contentBottomY: getTextBottomY(footerY, TYPOGRAPHY.rowLabelSize) };
 }
 
 export function renderMetricSection(
@@ -196,7 +203,6 @@ export function renderMetricSection(
 
   const title = section.kind === "usage" ? section.displayTitle : section.title;
   const usagePacing = section.usagePacing;
-  const usagePacingFooter = usagePacing ? formatUsagePacingLabels(usagePacing) : undefined;
   const markerKind = usagePacing ? paceMarkerKind(usagePacing) : undefined;
   const marker =
     usagePacing && markerKind
@@ -205,25 +211,23 @@ export function renderMetricSection(
           fill: PACE_MARKER_FILLS[markerKind][appearance],
         }
       : undefined;
+  const footerLines = [
+    ...(usagePacing ? [formatUsagePacingLine(usagePacing)] : []),
+    ...(section.nextRegenPercent !== undefined
+      ? [`Regenerates ${formatPercentRemaining(section.nextRegenPercent)} next tick`]
+      : []),
+  ];
 
-  return renderProgressSection(
+  return renderUsageMeter({
     title,
-    section.remainingPercent,
-    [
-      {
-        left: `${formatPercentRemaining(section.remainingPercent)} left`,
-        right: section.resetsIn ? `Resets in ${section.resetsIn}` : undefined,
-      },
-      ...(usagePacingFooter ? [{ left: usagePacingFooter.leftLabel, right: usagePacingFooter.rightLabel }] : []),
-      ...(section.nextRegenPercent !== undefined
-        ? [{ left: `Regenerates ${formatPercentRemaining(section.nextRegenPercent)} next tick` }]
-        : []),
-    ],
+    remainingPercent: section.remainingPercent,
+    resetsIn: section.resetsIn,
+    footerLines,
     providerId,
     appearance,
     startY,
     marker,
-  );
+  });
 }
 
 function renderLoadingSkeletonSection(
@@ -233,7 +237,7 @@ function renderLoadingSkeletonSection(
   const palette = PANEL_PALETTES[appearance];
   const progressY = getUsageProgressY(startY);
   const footerY = getUsageFooterY(progressY);
-  const footerRightX = getRightContentX() - LOADING_SKELETON_LAYOUT.footerRightWidth;
+  const resetX = getRightContentX() - LOADING_SKELETON_LAYOUT.resetWidth;
   const markup = [
     buildSvgRect({
       x: getLeftContentX(),
@@ -241,6 +245,15 @@ function renderLoadingSkeletonSection(
       width: LOADING_SKELETON_LAYOUT.titleWidth,
       height: LOADING_SKELETON_LAYOUT.titleHeight,
       radius: LOADING_SKELETON_LAYOUT.titleRadius,
+      fill: palette.progressTrackFill,
+      fillOpacity: palette.progressTrackOpacity,
+    }),
+    buildSvgRect({
+      x: resetX,
+      y: getCenteredPlaceholderY(startY, TYPOGRAPHY.rowLabelSize, LOADING_SKELETON_LAYOUT.footerHeight),
+      width: LOADING_SKELETON_LAYOUT.resetWidth,
+      height: LOADING_SKELETON_LAYOUT.footerHeight,
+      radius: LOADING_SKELETON_LAYOUT.footerRadius,
       fill: palette.progressTrackFill,
       fillOpacity: palette.progressTrackOpacity,
     }),
@@ -255,17 +268,8 @@ function renderLoadingSkeletonSection(
     }),
     buildSvgRect({
       x: getLeftContentX(),
-      y: getCenteredPlaceholderY(footerY, TYPOGRAPHY.rowValueSize, LOADING_SKELETON_LAYOUT.footerHeight),
-      width: LOADING_SKELETON_LAYOUT.footerLeftWidth,
-      height: LOADING_SKELETON_LAYOUT.footerHeight,
-      radius: LOADING_SKELETON_LAYOUT.footerRadius,
-      fill: palette.progressTrackFill,
-      fillOpacity: palette.progressTrackOpacity,
-    }),
-    buildSvgRect({
-      x: footerRightX,
       y: getCenteredPlaceholderY(footerY, TYPOGRAPHY.rowLabelSize, LOADING_SKELETON_LAYOUT.footerHeight),
-      width: LOADING_SKELETON_LAYOUT.footerRightWidth,
+      width: LOADING_SKELETON_LAYOUT.footerWidth,
       height: LOADING_SKELETON_LAYOUT.footerHeight,
       radius: LOADING_SKELETON_LAYOUT.footerRadius,
       fill: palette.progressTrackFill,
@@ -273,7 +277,7 @@ function renderLoadingSkeletonSection(
     }),
   ];
 
-  return { markup, contentBottomY: getTextBottomY(footerY, TYPOGRAPHY.rowValueSize) };
+  return { markup, contentBottomY: getTextBottomY(footerY, TYPOGRAPHY.rowLabelSize) };
 }
 
 export function renderMetricSections(

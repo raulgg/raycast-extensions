@@ -16,7 +16,6 @@ import {
   DETAIL_TYPOGRAPHY,
   getPanelHeight,
   getTextBaselineY,
-  getTextBottomY,
 } from "../lib/detailMarkdown";
 import { buildProviderDetailMarkdown, buildProviderLoadingMarkdown } from "./markdown";
 
@@ -72,12 +71,10 @@ describe("provider markdown", () => {
     expect(svg).toContain(">dev@example.com<");
     expect(svg).toContain(">Pro<");
     expect(svg).toContain(`>Updated ${expectedUpdated}<`);
-    expect(svg).toContain(">Session<");
-    expect(svg).toContain(">Weekly<");
-    expect(svg).toContain(">53% left<");
+    expect(svg).toContain(">Session 53% left<");
+    expect(svg).toContain(">Weekly 88% left<");
     expect(svg).toContain(">Resets in 1h 30m<");
-    expect(svg).toContain(">Code review<");
-    expect(svg).toContain(">78% left<");
+    expect(svg).toContain(">Code review 78% left<");
     expect(svg).not.toContain(">Credits<");
     expect(svg).not.toContain(">General<");
   });
@@ -131,8 +128,8 @@ describe("provider markdown", () => {
     expect(darkSvg).toContain('fill="#FFFFFF"');
     expect(darkSvg).toContain('fill-opacity="0.054"');
     expect(darkSvg).toContain('fill="#6DB5C0"');
-    expect(lightSvg).toContain(">Session<");
-    expect(darkSvg).toContain(">Session<");
+    expect(lightSvg).toContain(">Session 53% left<");
+    expect(darkSvg).toContain(">Session 53% left<");
     expect(lightMarkdown).not.toBe(darkMarkdown);
   });
 
@@ -157,7 +154,7 @@ describe("provider markdown", () => {
     const [svg] = extractSvgMarkup(markdown);
 
     expect(svg).toContain(">Claude<");
-    expect(svg).toContain(">Session<");
+    expect(svg).toContain(">Session 80% left<");
     expect(svg).not.toContain(">Primary<");
   });
 
@@ -180,12 +177,11 @@ describe("provider markdown", () => {
 
     const [svg] = extractSvgMarkup(markdown);
 
-    expect(svg).toContain(">Sonnet<");
-    expect(svg).toContain(">80% left<");
+    expect(svg).toContain(">Sonnet 80% left<");
     expect(svg).toContain(">Resets in 30m<");
   });
 
-  it("renders usage pacing as a second footer row on metric sections", () => {
+  it("renders usage pacing as one footer line under the bar", () => {
     const detail = {
       id: "codex",
       name: "Codex",
@@ -212,12 +208,12 @@ describe("provider markdown", () => {
     const parsed = parseSvg(svg);
     const darkParsed = parseDetailSvg(buildProviderDetailMarkdown(detail, "dark"));
 
-    expect(svg).toContain(">47% left<");
+    expect(svg).toContain(">Weekly 47% left<");
     expect(svg).toContain(">Resets in 11h 47m<");
-    expect(svg).toContain(">40% in reserve<");
-    expect(svg).toContain(">Lasts until reset<");
-    expect(textY(parsed, "40% in reserve")).toBeGreaterThan(textY(parsed, "47% left"));
-    expect(textY(parsed, "Lasts until reset")).toBeGreaterThan(textY(parsed, "Resets in 11h 47m"));
+    expect(svg).toContain(">40% in reserve · Lasts until reset<");
+    expect(svg).not.toContain(">47% left<");
+    expect(textY(parsed, "Weekly 47% left")).toBe(textY(parsed, "Resets in 11h 47m"));
+    expect(textY(parsed, "40% in reserve · Lasts until reset")).toBeGreaterThan(textY(parsed, "Weekly 47% left"));
     expect(rectsWithSize(parsed, 3, 12)).toHaveLength(1);
     expect(rectsWithSize(parsed, 3, 12)[0].x).toBeGreaterThan(28);
     expect(rectsWithSize(parsed, 3, 12)[0].x).toBeLessThan(31);
@@ -254,7 +250,7 @@ describe("provider markdown", () => {
     const [svg] = extractSvgMarkup(markdown);
     const parsed = parseSvg(svg);
 
-    expect(svg).toContain(">On pace<");
+    expect(svg).toContain(">On pace · Lasts until reset<");
     expect(rectsWithSize(parsed, 3, 12)).toEqual([]);
   });
 
@@ -338,8 +334,7 @@ describe("provider markdown", () => {
     expect(svg).toContain(">dev@example.com<");
     expect(svg).toContain(">Pro<");
     expect(svg).toContain(">Updating...<");
-    expect(svg).not.toContain(">Updated ");
-    expect(svg).toContain(">Session<");
+    expect(svg).toContain(">Session 53% left<");
   });
 
   it("renders compact relative header timestamps within six hours", () => {
@@ -448,6 +443,12 @@ describe("provider markdown", () => {
     expect(rectsWithSize(parsed, 76, 8)).toHaveLength(2);
     expect(rectsWithSize(parsed, 92, 8)).toHaveLength(2);
 
+    const titleYs = rectsWithSize(parsed, 88, 10).map((rect) => rect.y);
+    const resetYs = rectsWithSize(parsed, 92, 8).map((rect) => rect.y);
+    const footerYs = rectsWithSize(parsed, 76, 8).map((rect) => rect.y);
+    expect(resetYs[0]).toBeLessThan(footerYs[0]);
+    expect(Math.abs(resetYs[0] - titleYs[0])).toBeLessThan(4);
+
     const progressTrackYs = rectsWithSize(parsed, 440, 8).map((rect) => rect.y);
     expect(progressTrackYs[1]).toBeGreaterThan(progressTrackYs[0]);
     expect(progressTrackYs[1] - progressTrackYs[0]).toBe(75);
@@ -483,10 +484,13 @@ describe("provider markdown", () => {
 
     const [svg] = extractSvgMarkup(markdown);
     const parsed = parseSvg(svg);
-    const lastFooterY = textY(parsed, "53% left");
-    const expectedHeight = getPanelHeight(getTextBottomY(lastFooterY, DETAIL_TYPOGRAPHY.rowValueSize));
+    const bar = rectsWithSize(parsed, DETAIL_PANEL.width, 8)[0];
+    const expectedHeight = getPanelHeight(bar.y + bar.height);
     const viewBoxMatch = svg.match(new RegExp(`viewBox="0 0 ${DETAIL_PANEL.width} (\\d+(?:\\.\\d+)?)"`));
 
+    expect(textY(parsed, "Session 53% left")).toBeGreaterThan(
+      getTextBaselineY(DETAIL_PANEL.paddingTop, DETAIL_TYPOGRAPHY.headerTitleSize),
+    );
     expect(textY(parsed, "Codex")).toBe(getTextBaselineY(DETAIL_PANEL.paddingTop, DETAIL_TYPOGRAPHY.headerTitleSize));
     expect(viewBoxMatch?.[1]).toBe(String(expectedHeight));
     expect(markdown).toContain(`raycast-width=${DETAIL_PANEL.width}`);
@@ -525,12 +529,12 @@ describe("provider markdown", () => {
 
     const [svg] = extractSvgMarkup(markdown);
     const parsed = parseSvg(svg);
-    const weeklyFooterY = textY(parsed, "Resets in 7d");
+    const weeklyBar = rectsWithSize(parsed, DETAIL_PANEL.width, 8)[1];
     const infoTitleY = textY(parsed, "OpenRouter");
     const infoDividerY = lineYAfterText(parsed, "Resets in 7d");
 
     const expectedHalfGap = DETAIL_SECTION_LAYOUT.dividerPaddingY + DETAIL_SVG_LAYOUT.dividerStrokeWidth / 2;
-    const gapAboveDivider = infoDividerY - getTextBottomY(weeklyFooterY, DETAIL_TYPOGRAPHY.rowValueSize);
+    const gapAboveDivider = infoDividerY - (weeklyBar.y + weeklyBar.height);
     const gapBelowDivider = getTextTopY(infoTitleY, DETAIL_TYPOGRAPHY.sectionTitleSize) - infoDividerY;
 
     expect(gapAboveDivider).toBeCloseTo(expectedHalfGap);
@@ -555,10 +559,10 @@ describe("provider markdown", () => {
     );
 
     const [svg] = extractSvgMarkup(markdown);
-    expect(svg).toContain("Session</text>");
+    expect(svg).toContain("Session 61% left</text>");
     expect(svg).toMatch(/Partial System Degradation - Updated .*2026.*<\/text>/);
     expect(svg).not.toContain("Partial outage</text>");
-    expect(svg.indexOf("Partial System Degradation - Updated")).toBeGreaterThan(svg.indexOf("Session</text>"));
+    expect(svg.indexOf("Partial System Degradation - Updated")).toBeGreaterThan(svg.indexOf("Session 61% left</text>"));
     expect(svg).toContain('fill="#F59E0B" fill-rule="evenodd"');
   });
 
@@ -591,7 +595,7 @@ describe("provider markdown", () => {
     );
 
     const [svg] = extractSvgMarkup(markdown);
-    expect(svg).toContain("Session</text>");
+    expect(svg).toContain("Session 61% left</text>");
     expect(svg).toContain("Maintenance</text>");
   });
 
