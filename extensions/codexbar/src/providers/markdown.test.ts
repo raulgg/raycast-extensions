@@ -16,6 +16,7 @@ import {
   DETAIL_TYPOGRAPHY,
   getPanelHeight,
   getTextBaselineY,
+  getTextBottomY,
 } from "../lib/detailMarkdown";
 import { buildProviderDetailMarkdown, buildProviderLoadingMarkdown } from "./markdown";
 
@@ -494,6 +495,44 @@ describe("provider markdown", () => {
     expect(textY(parsed, "Codex")).toBe(getTextBaselineY(DETAIL_PANEL.paddingTop, DETAIL_TYPOGRAPHY.headerTitleSize));
     expect(viewBoxMatch?.[1]).toBe(String(expectedHeight));
     expect(markdown).toContain(`raycast-width=${DETAIL_PANEL.width}`);
+    expect(markdown).toContain(`raycast-height=${expectedHeight}`);
+  });
+
+  it("sizes the usage image to include the pacing and regen footer", () => {
+    const markdown = buildProviderDetailMarkdown(
+      {
+        id: "codex",
+        name: "Codex",
+        sections: [
+          {
+            kind: "usage",
+            title: "Secondary",
+            displayTitle: "Weekly",
+            remainingPercent: 47,
+            resetsIn: "11h 47m",
+            nextRegenPercent: 4,
+            usagePacing: {
+              stage: "farUnder",
+              usedVsIdealDeltaPercent: -39.98,
+              idealUsedPercentByNow: 92.98,
+              actualUsedPercent: 53,
+              lastsUntilReset: true,
+              computedAt: "2026-04-16T12:30:00.000Z",
+            },
+          },
+        ],
+      },
+      "light",
+    );
+
+    const [svg] = extractSvgMarkup(markdown);
+    const parsed = parseSvg(svg);
+    const regenY = textY(parsed, "Regenerates 4% next tick");
+    const expectedHeight = getPanelHeight(getTextBottomY(regenY, DETAIL_TYPOGRAPHY.rowLabelSize));
+    const viewBoxMatch = svg.match(new RegExp(`viewBox="0 0 ${DETAIL_PANEL.width} (\\d+(?:\\.\\d+)?)"`));
+
+    expect(svg).toContain(">40% in reserve · Lasts until reset<");
+    expect(viewBoxMatch?.[1]).toBe(String(expectedHeight));
     expect(markdown).toContain(`raycast-height=${expectedHeight}`);
   });
 
