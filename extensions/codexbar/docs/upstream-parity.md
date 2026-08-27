@@ -196,10 +196,14 @@ mirrors each descriptor's `pace: ProviderPaceCapability(...)`. `computeSlotUsage
   via `secondaryAllowsDefaultWindow`).
 - **Labels** → `formatUsagePacingLabels` in `usagePacing.ts`.
 
-`upstream:check` parses every descriptor `pace:` argument, diffs it against the table, and treats
-`.custom { ... }` closures as fingerprints in `CUSTOM_PACE_RULES`. An unknown custom, a changed
-body, or a new `pace:` on a previously-unsupported provider fails the check. Presentation-only
-paths (`usesAbacusPace`, `usesSyntheticRollingRegen`) and Kimi's secondary `sessionPaceDetail` in
+`upstream:check` imports `PACE_CAPABILITIES` and diffs the GUI fields (`resetWindowPace`,
+`inferredMonthlyDuration`, `sessionPaceWindowRule`) against each descriptor `pace:` argument.
+CLI `resolvedKind` lanes are parsed so an unknown field still throws, but they are not compared.
+`.custom { ... }` closures are fingerprints in `CUSTOM_PACE_RULES`: Swift `Self.foo` wrappers are
+inlined, and the TypeScript predicate's `toString()` is hashed the same way. An unknown custom, a
+changed body, or a new `pace:` on a previously-unsupported provider fails the check.
+Presentation-only paths (`usesAbacusPace`, `usesSyntheticRollingRegen`), Codex
+`showsHeadroomHint` (`UNPORTABLE_HEADROOM_HINT`), and secondary `sessionPaceDetail` call sites in
 `MenuCardView.swift` are scanned the same way dynamic labels are.
 
 Do **not** session-pace OpenCode Go's 5-hour primary: `sessionPaceWindowRule` is `.unsupported` in
@@ -215,8 +219,9 @@ so the color stays readable on similar brand fills. Color and hide-when-on-pace 
 ### Out of scope — not the plain pace marker
 
 Abacus billing-cycle copy and Synthetic rolling-regen detail are listed in
-`UNPORTABLE_PRESENTATION_PACE`. Codex `showsHeadroomHint` (1.5×), workday-aware pacing, and
-historical run-out probability are not implemented.
+`UNPORTABLE_PRESENTATION_PACE`. Codex `showsHeadroomHint` (1.5×) is listed in
+`UNPORTABLE_HEADROOM_HINT`. Workday-aware pacing and historical run-out probability are not
+implemented.
 
 ## Codex-only raw projection — weekly caps session
 
@@ -290,9 +295,10 @@ descriptor.
 
 When the check fails:
 
-1. Read the descriptor `pace:` block. Parseable cases (`windowDurationPresent`,
-   `.calendarMonthResetWindow`, `.session(maximumMinutes:)`, …) go in the table as data. A
-   `.custom { }` needs a named function plus a `CUSTOM_PACE_RULES` fingerprint.
+1. Read the descriptor `pace:` block. Parseable GUI fields (`windowDurationPresent`,
+   `.calendarMonthResetWindow`, `.custom { }`, …) go in the table as data. A `.custom { }` needs a
+   named function plus a `CUSTOM_PACE_RULES` fingerprint (Swift body and TypeScript `toString()`).
+   CLI `resolvedKind` lanes stay out of the table.
 2. `computeSlotUsagePacing` already evaluates the table. Add a gating test in
    [`normalize.test.ts`](../src/providers/normalize.test.ts) for the new rule.
 3. Give the mock a window that actually satisfies it (reset inside the duration, enough elapsed

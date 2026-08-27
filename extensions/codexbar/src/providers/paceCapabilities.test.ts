@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { calculateUsagePacing } from "./usagePacing";
 import { inferredMonthlyWindowMinutes, resolveSlotPace } from "./paceCapabilities";
 
 describe("inferredMonthlyWindowMinutes", () => {
@@ -33,5 +34,25 @@ describe("resolveSlotPace", () => {
     expect(resolved?.context).toBe("window");
     expect(resolved?.windowMinutes).not.toBe(43_200);
     expect(resolved?.windowMinutes).toBe(inferredMonthlyWindowMinutes("2026-04-22T10:30:00Z"));
+  });
+
+  it("does not rewrite copilot duration when windowMinutes is present", () => {
+    expect(
+      resolveSlotPace("copilot", "Primary", { windowMinutes: 10_080, resetsAt: "2026-03-31T00:00:00Z" }, now)
+        ?.windowMinutes,
+    ).toBe(10_080);
+  });
+
+  it("paces a 31-day March window past the elapsed floor", () => {
+    const reset = "2026-03-31T00:00:00Z";
+    const resolved = resolveSlotPace("copilot", "Primary", { resetsAt: reset }, now);
+    expect(resolved?.windowMinutes).toBe(31 * 24 * 60);
+    expect(
+      calculateUsagePacing(
+        { usedPercent: 50, remainingPercent: 50, resetsAt: reset, windowMinutes: resolved?.windowMinutes },
+        now,
+        resolved?.defaultWindowMinutes,
+      ),
+    ).toMatchObject({ actualUsedPercent: 50 });
   });
 });

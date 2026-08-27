@@ -25,22 +25,12 @@ export type PaceDurationRule =
   | { type: "windowDuration"; minutes: number }
   | { type: "custom"; id: PaceCustomId };
 
-export type PaceLane =
-  | { kind: "session"; maximumMinutes: number; requiresDuration?: boolean }
-  | { kind: "weekly" }
-  | { kind: "weeklyWithDuration" }
-  | { kind: "exact"; paceKind: "session" | "weekly"; minutes: number };
-
 export type PaceCapability = {
   resetWindowPace: PaceWindowRule;
   inferredMonthlyDuration: PaceDurationRule;
-  primary?: PaceLane;
-  secondary?: PaceLane;
-  tertiary?: PaceLane;
   sessionPaceWindowRule: PaceWindowRule;
   secondarySessionPace?: boolean;
   secondaryAllowsDefaultWindow?: boolean;
-  showsHeadroomHint?: boolean;
 };
 
 export type PaceWindow = {
@@ -114,7 +104,7 @@ function grokWeeklyCredits(window: PaceWindow, now: number): boolean {
   return windowMinutes > 0 && timeUntilResetSeconds > 0 && timeUntilResetSeconds <= windowMinutes * 60;
 }
 
-const CUSTOM_WINDOW_RULES: Record<PaceCustomId, (window: PaceWindow, now: number) => boolean> = {
+export const CUSTOM_WINDOW_RULES: Record<PaceCustomId, (window: PaceWindow, now: number) => boolean> = {
   antigravitySession: (window) => window.windowMinutes === undefined || window.windowMinutes === 300,
   claudeSessionAlways: () => true,
   codexSessionRejectsWeeklyMonthly: (window) => {
@@ -264,23 +254,16 @@ export function resolveSlotPace(
   };
 }
 
-// Keep this table in the shape parsePaceCapabilitiesTable expects (two-space `id: {` blocks).
+const CALENDAR_MONTH: PaceCapability = {
+  resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
+  inferredMonthlyDuration: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
+  sessionPaceWindowRule: { type: "unsupported" },
+};
+
 export const PACE_CAPABILITIES: Record<string, PaceCapability> = {
-  alibaba: {
-    resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    inferredMonthlyDuration: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    sessionPaceWindowRule: { type: "unsupported" },
-  },
-  alibabatokenplan: {
-    resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    inferredMonthlyDuration: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    sessionPaceWindowRule: { type: "unsupported" },
-  },
-  amp: {
-    resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    inferredMonthlyDuration: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    sessionPaceWindowRule: { type: "unsupported" },
-  },
+  alibaba: CALENDAR_MONTH,
+  alibabatokenplan: CALENDAR_MONTH,
+  amp: CALENDAR_MONTH,
   antigravity: {
     resetWindowPace: { type: "unsupported" },
     inferredMonthlyDuration: { type: "unsupported" },
@@ -289,25 +272,15 @@ export const PACE_CAPABILITIES: Record<string, PaceCapability> = {
   claude: {
     resetWindowPace: { type: "unsupported" },
     inferredMonthlyDuration: { type: "unsupported" },
-    primary: { kind: "session", maximumMinutes: 300 },
-    secondary: { kind: "weekly" },
-    tertiary: { kind: "weekly" },
     sessionPaceWindowRule: { type: "custom", id: "claudeSessionAlways" },
   },
   codex: {
     resetWindowPace: { type: "unsupported" },
     inferredMonthlyDuration: { type: "unsupported" },
-    primary: { kind: "session", maximumMinutes: 300 },
-    secondary: { kind: "weekly" },
     sessionPaceWindowRule: { type: "custom", id: "codexSessionRejectsWeeklyMonthly" },
     secondaryAllowsDefaultWindow: true,
-    showsHeadroomHint: true,
   },
-  commandcode: {
-    resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    inferredMonthlyDuration: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    sessionPaceWindowRule: { type: "unsupported" },
-  },
+  commandcode: CALENDAR_MONTH,
   copilot: {
     resetWindowPace: { type: "resetDatePresent" },
     inferredMonthlyDuration: { type: "windowDurationMissing" },
@@ -318,11 +291,7 @@ export const PACE_CAPABILITIES: Record<string, PaceCapability> = {
     inferredMonthlyDuration: { type: "unsupported" },
     sessionPaceWindowRule: { type: "unsupported" },
   },
-  doubao: {
-    resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    inferredMonthlyDuration: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    sessionPaceWindowRule: { type: "unsupported" },
-  },
+  doubao: CALENDAR_MONTH,
   grok: {
     resetWindowPace: { type: "custom", id: "grokWeeklyCredits" },
     inferredMonthlyDuration: { type: "unsupported" },
@@ -331,53 +300,24 @@ export const PACE_CAPABILITIES: Record<string, PaceCapability> = {
   kimi: {
     resetWindowPace: { type: "windowDuration", minutes: 10_080 },
     inferredMonthlyDuration: { type: "unsupported" },
-    primary: { kind: "exact", paceKind: "weekly", minutes: 10_080 },
-    secondary: { kind: "exact", paceKind: "session", minutes: 300 },
-    tertiary: { kind: "exact", paceKind: "session", minutes: 300 },
     sessionPaceWindowRule: { type: "windowDuration", minutes: 300 },
     secondarySessionPace: true,
   },
-  mimo: {
-    resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    inferredMonthlyDuration: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    sessionPaceWindowRule: { type: "unsupported" },
-  },
+  mimo: CALENDAR_MONTH,
   notion: {
-    resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    inferredMonthlyDuration: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    primary: { kind: "session", maximumMinutes: 360 },
+    ...CALENDAR_MONTH,
     sessionPaceWindowRule: { type: "custom", id: "notionRollingSession" },
   },
   ollama: {
     resetWindowPace: { type: "unsupported" },
     inferredMonthlyDuration: { type: "unsupported" },
-    primary: { kind: "session", maximumMinutes: 300, requiresDuration: true },
-    secondary: { kind: "weeklyWithDuration" },
     sessionPaceWindowRule: { type: "windowDurationPresent" },
   },
-  opencode: {
-    resetWindowPace: { type: "unsupported" },
-    inferredMonthlyDuration: { type: "unsupported" },
-    secondary: { kind: "weekly" },
-    sessionPaceWindowRule: { type: "unsupported" },
-  },
-  opencodego: {
-    resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    inferredMonthlyDuration: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    primary: { kind: "session", maximumMinutes: 300 },
-    secondary: { kind: "weekly" },
-    sessionPaceWindowRule: { type: "unsupported" },
-  },
-  stepfun: {
-    resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    inferredMonthlyDuration: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    sessionPaceWindowRule: { type: "unsupported" },
-  },
+  opencodego: CALENDAR_MONTH,
+  stepfun: CALENDAR_MONTH,
   zai: {
     resetWindowPace: { type: "custom", id: "zaiMonthlyMcp" },
     inferredMonthlyDuration: { type: "custom", id: "zaiMonthlyMcp" },
-    primary: { kind: "exact", paceKind: "session", minutes: 300 },
-    secondary: { kind: "exact", paceKind: "weekly", minutes: 10_080 },
     sessionPaceWindowRule: { type: "windowDuration", minutes: 300 },
   },
 };

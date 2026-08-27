@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
-  comparePaceCapabilities,
   compareProviders,
   parseDescriptorMetadata,
-  parseDescriptorPace,
   parseDynamicOverrideProviders,
-  parsePaceCapabilitiesTable,
   parseRegistryEntries,
   providerColorToHex,
 } from "./lib/upstream-metadata.mjs";
+import {
+  comparePaceCapabilities,
+  expandCustomFingerprint,
+  parseDescriptorPace,
+  parseSecondarySessionPaceProviders,
+} from "./lib/upstream-pace.mjs";
 
 const REGISTRY_FIXTURE = `
 const PROVIDER_DEFINITIONS = {
@@ -47,8 +50,10 @@ function descriptorFixture({
   statusPageURL = '"https://status.openai.com/"',
   statusLinkURL = "nil",
   color = "red: 73 / 255, green: 163 / 255, blue: 176 / 255",
+  pace = "",
   extra = "",
 } = {}) {
+  const paceField = pace ? `,\n            pace: ${pace}` : "";
   return `
 public enum FixtureProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
@@ -67,7 +72,7 @@ public enum FixtureProviderDescriptor {
                 statusLinkURL: ${statusLinkURL}),
             branding: ProviderBranding(
                 iconStyle: .monochrome,
-                color: ProviderColor(${color})))
+                color: ProviderColor(${color}))${paceField})
     }
     ${extra}
 }
@@ -313,7 +318,7 @@ describe("parseDescriptorPace", () => {
   });
 
   it("expands .calendarMonthResetWindow", () => {
-    const source = descriptorFixture({ extra: "pace: .calendarMonthResetWindow," });
+    const source = descriptorFixture({ pace: ".calendarMonthResetWindow" });
     expect(parseDescriptorPace(source, "Amp.swift").resetWindowPace).toEqual({
       type: "windowDuration",
       minutes: 43_200,
@@ -321,15 +326,16 @@ describe("parseDescriptorPace", () => {
   });
 
   it("parses Cursor windowDurationPresent and Grok custom fingerprints", () => {
-    const cursor = `
-            pace: ProviderPaceCapability(resetWindowPace: .windowDurationPresent),
-    `;
-    expect(parseDescriptorPace(descriptorFixture({ extra: cursor }), "Cursor.swift").resetWindowPace).toEqual({
+    expect(
+      parseDescriptorPace(
+        descriptorFixture({ pace: "ProviderPaceCapability(resetWindowPace: .windowDurationPresent)" }),
+        "Cursor.swift",
+      ).resetWindowPace,
+    ).toEqual({
       type: "windowDurationPresent",
     });
 
-    const grok = `
-            pace: ProviderPaceCapability(
+    const grok = `ProviderPaceCapability(
                 resetWindowPace: .custom { window, now in
                     guard Self.primaryLabel(window: window, now: now) == "Weekly",
                           let resetsAt = window.resetsAt
@@ -339,72 +345,129 @@ describe("parseDescriptorPace", () => {
                     return windowMinutes > 0
                         && timeUntilReset > 0
                         && timeUntilReset <= TimeInterval(windowMinutes) * 60
-                }),
-    `;
-    const parsed = parseDescriptorPace(descriptorFixture({ extra: grok }), "Grok.swift");
+                })`;
+    const parsed = parseDescriptorPace(descriptorFixture({ pace: grok }), "Grok.swift");
     expect(parsed.resetWindowPace.type).toBe("custom");
     expect(parsed.resetWindowPace.fingerprint).toContain('primaryLabel(window: window, now: now) == "Weekly"');
   });
 
+  it("ignores a pace: comment outside ProviderDescriptor", () => {
+    const source = `// pace: .unsupported\n${descriptorFixture({ pace: ".calendarMonthResetWindow" })}`;
+    expect(parseDescriptorPace(source, "Amp.swift").resetWindowPace).toEqual({
+      type: "windowDuration",
+      minutes: 43_200,
+    });
+  });
+
+  it("expands Self.foo wrappers and Self constants in custom fingerprints", () => {
+    const source = descriptorFixture({
+      pace: `ProviderPaceCapability(
+                resetWindowPace: .custom { window, _ in
+                    Self.isMonthlyMCPWindow(window)
+                },
+                sessionPaceWindowRule: .custom { window, _ in
+                    guard let minutes = window.windowMinutes else { return false }
+                    return minutes <= Self.rollingWindowMaxMinutes
+                })`,
+      extra: `
+    public static let rollingWindowMaxMinutes = 6 * 60
+    private static func isMonthlyMCPWindow(_ window: RateWindow) -> Bool {
+        window.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes
+            && window.resetDescription == "MCP"
+    }
+`,
+    });
+    const parsed = parseDescriptorPace(source, "Zai.swift");
+    expect(parsed.resetWindowPace).toEqual({
+      type: "custom",
+      fingerprint: 'window.windowMinutes == 43200 && window.resetDescription == "MCP"',
+    });
+    expect(parsed.sessionPaceWindowRule.fingerprint).toContain("minutes <= 360");
+  });
+
   it("throws on an unparseable pace value", () => {
-    expect(() => parseDescriptorPace(descriptorFixture({ extra: "pace: .mystery," }), "X.swift")).toThrow(
-      /unparseable pace/,
+    expect(() => parseDescriptorPace(descriptorFixture({ pace: ".mystery" }), "X.swift")).toThrow(/unparseable pace/);
+  });
+});
+
+describe("expandCustomFingerprint", () => {
+  it("inlines a Self.helper call body", () => {
+    const source = `
+    private static func isMonthlyMCPWindow(_ window: RateWindow) -> Bool {
+        window.resetDescription == "MCP"
+    }
+`;
+    expect(expandCustomFingerprint(source, "window, _ in Self.isMonthlyMCPWindow(window)")).toBe(
+      'window.resetDescription == "MCP"',
     );
   });
 });
 
-describe("parsePaceCapabilitiesTable", () => {
-  it("parses custom ids and sentinel minutes", () => {
-    const source = `
-export const PACE_CAPABILITIES = {
-  grok: {
-    resetWindowPace: { type: "custom", id: "grokWeeklyCredits" },
-    inferredMonthlyDuration: { type: "unsupported" },
-    sessionPaceWindowRule: { type: "unsupported" },
-  },
-  alibaba: {
-    resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    inferredMonthlyDuration: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
-    sessionPaceWindowRule: { type: "unsupported" },
-  },
-} satisfies Record<string, PaceCapability>;
+describe("parseSecondarySessionPaceProviders", () => {
+  it("collects provider == next to sessionPaceDetail inside secondaryMetric", () => {
+    const secondary = `
+    private static func secondaryMetric(input: Input) -> Metric {
+        var paceDetail = if input.provider == .kimi {
+            Self.sessionPaceDetail(provider: input.provider, window: weekly)
+        }
+        return Metric()
+    }
 `;
-    const entries = parsePaceCapabilitiesTable(source);
-    expect(entries.get("grok").resetWindowPace).toEqual({ type: "custom", id: "grokWeeklyCredits" });
-    expect(entries.get("alibaba").resetWindowPace).toEqual({ type: "windowDuration", minutes: 43_200 });
+    const extras = `
+    private static func extraRateWindowPaceDetail(provider: UsageProvider) {
+        if provider == .codex {
+            return self.sessionPaceDetail(provider: provider, window: window)
+        }
+    }
+`;
+    expect([...parseSecondarySessionPaceProviders([{ path: "a.swift", content: secondary }])]).toEqual(["kimi"]);
+    expect([...parseSecondarySessionPaceProviders([{ path: "b.swift", content: extras }])]).toEqual([]);
   });
 });
 
 describe("comparePaceCapabilities", () => {
+  const grokOurs = new Map([
+    [
+      "grok",
+      {
+        resetWindowPace: { type: "custom", id: "grokWeeklyCredits" },
+        inferredMonthlyDuration: { type: "unsupported" },
+        sessionPaceWindowRule: { type: "unsupported" },
+      },
+    ],
+  ]);
+
   it("maps matching custom fingerprints onto ids", () => {
-    const ours = parsePaceCapabilitiesTable(`
-export const PACE_CAPABILITIES = {
-  grok: {
-    resetWindowPace: { type: "custom", id: "grokWeeklyCredits" },
-    inferredMonthlyDuration: { type: "unsupported" },
-    sessionPaceWindowRule: { type: "unsupported" },
-  },
-} satisfies Record<string, PaceCapability>;
-`);
     const grok = parseDescriptorPace(
       descriptorFixture({
-        extra: `
-            pace: ProviderPaceCapability(
+        pace: `ProviderPaceCapability(
                 resetWindowPace: .custom { window, now in
                     guard Self.primaryLabel(window: window, now: now) == "Weekly"
                     else { return false }
-                }),
-    `,
+                })`,
       }),
       "Grok.swift",
     );
-    const { problems } = comparePaceCapabilities(ours, new Map([["grok", { pace: grok }]]), {
+    const { problems } = comparePaceCapabilities(grokOurs, new Map([["grok", { pace: grok }]]), {
       "grok.resetWindowPace": {
         id: "grokWeeklyCredits",
         fingerprint: grok.resetWindowPace.fingerprint,
       },
     });
     expect(problems).toEqual([]);
+  });
+
+  it("prints the field that diverged", () => {
+    const grok = parseDescriptorPace(
+      descriptorFixture({
+        pace: "ProviderPaceCapability(resetWindowPace: .windowDurationPresent)",
+      }),
+      "Grok.swift",
+    );
+    const { problems } = comparePaceCapabilities(grokOurs, new Map([["grok", { pace: grok }]]), {});
+    expect(problems).toEqual([
+      'grok: resetWindowPace {"type":"custom","id":"grokWeeklyCredits"} != upstream {"type":"windowDurationPresent"}',
+    ]);
   });
 });
 

@@ -18,22 +18,19 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { CUSTOM_WINDOW_RULES, PACE_CAPABILITIES } from "../src/providers/paceCapabilities.ts";
 import { createUpstreamSource, readFilesWithConcurrency } from "./lib/upstream.mjs";
+import { compareProviders, parseDescriptorMetadata, parseDynamicOverrideProviders, parseRegistryEntries } from "./lib/upstream-metadata.mjs";
 import {
   comparePaceCapabilities,
-  compareProviders,
-  parseDescriptorMetadata,
+  fingerprintSource,
   parseDescriptorPace,
-  parseDynamicOverrideProviders,
-  parseKimiSecondarySessionPace,
-  parsePaceCapabilitiesTable,
   parsePresentationPaceFlags,
-  parseRegistryEntries,
-} from "./lib/upstream-metadata.mjs";
+  parseSecondarySessionPaceProviders,
+} from "./lib/upstream-pace.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REGISTRY_PATH = path.resolve(__dirname, "../src/providers/registry.ts");
-const PACE_CAPABILITIES_PATH = path.resolve(__dirname, "../src/providers/paceCapabilities.ts");
 const DESCRIPTOR_DIR = "Sources/CodexBarCore/Providers";
 // Every upstream surface that renders usage-bar titles; a dynamic override added to
 // any of them must be ported (or documented below) for the extension to stay aligned.
@@ -56,39 +53,51 @@ const PACE_RENDERER_PATHS = [
 ];
 
 // Custom Swift closures in ProviderPaceCapability, keyed provider.field.
-// The fingerprint is whitespace-normalized closure body; if upstream edits the
-// predicate, this entry goes stale and must be re-reviewed.
+// `fingerprint` is the expanded, whitespace-normalized Swift body (Self.foo
+// wrappers inlined). `tsFingerprint` is CUSTOM_WINDOW_RULES[id].toString()
+// the same way. Either going stale means re-review the predicate.
 const CUSTOM_PACE_RULES = {
   "antigravity.sessionPaceWindowRule": {
     id: "antigravitySession",
     fingerprint: "window, _ in window.windowMinutes == nil || window.windowMinutes == 300",
+    tsFingerprint: "(window) => window.windowMinutes === undefined || window.windowMinutes === 300",
   },
   "claude.sessionPaceWindowRule": {
     id: "claudeSessionAlways",
     fingerprint: "_, _ in true",
+    tsFingerprint: "() => true",
   },
   "codex.sessionPaceWindowRule": {
     id: "codexSessionRejectsWeeklyMonthly",
     fingerprint:
       "window, _ in guard let minutes = window.windowMinutes else { return true } return minutes != 7 * 24 * 60 && minutes != 30 * 24 * 60",
+    tsFingerprint:
+      "(window) => { if (window.windowMinutes === undefined) { return true; } return window.windowMinutes !== 7 * 24 * 60 && window.windowMinutes !== 30 * 24 * 60; }",
   },
   "grok.resetWindowPace": {
     id: "grokWeeklyCredits",
     fingerprint:
       'window, now in guard Self.primaryLabel(window: window, now: now) == "Weekly", let resetsAt = window.resetsAt else { return false } let windowMinutes = window.windowMinutes ?? 7 * 24 * 60 let timeUntilReset = resetsAt.timeIntervalSince(now) return windowMinutes > 0 && timeUntilReset > 0 && timeUntilReset <= TimeInterval(windowMinutes) * 60',
+    tsFingerprint:
+      'function grokWeeklyCredits(window , now ) { if (!window.resetsAt) { return false; } if (grokPrimaryDisplayTitle(grokWindowDurationMs(window.windowMinutes, window.resetsAt, now)) !== "Weekly") { return false; } const resetAtMs = Date.parse(window.resetsAt); if (Number.isNaN(resetAtMs)) { return false; } const windowMinutes = window.windowMinutes ?? WEEKLY_PACE_DEFAULT_WINDOW_MINUTES; const timeUntilResetSeconds = (resetAtMs - now) / 1000; return windowMinutes > 0 && timeUntilResetSeconds > 0 && timeUntilResetSeconds <= windowMinutes * 60; }',
   },
   "notion.sessionPaceWindowRule": {
     id: "notionRollingSession",
     fingerprint:
-      "window, _ in guard let minutes = window.windowMinutes else { return false } return minutes <= Self.rollingWindowMaxMinutes",
+      "window, _ in guard let minutes = window.windowMinutes else { return false } return minutes <= 360",
+    tsFingerprint: "(window) => window.windowMinutes !== undefined && window.windowMinutes <= 6 * 60",
   },
   "zai.resetWindowPace": {
     id: "zaiMonthlyMcp",
-    fingerprint: "window, _ in Self.isMonthlyMCPWindow(window)",
+    fingerprint: 'window.windowMinutes == 43200 && window.resetDescription == "MCP"',
+    tsFingerprint:
+      '(window) => window.windowMinutes === MONTHLY_WINDOW_SENTINEL_MINUTES && window.resetDescription === "MCP"',
   },
   "zai.inferredMonthlyDuration": {
     id: "zaiMonthlyMcp",
-    fingerprint: "window in Self.isMonthlyMCPWindow(window)",
+    fingerprint: 'window.windowMinutes == 43200 && window.resetDescription == "MCP"',
+    tsFingerprint:
+      '(window) => window.windowMinutes === MONTHLY_WINDOW_SENTINEL_MINUTES && window.resetDescription === "MCP"',
   },
 };
 
@@ -99,6 +108,10 @@ const UNPORTABLE_PRESENTATION_PACE = {
   synthetic: {
     usesSyntheticRollingRegen: "rolling regen detail, not usage pace",
   },
+};
+
+const UNPORTABLE_HEADROOM_HINT = {
+  codex: "1.5× session headroom hint, not implemented",
 };
 
 // Dynamic overrides ported to normalize.ts (resolveSlotDisplayTitle). When upstream
@@ -173,9 +186,17 @@ const ALLOWED_DIVERGENCES = {
   },
 };
 
+function tsFingerprintFor(id) {
+  const fn = CUSTOM_WINDOW_RULES[id];
+  if (typeof fn !== "function") {
+    throw new Error(`CUSTOM_WINDOW_RULES is missing ${id}`);
+  }
+  return fingerprintSource(fn.toString());
+}
+
 async function main() {
   const registryEntries = parseRegistryEntries(await readFile(REGISTRY_PATH, "utf8"));
-  const paceEntries = parsePaceCapabilitiesTable(await readFile(PACE_CAPABILITIES_PATH, "utf8"));
+  const paceEntries = new Map(Object.entries(PACE_CAPABILITIES));
   const source = await createUpstreamSource();
 
   // `<Name>ProviderDescriptor.swift` files only — the bare ProviderDescriptor.swift is
@@ -229,14 +250,46 @@ async function main() {
     }
   }
 
-  const kimiRendererSession = parseKimiSecondarySessionPace(paceRendererFiles);
-  const kimiTableSession = paceEntries.get("kimi")?.secondarySessionPace === true;
-  if (kimiRendererSession !== kimiTableSession) {
-    problems.push(
-      kimiRendererSession
-        ? "kimi: MenuCardView session-paces the secondary window but paceCapabilities.ts is missing secondarySessionPace: true"
-        : "kimi: paceCapabilities.ts sets secondarySessionPace but MenuCardView no longer session-paces that slot",
-    );
+  for (const [key, rule] of Object.entries(CUSTOM_PACE_RULES)) {
+    const actual = tsFingerprintFor(rule.id);
+    if (actual !== rule.tsFingerprint) {
+      problems.push(
+        `${key}: stale tsFingerprint for ${rule.id} — recorded "${rule.tsFingerprint}" actual "${actual}". Re-review CUSTOM_WINDOW_RULES.`,
+      );
+    }
+  }
+
+  const rendererSessionProviders = parseSecondarySessionPaceProviders(paceRendererFiles);
+  for (const id of rendererSessionProviders) {
+    if (paceEntries.get(id)?.secondarySessionPace !== true) {
+      problems.push(
+        `${id}: MenuCardView session-paces the secondary window but paceCapabilities.ts is missing secondarySessionPace: true`,
+      );
+    }
+  }
+  for (const [id, capability] of paceEntries) {
+    if (capability.secondarySessionPace && !rendererSessionProviders.has(id)) {
+      problems.push(
+        `${id}: paceCapabilities.ts sets secondarySessionPace but MenuCardView no longer session-paces that slot`,
+      );
+    }
+  }
+
+  const usedHeadroom = new Set();
+  for (const [id, metadata] of upstreamById) {
+    if (!metadata.pace.showsHeadroomHint) {
+      continue;
+    }
+    if (!UNPORTABLE_HEADROOM_HINT[id]) {
+      problems.push(`${id}: descriptor sets showsHeadroomHint. Port it or add UNPORTABLE_HEADROOM_HINT.`);
+      continue;
+    }
+    usedHeadroom.add(id);
+  }
+  for (const id of Object.keys(UNPORTABLE_HEADROOM_HINT)) {
+    if (!usedHeadroom.has(id)) {
+      problems.push(`${id}: stale UNPORTABLE_HEADROOM_HINT — delete it.`);
+    }
   }
 
   const usedPresentation = new Set();

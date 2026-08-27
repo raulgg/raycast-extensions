@@ -132,8 +132,9 @@ Upstream ships often. A periodic sync pass:
    alias → `PROVIDER_ID_ALIASES`. Field mismatch → update the registry, or record an intentional
    `ALLOWED_DIVERGENCES` entry with a reason. New/removed dynamic override → port it into
    `resolveSlotDisplayTitle` and update the override lists, or mark it unportable. New descriptor
-   `pace:` → add a `paceCapabilities.ts` row (and a `CUSTOM_PACE_RULES` fingerprint for `.custom`
-   closures), or mark presentation-only paths in `UNPORTABLE_PRESENTATION_PACE`. Icons out of date →
+   `pace:` → add a `paceCapabilities.ts` row (GUI fields only, plus a `CUSTOM_PACE_RULES`
+   fingerprint for `.custom` closures), or mark presentation-only paths in
+   `UNPORTABLE_PRESENTATION_PACE` / `UNPORTABLE_HEADROOM_HINT`. Icons out of date →
    drop the `-- --check` and let the sync script write them.
 4. **Re-verify the remaining hand-maintained surfaces** the scripts *can't* see: supplemental
    shapes if you now have live JSON to sample. Pacing is covered by `upstream:check` against

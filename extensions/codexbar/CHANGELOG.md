@@ -7,7 +7,7 @@
 - Refresh Usage Cache runs every 10 minutes and requests a live serve copy (`refresh=true`)
 - Usage Overview does not start serve or enable the background command. If serve is down it uses a one-shot CLI fetch
 - CodexBar serve daemons started by background refresh use a 10-minute response cache TTL
-- Usage overview for every provider the CodexBar CLI supports (69 provider ids matching CodexBar v0.53.0, with alias resolution and shared `~/.codexbar/config.json` ordering)
+- Usage overview for every provider the CodexBar CLI supports (69 provider ids matching CodexBar v0.55.0, with alias resolution and shared `~/.codexbar/config.json` ordering)
 - Grok weekly credits window shows the same pace marker as the CodexBar app
 - Pace ticks use the CodexBar app's red (deficit) and green (reserve) colors, and hide when a window is on pace
 - Pace ticks punch a gap through the usage meter so the color stays visible on similar brand fills
