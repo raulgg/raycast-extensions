@@ -254,6 +254,38 @@ export function resolveSlotPace(
   };
 }
 
+// MenuCardView+ModelHelpers.extraRateWindowPaceDetail: Codex/Claude/Antigravity only,
+// 300-minute extras as session (except Claude), 10080 as weekly.
+export const EXTRA_WINDOW_PACE_PROVIDER_IDS = ["antigravity", "claude", "codex"] as const;
+
+export function resolveExtraWindowPace(providerId: string, window: PaceWindow): ResolvedSlotPace | undefined {
+  if (!(EXTRA_WINDOW_PACE_PROVIDER_IDS as readonly string[]).includes(providerId)) {
+    return undefined;
+  }
+
+  if (providerId === "claude" && window.windowMinutes !== WEEKLY_PACE_DEFAULT_WINDOW_MINUTES) {
+    return undefined;
+  }
+
+  if (window.windowMinutes === SESSION_PACE_DEFAULT_WINDOW_MINUTES) {
+    return {
+      context: "session",
+      defaultWindowMinutes: SESSION_PACE_DEFAULT_WINDOW_MINUTES,
+      windowMinutes: window.windowMinutes,
+    };
+  }
+
+  if (window.windowMinutes === WEEKLY_PACE_DEFAULT_WINDOW_MINUTES) {
+    return {
+      context: "window",
+      defaultWindowMinutes: WEEKLY_PACE_DEFAULT_WINDOW_MINUTES,
+      windowMinutes: window.windowMinutes,
+    };
+  }
+
+  return undefined;
+}
+
 const CALENDAR_MONTH: PaceCapability = {
   resetWindowPace: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },
   inferredMonthlyDuration: { type: "windowDuration", minutes: MONTHLY_WINDOW_SENTINEL_MINUTES },

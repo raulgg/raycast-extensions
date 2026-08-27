@@ -1222,27 +1222,55 @@ describe("usage pacing gating", () => {
     expect(usagePacing(primary)).toMatchObject({ context: "window" });
   });
 
-  it("paces named extra rate windows only when they carry windowMinutes", () => {
-    const withoutWindow = pace("codex", {
-      primary: { usedPercent: 40, resetsAt: SESSION_RESETS_AT },
-      extraRateWindows: [
-        { id: "codex-spark", title: "Codex Spark", window: { usedPercent: 60, resetsAt: SESSION_RESETS_AT } },
-      ],
-    });
-    expect(usagePacing(withoutWindow.find((section) => section.title === "Codex Spark"))).toBeUndefined();
+  it("paces Codex, Claude, and Antigravity extras the way the menu card does", () => {
+    const extra = (provider: string, windowMinutes: number) =>
+      usagePacing(
+        pace(provider, {
+          primary: { usedPercent: 40, resetsAt: SESSION_RESETS_AT },
+          extraRateWindows: [
+            {
+              id: "extra",
+              title: "Extra",
+              window: {
+                windowMinutes,
+                usedPercent: 60,
+                resetsAt: windowMinutes === 300 ? SESSION_RESETS_AT : WEEKLY_RESETS_AT,
+              },
+            },
+          ],
+        }).find((section) => section.title === "Extra"),
+      );
 
-    const withWindow = pace("codex", {
-      primary: { usedPercent: 40, resetsAt: SESSION_RESETS_AT },
-      extraRateWindows: [
-        {
-          id: "codex-spark",
-          title: "Codex Spark",
-          window: { windowMinutes: 300, usedPercent: 60, resetsAt: SESSION_RESETS_AT },
+    expect(extra("codex", 300)).toMatchObject({ context: "session" });
+    expect(extra("codex", 10_080)).toMatchObject({ context: "window" });
+    expect(extra("antigravity", 300)).toMatchObject({ context: "session" });
+    expect(extra("claude", 10_080)).toMatchObject({ context: "window" });
+    expect(extra("claude", 300)).toBeUndefined();
+    expect(extra("factory", 10_080)).toBeUndefined();
+    expect(extra("zai", 43_200)).toBeUndefined();
+  });
+
+  it("paces presentation supplemental meters with the same extra-window rule", () => {
+    const [spark] = normalizeProviderDetailPayload(
+      {
+        provider: "codex",
+        presentation: {
+          schemaVersion: 1,
+          meters: [
+            {
+              kind: "supplemental",
+              label: "Codex Spark",
+              usedPercent: 60,
+              remainingPercent: 40,
+              windowMinutes: 300,
+              resetsAt: SESSION_RESETS_AT,
+            },
+          ],
         },
-      ],
-    });
-    expect(usagePacing(withWindow.find((section) => section.title === "Codex Spark"))).toMatchObject({
-      context: "window",
-    });
+      },
+      "codex",
+      NOW,
+    ).sections;
+    expect(usagePacing(spark)).toMatchObject({ context: "session" });
   });
 });

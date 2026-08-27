@@ -314,7 +314,7 @@ function buildCodex(now: Date): RawProviderPayload {
           {
             id: "codex-spark",
             title: "Codex Spark",
-            window: buildWindow(now, 12, 5 * HOUR, null),
+            window: buildWindow(now, 12, 5 * HOUR, null, undefined, 300),
           },
         ],
         codexResetCredits: {

@@ -18,13 +18,18 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { CUSTOM_WINDOW_RULES, PACE_CAPABILITIES } from "../src/providers/paceCapabilities.ts";
+import {
+  CUSTOM_WINDOW_RULES,
+  EXTRA_WINDOW_PACE_PROVIDER_IDS,
+  PACE_CAPABILITIES,
+} from "../src/providers/paceCapabilities.ts";
 import { createUpstreamSource, readFilesWithConcurrency } from "./lib/upstream.mjs";
 import { compareProviders, parseDescriptorMetadata, parseDynamicOverrideProviders, parseRegistryEntries } from "./lib/upstream-metadata.mjs";
 import {
   comparePaceCapabilities,
   fingerprintSource,
   parseDescriptorPace,
+  parseExtraRateWindowPaceProviders,
   parsePresentationPaceFlags,
   parseSecondarySessionPaceProviders,
 } from "./lib/upstream-pace.mjs";
@@ -255,6 +260,23 @@ async function main() {
     if (actual !== rule.tsFingerprint) {
       problems.push(
         `${key}: stale tsFingerprint for ${rule.id} — recorded "${rule.tsFingerprint}" actual "${actual}". Re-review CUSTOM_WINDOW_RULES.`,
+      );
+    }
+  }
+
+  const extraWindowProviders = parseExtraRateWindowPaceProviders(paceRendererFiles);
+  const extraWindowOurs = new Set(EXTRA_WINDOW_PACE_PROVIDER_IDS);
+  for (const id of extraWindowProviders) {
+    if (!extraWindowOurs.has(id)) {
+      problems.push(
+        `${id}: MenuCardView paces extra rate windows but EXTRA_WINDOW_PACE_PROVIDER_IDS does not include it`,
+      );
+    }
+  }
+  for (const id of extraWindowOurs) {
+    if (!extraWindowProviders.has(id)) {
+      problems.push(
+        `${id}: EXTRA_WINDOW_PACE_PROVIDER_IDS lists extra-window pace but MenuCardView extraRateWindowPaceDetail no longer names it`,
       );
     }
   }

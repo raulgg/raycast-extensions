@@ -1,8 +1,8 @@
 import {
   grokPrimaryDisplayTitle,
   grokWindowDurationMs,
+  resolveExtraWindowPace,
   resolveSlotPace,
-  WEEKLY_PACE_DEFAULT_WINDOW_MINUTES,
 } from "./paceCapabilities";
 import { getProviderMetadata, getProviderUsageSectionDisplayTitle } from "./registry";
 import { calculateUsagePacing } from "./usagePacing";
@@ -167,17 +167,26 @@ type UsagePacingInput = {
   resetDescription?: string;
 };
 
-function computeWeeklyUsagePacing(
+function computeExtraWindowUsagePacing(
+  providerId: string,
   input: UsagePacingInput,
   now: number,
-  allowDefaultWindowFallback: boolean,
 ): ProviderUsagePacing | undefined {
-  if (input.windowMinutes === undefined && !allowDefaultWindowFallback) {
+  const resolved = resolveExtraWindowPace(providerId, {
+    windowMinutes: input.windowMinutes,
+    resetsAt: input.resetsAt,
+    resetDescription: input.resetDescription,
+  });
+  if (!resolved) {
     return undefined;
   }
 
-  const pacing = calculateUsagePacing(input, now, WEEKLY_PACE_DEFAULT_WINDOW_MINUTES);
-  return pacing ? { ...pacing, context: "window" } : undefined;
+  const pacing = calculateUsagePacing(
+    { ...input, windowMinutes: resolved.windowMinutes },
+    now,
+    resolved.defaultWindowMinutes,
+  );
+  return pacing ? { ...pacing, context: resolved.context } : undefined;
 }
 
 function computeSlotUsagePacing(
@@ -466,7 +475,11 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
   return sections;
 }
 
-function buildExtraRateWindowSections(payload: RawProviderPayload, now = Date.now()): ProviderSection[] {
+function buildExtraRateWindowSections(
+  providerId: string,
+  payload: RawProviderPayload,
+  now = Date.now(),
+): ProviderSection[] {
   const usage = toRecord(payload.usage);
   const extraRateWindows = Array.isArray(usage?.extraRateWindows) ? usage.extraRateWindows : [];
   const sections: ProviderSection[] = [];
@@ -486,18 +499,17 @@ function buildExtraRateWindowSections(payload: RawProviderPayload, now = Date.no
 
     const remainingPercent = Math.max(0, 100 - usedPercent);
     const resetsAt = toString(window.resetsAt);
-    // Named extra windows pace through the same generic weekly rule: only when
-    // the payload carries an explicit windowMinutes (no default fallback).
     const usagePacing = resetsAt
-      ? computeWeeklyUsagePacing(
+      ? computeExtraWindowUsagePacing(
+          providerId,
           {
             usedPercent,
             remainingPercent,
             resetsAt,
             windowMinutes: toFiniteNumber(window.windowMinutes),
+            resetDescription: toTrimmedString(window.resetDescription),
           },
           now,
-          false,
         )
       : undefined;
 
@@ -606,10 +618,16 @@ function buildPresentationMeterSections(
 
     if (kind === "supplemental") {
       const usagePacing = resetsAt
-        ? computeWeeklyUsagePacing(
-            { usedPercent: resolvedUsedPercent, remainingPercent, resetsAt, windowMinutes },
+        ? computeExtraWindowUsagePacing(
+            providerId,
+            {
+              usedPercent: resolvedUsedPercent,
+              remainingPercent,
+              resetsAt,
+              windowMinutes,
+              resetDescription: toTrimmedString(meter.resetDescription),
+            },
             now,
-            false,
           )
         : undefined;
       sections.push({
@@ -987,7 +1005,7 @@ function normalizePayload(providerId: string, payload: RawProviderPayload, now =
   const presentation = buildPresentationMeterSections(metadata.id, payload, now);
   const rawSections = presentation?.sections ?? [
     ...buildUsageSections(metadata.id, payload, now),
-    ...buildExtraRateWindowSections(payload, now),
+    ...buildExtraRateWindowSections(metadata.id, payload, now),
     ...buildSupplementalUsageSections(payload, now),
     ...buildProviderSpecificUsageSections(payload, now),
     ...buildCodexResetCreditSection(metadata.id, payload, now),

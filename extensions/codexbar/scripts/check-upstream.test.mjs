@@ -10,6 +10,7 @@ import {
   comparePaceCapabilities,
   expandCustomFingerprint,
   parseDescriptorPace,
+  parseExtraRateWindowPaceProviders,
   parseSecondarySessionPaceProviders,
 } from "./lib/upstream-pace.mjs";
 
@@ -422,6 +423,29 @@ describe("parseSecondarySessionPaceProviders", () => {
 `;
     expect([...parseSecondarySessionPaceProviders([{ path: "a.swift", content: secondary }])]).toEqual(["kimi"]);
     expect([...parseSecondarySessionPaceProviders([{ path: "b.swift", content: extras }])]).toEqual([]);
+  });
+});
+
+describe("parseExtraRateWindowPaceProviders", () => {
+  it("collects provider == inside extraRateWindowPaceDetail", () => {
+    const content = `
+    private static func extraRateWindowPaceDetail(provider: UsageProvider) -> PaceDetail? {
+        if provider == .claude, window.windowMinutes != 10080 { return nil }
+        guard provider == .codex || provider == .claude || provider == .antigravity else { return nil }
+        return nil
+    }
+`;
+    expect([...parseExtraRateWindowPaceProviders([{ path: "a.swift", content }])].sort()).toEqual([
+      "antigravity",
+      "claude",
+      "codex",
+    ]);
+  });
+
+  it("throws when the helper is missing", () => {
+    expect(() => parseExtraRateWindowPaceProviders([{ path: "Gone.swift", content: "// nothing" }])).toThrow(
+      /extraRateWindowPaceDetail/,
+    );
   });
 });
 

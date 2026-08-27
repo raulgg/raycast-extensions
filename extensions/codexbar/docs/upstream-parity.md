@@ -193,7 +193,8 @@ mirrors each descriptor's `pace: ProviderPaceCapability(...)`. `computeSlotUsage
   sentinels (43_200) are expanded to the real month via `inferredMonthlyWindowMinutes`.
 - **Gating** → `sessionPaceWindowRule` on primary (and Kimi's secondary), else `resetWindowPace`.
   Secondary (not tertiary) then uses the generic weekly rule (`windowMinutes` required except Codex
-  via `secondaryAllowsDefaultWindow`).
+  via `secondaryAllowsDefaultWindow`). Named extra rate windows use `resolveExtraWindowPace`
+  (Codex/Claude/Antigravity; 300-minute extras as session except Claude, 10080 as weekly).
 - **Labels** → `formatUsagePacingLabels` in `usagePacing.ts`.
 
 `upstream:check` imports `PACE_CAPABILITIES` and diffs the GUI fields (`resetWindowPace`,
@@ -203,8 +204,9 @@ CLI `resolvedKind` lanes are parsed so an unknown field still throws, but they a
 inlined, and the TypeScript predicate's `toString()` is hashed the same way. An unknown custom, a
 changed body, or a new `pace:` on a previously-unsupported provider fails the check.
 Presentation-only paths (`usesAbacusPace`, `usesSyntheticRollingRegen`), Codex
-`showsHeadroomHint` (`UNPORTABLE_HEADROOM_HINT`), and secondary `sessionPaceDetail` call sites in
-`MenuCardView.swift` are scanned the same way dynamic labels are.
+`showsHeadroomHint` (`UNPORTABLE_HEADROOM_HINT`), secondary `sessionPaceDetail` in
+`secondaryMetric`, and `extraRateWindowPaceDetail` provider names are scanned the same way
+dynamic labels are.
 
 Do **not** session-pace OpenCode Go's 5-hour primary: `sessionPaceWindowRule` is `.unsupported` in
 the GUI even though the CLI `resolvedKind` lane would allow it.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calculateUsagePacing } from "./usagePacing";
-import { inferredMonthlyWindowMinutes, resolveSlotPace } from "./paceCapabilities";
+import { inferredMonthlyWindowMinutes, resolveExtraWindowPace, resolveSlotPace } from "./paceCapabilities";
 
 describe("inferredMonthlyWindowMinutes", () => {
   it("uses the previous calendar month in UTC, clamping the day", () => {
@@ -54,5 +54,20 @@ describe("resolveSlotPace", () => {
         resolved?.defaultWindowMinutes,
       ),
     ).toMatchObject({ actualUsedPercent: 50 });
+  });
+});
+
+describe("resolveExtraWindowPace", () => {
+  it("session-paces Codex and Antigravity 5-hour extras, weekly-paces 7-day extras", () => {
+    expect(resolveExtraWindowPace("codex", { windowMinutes: 300 })?.context).toBe("session");
+    expect(resolveExtraWindowPace("antigravity", { windowMinutes: 300 })?.context).toBe("session");
+    expect(resolveExtraWindowPace("codex", { windowMinutes: 10_080 })?.context).toBe("window");
+    expect(resolveExtraWindowPace("claude", { windowMinutes: 10_080 })?.context).toBe("window");
+  });
+
+  it("does not pace Claude 5-hour extras or extras on other providers", () => {
+    expect(resolveExtraWindowPace("claude", { windowMinutes: 300 })).toBeUndefined();
+    expect(resolveExtraWindowPace("factory", { windowMinutes: 10_080 })).toBeUndefined();
+    expect(resolveExtraWindowPace("zai", { windowMinutes: 43_200, resetDescription: "MCP" })).toBeUndefined();
   });
 });

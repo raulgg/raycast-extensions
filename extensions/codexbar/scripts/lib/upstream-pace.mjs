@@ -400,3 +400,22 @@ export function parseSecondarySessionPaceProviders(rendererSources) {
   }
   return providers;
 }
+
+export function parseExtraRateWindowPaceProviders(rendererSources) {
+  const providers = new Set();
+  let found = false;
+  for (const { content } of rendererSources) {
+    const body = sliceSwiftFunc(content, "func extraRateWindowPaceDetail(");
+    if (!body) {
+      continue;
+    }
+    found = true;
+    for (const match of body.matchAll(/provider == \.(\w+)/g)) {
+      providers.add(match[1]);
+    }
+  }
+  if (!found) {
+    throw new Error("extraRateWindowPaceDetail not found in pace renderer files — did upstream move it?");
+  }
+  return providers;
+}
