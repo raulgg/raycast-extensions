@@ -254,12 +254,11 @@ export function resolveSlotPace(
   };
 }
 
-// MenuCardView+ModelHelpers.extraRateWindowPaceDetail: Codex/Claude/Antigravity only,
-// 300-minute extras as session (except Claude), 10080 as weekly.
-export const EXTRA_WINDOW_PACE_PROVIDER_IDS = ["antigravity", "claude", "codex"] as const;
+// MenuCardView+ModelHelpers.extraRateWindowPaceDetail.
+export const EXTRA_WINDOW_PACE_PROVIDER_IDS = new Set(["antigravity", "claude", "codex"]);
 
 export function resolveExtraWindowPace(providerId: string, window: PaceWindow): ResolvedSlotPace | undefined {
-  if (!(EXTRA_WINDOW_PACE_PROVIDER_IDS as readonly string[]).includes(providerId)) {
+  if (!EXTRA_WINDOW_PACE_PROVIDER_IDS.has(providerId)) {
     return undefined;
   }
 

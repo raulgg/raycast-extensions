@@ -57,10 +57,8 @@ const PACE_RENDERER_PATHS = [
   "Sources/CodexBar/MenuCardView+ModelHelpers.swift",
 ];
 
-// Custom Swift closures in ProviderPaceCapability, keyed provider.field.
-// `fingerprint` is the expanded, whitespace-normalized Swift body (Self.foo
-// wrappers inlined). `tsFingerprint` is CUSTOM_WINDOW_RULES[id].toString()
-// the same way. Either going stale means re-review the predicate.
+// Custom Swift closures, keyed provider.field. fingerprint is the expanded Swift
+// body; tsFingerprint is CUSTOM_WINDOW_RULES[id].toString().
 const CUSTOM_PACE_RULES = {
   "antigravity.sessionPaceWindowRule": {
     id: "antigravitySession",
@@ -193,7 +191,7 @@ const ALLOWED_DIVERGENCES = {
 
 function tsFingerprintFor(id) {
   const fn = CUSTOM_WINDOW_RULES[id];
-  if (typeof fn !== "function") {
+  if (!fn) {
     throw new Error(`CUSTOM_WINDOW_RULES is missing ${id}`);
   }
   return fingerprintSource(fn.toString());
@@ -265,15 +263,14 @@ async function main() {
   }
 
   const extraWindowProviders = parseExtraRateWindowPaceProviders(paceRendererFiles);
-  const extraWindowOurs = new Set(EXTRA_WINDOW_PACE_PROVIDER_IDS);
   for (const id of extraWindowProviders) {
-    if (!extraWindowOurs.has(id)) {
+    if (!EXTRA_WINDOW_PACE_PROVIDER_IDS.has(id)) {
       problems.push(
         `${id}: MenuCardView paces extra rate windows but EXTRA_WINDOW_PACE_PROVIDER_IDS does not include it`,
       );
     }
   }
-  for (const id of extraWindowOurs) {
+  for (const id of EXTRA_WINDOW_PACE_PROVIDER_IDS) {
     if (!extraWindowProviders.has(id)) {
       problems.push(
         `${id}: EXTRA_WINDOW_PACE_PROVIDER_IDS lists extra-window pace but MenuCardView extraRateWindowPaceDetail no longer names it`,

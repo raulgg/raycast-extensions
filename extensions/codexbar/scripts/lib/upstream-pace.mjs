@@ -1,6 +1,5 @@
-// Swift `pace:` parsing and comparison against PACE_CAPABILITIES.
-// Loads the TypeScript table as a value in check-upstream.mjs; this module stays
-// string-in / object-out so tests can feed fixture descriptors.
+// Swift `pace:` parsing and comparison against PACE_CAPABILITIES. String-in /
+// object-out so tests can feed fixture descriptors.
 
 import { extractBalancedCall } from "./upstream-metadata.mjs";
 
@@ -271,13 +270,8 @@ export function parseDescriptorPace(source, fileName = "descriptor") {
   throw new Error(`${fileName} has an unparseable pace: value "${fingerprintSource(rest).slice(0, 160)}"`);
 }
 
-export function guiPaceFields(capability) {
-  const fields = {};
-  for (const name of GUI_PACE_FIELDS) {
-    const value = capability?.[name] ?? DEFAULT_PACE_CAPABILITY[name];
-    fields[name] = value?.type === "custom" ? { type: "custom", id: value.id } : value;
-  }
-  return fields;
+function guiField(capability, field) {
+  return capability?.[field] ?? DEFAULT_PACE_CAPABILITY[field];
 }
 
 export function resolveUpstreamCustomRules(capability, providerId, customRules) {
@@ -328,13 +322,11 @@ export function comparePaceCapabilities(ours, upstreamById, customRules) {
     }
 
     const oursCapability = ours.get(id) ?? DEFAULT_PACE_CAPABILITY;
-    const oursFields = guiPaceFields(oursCapability);
-    const upstreamFields = guiPaceFields(resolved);
     for (const field of GUI_PACE_FIELDS) {
-      if (JSON.stringify(oursFields[field]) !== JSON.stringify(upstreamFields[field])) {
-        problems.push(
-          `${id}: ${field} ${formatRule(oursFields[field])} != upstream ${formatRule(upstreamFields[field])}`,
-        );
+      const oursRule = guiField(oursCapability, field);
+      const upstreamRule = guiField(resolved, field);
+      if (JSON.stringify(oursRule) !== JSON.stringify(upstreamRule)) {
+        problems.push(`${id}: ${field} ${formatRule(oursRule)} != upstream ${formatRule(upstreamRule)}`);
       }
     }
   }

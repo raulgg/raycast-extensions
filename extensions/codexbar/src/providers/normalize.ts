@@ -167,16 +167,11 @@ type UsagePacingInput = {
   resetDescription?: string;
 };
 
-function computeExtraWindowUsagePacing(
-  providerId: string,
+function computeResolvedUsagePacing(
+  resolved: ReturnType<typeof resolveSlotPace>,
   input: UsagePacingInput,
   now: number,
 ): ProviderUsagePacing | undefined {
-  const resolved = resolveExtraWindowPace(providerId, {
-    windowMinutes: input.windowMinutes,
-    resetsAt: input.resetsAt,
-    resetDescription: input.resetDescription,
-  });
   if (!resolved) {
     return undefined;
   }
@@ -189,32 +184,42 @@ function computeExtraWindowUsagePacing(
   return pacing ? { ...pacing, context: resolved.context } : undefined;
 }
 
+function computeExtraWindowUsagePacing(
+  providerId: string,
+  input: UsagePacingInput,
+  now: number,
+): ProviderUsagePacing | undefined {
+  return computeResolvedUsagePacing(
+    resolveExtraWindowPace(providerId, {
+      windowMinutes: input.windowMinutes,
+      resetsAt: input.resetsAt,
+      resetDescription: input.resetDescription,
+    }),
+    input,
+    now,
+  );
+}
+
 function computeSlotUsagePacing(
   providerId: string,
   slotTitle: "Primary" | "Secondary" | "Tertiary",
   input: UsagePacingInput,
   now: number,
 ): ProviderUsagePacing | undefined {
-  const resolved = resolveSlotPace(
-    providerId,
-    slotTitle,
-    {
-      windowMinutes: input.windowMinutes,
-      resetsAt: input.resetsAt,
-      resetDescription: input.resetDescription,
-    },
+  return computeResolvedUsagePacing(
+    resolveSlotPace(
+      providerId,
+      slotTitle,
+      {
+        windowMinutes: input.windowMinutes,
+        resetsAt: input.resetsAt,
+        resetDescription: input.resetDescription,
+      },
+      now,
+    ),
+    input,
     now,
   );
-  if (!resolved) {
-    return undefined;
-  }
-
-  const pacing = calculateUsagePacing(
-    { ...input, windowMinutes: resolved.windowMinutes },
-    now,
-    resolved.defaultWindowMinutes,
-  );
-  return pacing ? { ...pacing, context: resolved.context } : undefined;
 }
 
 type SlotTitle = "Primary" | "Secondary" | "Tertiary";
