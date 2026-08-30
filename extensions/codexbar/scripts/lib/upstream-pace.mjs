@@ -290,7 +290,7 @@ export function resolveUpstreamCustomRules(capability, providerId, customRules) 
     }
     if (expected.fingerprint !== rule.fingerprint) {
       throw new Error(
-        `${providerId}: stale CUSTOM_PACE_RULES fingerprint for ${field} — ` +
+        `${providerId}: stale CUSTOM_PACE_RULES fingerprint for ${field}. ` +
           `recorded "${expected.fingerprint}" actual "${rule.fingerprint}". Re-review the Swift body.`,
       );
     }
@@ -339,7 +339,7 @@ export function comparePaceCapabilities(ours, upstreamById, customRules) {
 
   for (const key of Object.keys(customRules)) {
     if (!usedCustom.has(key)) {
-      problems.push(`${key}: CUSTOM_PACE_RULES entry matched no upstream custom — delete it.`);
+      problems.push(`${key}: CUSTOM_PACE_RULES entry matched no upstream custom. Delete it.`);
     }
   }
 
@@ -407,7 +407,7 @@ export function parseExtraRateWindowPaceProviders(rendererSources) {
     }
   }
   if (!found) {
-    throw new Error("extraRateWindowPaceDetail not found in pace renderer files — did upstream move it?");
+    throw new Error("extraRateWindowPaceDetail not found in pace renderer files. Did upstream move it?");
   }
   return providers;
 }

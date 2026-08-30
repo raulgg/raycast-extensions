@@ -34,10 +34,9 @@ import {
 } from "./lib/upstream-pace.mjs";
 
 const DESCRIPTOR_DIR = "Sources/CodexBarCore/Providers";
-// Every upstream surface that renders usage-bar titles; a dynamic override added to
-// any of them must be ported (or documented below) for the extension to stay aligned.
-// Fixed list: a renamed/deleted file fails loudly on read, but a brand-new renderer
-// file is invisible until someone adds it here.
+// Renderer files that set usage-bar titles. A dynamic override in any of them must be
+// ported or listed as unportable. Fixed list: a renamed or deleted file fails on read,
+// but a brand-new renderer is invisible until someone adds it here.
 const RENDERER_PATHS = [
   "Sources/CodexBar/MenuDescriptor.swift",
   "Sources/CodexBar/MenuCardView+ModelHelpers.swift",
@@ -102,10 +101,10 @@ const UNPORTABLE_HEADROOM_HINT = {
   codex: "1.5× session headroom hint, not implemented",
 };
 
-// Known intentional differences from upstream, keyed provider → field. Entries record
-// the exact value pair they excuse; when either side moves, the checker flags the entry
+// Known intentional differences from upstream, keyed provider then field. Entries record
+// the exact value pair they excuse. When either side moves, the checker flags the entry
 // as stale so it gets re-reviewed instead of rotting. "expr:" upstream values are Swift
-// expressions the parser cannot resolve — `ours` records the manually resolved constant.
+// expressions the parser cannot resolve. `ours` is the manually resolved constant.
 const ALLOWED_DIVERGENCES = {
   alibaba: {
     dashboardUrl: {
@@ -182,7 +181,7 @@ export async function checkUpstream(source, policy = DEFAULT_POLICY) {
 
   const paceEntries = new Map(Object.entries(paceCapabilities));
 
-  // `<Name>ProviderDescriptor.swift` files only — the bare ProviderDescriptor.swift is
+  // `<Name>ProviderDescriptor.swift` files only. The bare ProviderDescriptor.swift is
   // the shared registry/protocol file, not a provider.
   const descriptorPaths = (await source.listFiles(DESCRIPTOR_DIR, "ProviderDescriptor.swift")).filter(
     (filePath) => !filePath.endsWith("/ProviderDescriptor.swift"),
@@ -227,7 +226,7 @@ export async function checkUpstream(source, policy = DEFAULT_POLICY) {
   for (const providerId of [...implementedTitles, ...Object.keys(unportableTitles)]) {
     if (!dynamicOverrides.has(providerId)) {
       problems.push(
-        `${providerId}: listed as a dynamic override but upstream renderers no longer apply one — ` +
+        `${providerId}: listed as a dynamic override but upstream renderers no longer apply one. ` +
           `remove it from DYNAMIC_SLOT_TITLES / UNPORTABLE_DYNAMIC_TITLES.`,
       );
     }
@@ -278,7 +277,7 @@ export async function checkUpstream(source, policy = DEFAULT_POLICY) {
   }
   for (const id of Object.keys(unportableHeadroom)) {
     if (!usedHeadroom.has(id)) {
-      problems.push(`${id}: stale UNPORTABLE_HEADROOM_HINT — delete it.`);
+      problems.push(`${id}: stale UNPORTABLE_HEADROOM_HINT. Delete it.`);
     }
   }
 
@@ -301,7 +300,7 @@ export async function checkUpstream(source, policy = DEFAULT_POLICY) {
   for (const [id, flags] of Object.entries(unportablePresentation)) {
     for (const flag of Object.keys(flags)) {
       if (!usedPresentation.has(`${id}.${flag}`)) {
-        problems.push(`${id}: stale UNPORTABLE_PRESENTATION_PACE entry for ${flag} — delete it.`);
+        problems.push(`${id}: stale UNPORTABLE_PRESENTATION_PACE entry for ${flag}. Delete it.`);
       }
     }
   }
@@ -309,7 +308,7 @@ export async function checkUpstream(source, policy = DEFAULT_POLICY) {
   return {
     problems,
     label: source.label,
-    registryCount: Object.keys(catalog).length,
+    catalogCount: Object.keys(catalog).length,
     overrideCount: dynamicOverrides.size,
     paceCount: paceEntries.size,
   };
@@ -319,7 +318,7 @@ async function main() {
   const source = await createUpstreamSource();
   const result = await checkUpstream(source);
   if (result.problems.length > 0) {
-    console.error(`Registry out of sync with ${result.label}:\n`);
+    console.error(`Catalog out of sync with ${result.label}:\n`);
     for (const problem of result.problems) {
       console.error(`  - ${problem}`);
     }
@@ -328,7 +327,7 @@ async function main() {
   }
 
   console.log(
-    `Registry in sync: ${result.registryCount} providers match ${result.label} ` +
+    `Catalog in sync: ${result.catalogCount} providers match ${result.label} ` +
       `(labels, names, URLs, colors, ${result.overrideCount} dynamic overrides, ` +
       `${result.paceCount} pace capabilities accounted for).`,
   );

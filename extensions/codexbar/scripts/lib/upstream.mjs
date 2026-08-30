@@ -1,9 +1,6 @@
 // Shared access to the upstream CodexBar repository for the upstream:* scripts.
-//
-// Default ref is the SHA in codexbar-upstream.lock (a pinned release). Override with
-// CODEXBAR_REF, or point CODEXBAR_DIR at a local checkout to skip the network.
-// Resolution failures throw — a checker that silently falls back to a different ref
-// answers a question nobody asked.
+// Default ref is the SHA in codexbar-upstream.lock. Override with CODEXBAR_REF, or
+// CODEXBAR_DIR for a local checkout. Resolution failures throw.
 
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -78,7 +75,7 @@ async function fetchText(url, headers = {}) {
   if (!response.ok) {
     const rateLimitHint =
       response.status === 403 && url.startsWith("https://api.github.com/")
-        ? " (likely the unauthenticated rate limit — set GITHUB_TOKEN, or CODEXBAR_DIR for a local checkout)"
+        ? " (likely the unauthenticated rate limit; set GITHUB_TOKEN, or CODEXBAR_DIR for a local checkout)"
         : "";
     throw new Error(`Failed to fetch ${url}: HTTP ${response.status}${rateLimitHint}`);
   }
@@ -103,11 +100,6 @@ export async function resolveUpstreamTarget() {
 
   const lock = readUpstreamLock(lockSource);
   return { ref: lock.sha, label: `CodexBar ${lock.tag} (${lock.sha.slice(0, 12)})` };
-}
-
-export async function resolveUpstreamRef() {
-  const target = await resolveUpstreamTarget();
-  return target.ref;
 }
 
 export async function fetchLatestReleaseTarget() {
@@ -142,9 +134,6 @@ async function listLocalFiles(dir, suffix) {
   return files;
 }
 
-// Returns a source-agnostic reader over the upstream repo:
-//   { label, listFiles(prefix, suffix), readFile(repoPath) }
-// backed by CODEXBAR_DIR when set, otherwise by GitHub at the resolved ref.
 export async function createUpstreamSource() {
   const localDir = process.env.CODEXBAR_DIR;
   if (localDir) {

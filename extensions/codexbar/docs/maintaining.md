@@ -13,8 +13,8 @@ quirks that trip people up, and the recurring chore of syncing with upstream.
 
 It shells out to an external `codexbar` CLI (or its `serve` HTTP mode), normalizes the JSON into
 usage sections, and renders one row per Configured Provider with usage meters, pacing markers, and
-incident badges. It does **not** fetch any provider's API or statuspage itself — the CLI owns all data
-acquisition. The extension owns *interpretation and rendering*, re-implemented from the CodexBar
+incident badges. It does not fetch any provider's API or statuspage itself. The CLI owns all data
+acquisition. The extension owns interpretation and rendering, re-implemented from the CodexBar
 macOS app.
 
 ## Repo layout
@@ -55,9 +55,9 @@ src/
   mocks/codexbar.ts           Dev-only mock payloads (see "Working with mock data").
 
 scripts/
-  check-upstream.mjs          npm run upstream:check      — metadata, override ids, pace gating.
-  bump-upstream.mjs           npm run upstream:bump       — check latest release, then pin lockfile.
-  sync-provider-icons.mjs     npm run upstream:sync-icons — icon harvest / drift guard.
+  check-upstream.mjs          npm run upstream:check      metadata, override ids, pace gating.
+  bump-upstream.mjs           npm run upstream:bump       check latest release, then pin lockfile.
+  sync-provider-icons.mjs     npm run upstream:sync-icons icon harvest / drift guard.
   lib/upstream.mjs            Shared upstream source (ref resolution, GitHub / local checkout).
   lib/upstream-metadata.mjs   Catalog/descriptor parse and compare (unit-tested).
   lib/upstream-pace.mjs       Descriptor pace: parse and compare (unit-tested).
@@ -66,18 +66,18 @@ docs/                         This directory. upstream-parity.md, maintaining.md
 CONTEXT.md                    Domain glossary.
 ```
 
-Tests are **colocated** (`src/**/*.test.ts[x]`, `scripts/*.test.mjs`) with shared setup under
-`test/`. There is a test next to almost every non-trivial module — mirror that when you add code.
+Tests are colocated (`src/**/*.test.ts[x]`, `scripts/*.test.mjs`) with shared setup under
+`test/`. There is a test next to almost every non-trivial module. Mirror that when you add code.
 
 ## Everyday commands
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | `ray develop` — hot-reload the extension into Raycast. |
+| `npm run dev` | `ray develop`. Hot-reload the extension into Raycast. |
 | `npm test` | Run the vitest suite once. |
 | `npm run test:watch` | Vitest in watch mode. |
 | `npm run lint` / `npm run fix-lint` | Raycast ESLint (`--fix` to autofix). |
-| `npm run build` | `ray build` — production build. |
+| `npm run build` | `ray build`. Production build. |
 | `npm run upstream:check` | Guard: provider metadata, override **ids**, and pace gating vs the lockfile SHA. |
 | `npm run upstream:bump` | Move `codexbar-upstream.lock` to the latest GitHub release, then run both guards. |
 | `npm run upstream:sync-icons [-- --check]` | Sync (or check) provider icons vs the lockfile SHA. |
@@ -91,7 +91,7 @@ These surprise people. Each has an ADR with the full reasoning; the short versio
 - **The CLI is found on `PATH`, then two fallback paths.** `resolveCodexBarBinary` searches `PATH`
   (defaulting to a Homebrew-inclusive `PATH` when Raycast's environment has none), then
   `/opt/homebrew/bin/codexbar` and `/usr/local/bin/codexbar`. The CLI can be installed standalone
-  (Homebrew, GitHub releases); it does **not** require the CodexBar app. See `codexbar.ts`.
+  (Homebrew, GitHub releases). It does not require the CodexBar app. See `codexbar.ts`.
 - **Serve is a real daemon, started only by the background refresh.** The extension talks to
   `codexbar serve` over `127.0.0.1:17653`. Only `refresh-usage-cache` may start it; the foreground
   Usage Overview only *reads* an already-healthy serve and otherwise falls back to a one-shot CLI
@@ -100,8 +100,8 @@ These surprise people. Each has an ADR with the full reasoning; the short versio
 - **Status comes only from the CLI, only in the background.** Incident badges are sourced from
   `usage --status` and cached separately (`provider-status:<id>`, 30-min TTL). Serve mode can't
   produce status, so when serve supplies detail the background path issues a status one-shot only
-  if that provider's status cache is missing or past TTL — not on every 10-minute refresh. If the
-  background refresh is disabled, badges simply don't appear — graceful absence, no error, no lazy
+  if that provider's status cache is missing or past TTL, not on every 10-minute refresh. If the
+  background refresh is disabled, badges simply don't appear. Graceful absence, no error, no lazy
   foreground fetch. → **ADR-0003**.
 - **The shared config is written two ways.** Enable/disable goes through `codexbar config
   enable/disable` (the app-sanctioned path, with validation and side effects); reorder writes
@@ -114,10 +114,10 @@ These surprise people. Each has an ADR with the full reasoning; the short versio
 ## Working with mock data
 
 `src/mocks/codexbar.ts` supplies fake payloads for development. It only activates when
-`environment.isDevelopment && DEV_MOCK` — flip the `DEV_MOCK` const to `true` locally (don't commit
-it `true`). Mocks matter for parity: pacing markers only render when the mock window shapes are valid
-(e.g. a session window must reset within ~5h with enough elapsed time). When you make a provider
-newly pace-eligible, fix its mock too — see the pacing worked example in
+`environment.isDevelopment && DEV_MOCK`. Flip the `DEV_MOCK` const to `true` locally (don't commit
+it `true`). Mocks matter for parity. Pacing markers only render when the mock window shapes are valid
+(a session window must reset within ~5h with enough elapsed time). When you make a provider
+newly pace-eligible, fix its mock too. See the pacing worked example in
 [`upstream-parity.md`](upstream-parity.md).
 
 ## The recurring chore: syncing with upstream
@@ -125,8 +125,8 @@ newly pace-eligible, fix its mock too — see the pacing worked example in
 Upstream ships often. A periodic sync pass:
 
 1. **Point at the ref you want.** Default is the SHA in `codexbar-upstream.lock`. To take a new
-   upstream release, `npm run upstream:bump` (writes the lock only after `upstream:check` and
-   `upstream:sync-icons -- --check` pass against that SHA). For iterating, clone upstream once and
+   upstream release, `npm run upstream:bump`. That writes the lock only after `upstream:check` and
+   `upstream:sync-icons -- --check` pass against that SHA. For iterating, clone upstream once and
    export `CODEXBAR_DIR=~/code/CodexBar` (no network, no rate limit). To preview an unreleased
    change without moving the pin, `CODEXBAR_REF=main`. Set `GITHUB_TOKEN` if you hit a `403`.
 2. **Run the guards.**
@@ -143,14 +143,14 @@ Upstream ships often. A periodic sync pass:
    closures), or mark presentation-only paths in `UNPORTABLE_PRESENTATION_PACE` /
    `UNPORTABLE_HEADROOM_HINT`. Icons out of date → drop the `-- --check` and let the sync script
    write them.
-4. **Re-verify the remaining hand-maintained surfaces** the scripts *can't* see: pace formula and
+4. **Re-verify the remaining hand-maintained work** the scripts can't see. Pace formula and
    labels in `usagePacing.ts`, plus supplemental shapes, CLI install, and aliases. After a bump, commit
-   the lockfile with any catalog/title/pace/icon edits.
+   the lockfile with any catalog, title, pace, or icon edits.
 5. **Cite the ref.** In commit messages / plan notes / code comments, name the upstream file and SHA
    you verified against, so the next sync can tell what's already been checked.
 6. **Test and lint**, then commit.
 
 The `plans/*.local.md` files (gitignored) capture larger in-flight parity efforts (missing providers,
 pace-indicator parity). They snapshot an upstream SHA and are working notes, not the source of
-truth — upstream Swift always wins over a plan's snapshot.
+truth. Upstream Swift always wins over a plan's snapshot.
 </content>

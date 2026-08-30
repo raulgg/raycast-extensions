@@ -355,7 +355,7 @@ export const PACE_CAPABILITIES: Record<string, PaceCapability> = {
   },
 };
 
-export type DynamicTitleOptions = {
+type DynamicTitleOptions = {
   windowMinutes?: number;
   resetsAt?: string;
   resetDescription?: string;
@@ -364,7 +364,7 @@ export type DynamicTitleOptions = {
   now: number;
 };
 
-export type DynamicTitleFn = (slotTitle: SlotTitle, options: DynamicTitleOptions) => string | undefined;
+type DynamicTitleFn = (slotTitle: SlotTitle, options: DynamicTitleOptions) => string | undefined;
 
 export const DYNAMIC_SLOT_TITLES: Record<string, DynamicTitleFn> = {
   factory(slotTitle, options) {

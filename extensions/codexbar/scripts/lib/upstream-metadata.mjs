@@ -2,16 +2,15 @@
 // free so scripts/check-upstream.test.mjs can exercise it against fixture strings.
 //
 // The extension catalog is imported as data. Upstream descriptors are parsed with
-// regexes over stable formatting. Every parser throws or surfaces a problem when the
-// shape drifts, so a format change breaks the check loudly instead of quietly
-// narrowing what it verifies.
+// regexes over stable formatting. Every parser throws when the shape drifts, so a
+// format change fails the check instead of verifying less.
 
 // ---------------------------------------------------------------------------
 // Upstream descriptors (Sources/CodexBarCore/Providers/**/…ProviderDescriptor.swift)
 // ---------------------------------------------------------------------------
 
 // ProviderColor components are written as `16 / 255`, `0.06`, `1.0`, or `0`,
-// possibly split across lines. Convert to the registry's #RRGGBB form.
+// possibly split across lines. Convert to the catalog's #RRGGBB form.
 export function providerColorToHex(red, green, blue) {
   const channel = (expression) => {
     const match = expression.trim().match(/^(\d+(?:\.\d+)?)(?:\s*\/\s*255)?$/);
@@ -86,9 +85,9 @@ export function parseDescriptorMetadata(swiftSource, fileName = "descriptor") {
 
   const string = (name) => metadata.match(new RegExp(`(?<![\\w])${name}:\\s*"([^"]*)"`))?.[1];
   // URL fields are sometimes Swift expressions (e.g. `ZaiAPIRegion.global.dashboardURL
-  // .absoluteString`) that a regex cannot resolve. Surface them as "expr:<code>" so the
-  // comparison demands an explicit ALLOWED_DIVERGENCES entry recording the manually
-  // verified value — which goes stale (and fails) if the upstream expression changes.
+  // .absoluteString`) that a regex cannot resolve. Record them as "expr:<code>" so the
+  // comparison demands an explicit ALLOWED_DIVERGENCES entry for the manually verified
+  // value. That entry goes stale, and fails, if the upstream expression changes.
   const stringOrExpression = (name) => {
     const raw = metadata.match(new RegExp(`(?<![\\w])${name}:\\s*([^\\n,]+)`))?.[1]?.trim();
     if (raw === undefined) {
@@ -133,14 +132,14 @@ export function parseDescriptorMetadata(swiftSource, fileName = "descriptor") {
 //   - `XxxProviderDescriptor.primaryLabel(...)` / `.displayLabel(...)` calls
 //   - `provider == .xxx` conditionals inside rateWindowLabels-style helpers
 //     (factory tertiary, cursor legacy requests)
-//   - `descriptor.presentation.rateWindowLabels(...)` — CLI renderers that
+//   - `descriptor.presentation.rateWindowLabels(...)`. CLI renderers that
 //     delegate to each descriptor's presentation labeler (v0.53+)
 //
-// Known blind spots of this heuristic (accepted — a Swift parser is not worth it):
+// Known blind spots of this heuristic (a Swift parser is not worth it):
 // a `provider == .x` conditional in a function other than rateWindowLabels stays
 // invisible while the file's other call sites keep the scan green, and a `" func "`
 // token inside the rateWindowLabels body (comment, nested closure) truncates the
-// scanned region early. Deleted/renamed files fail loudly via read errors.
+// scanned region early. Deleted or renamed files fail via read errors.
 export function parseDynamicOverrideProviders(rendererSources) {
   const providers = new Set();
   for (const { path: filePath, content } of rendererSources) {
@@ -160,7 +159,7 @@ export function parseDynamicOverrideProviders(rendererSources) {
       !/presentation\.rateWindowLabels\(/.test(content)
     ) {
       throw new Error(
-        `${filePath} has neither rateWindowLabels, primaryLabel/displayLabel, nor presentation.rateWindowLabels call sites — did upstream move them?`,
+        `${filePath} has neither rateWindowLabels, primaryLabel/displayLabel, nor presentation.rateWindowLabels call sites. Did upstream move them?`,
       );
     }
   }
@@ -172,7 +171,7 @@ export function parseDynamicOverrideProviders(rendererSources) {
 // ---------------------------------------------------------------------------
 
 // Upstream expresses "no value" as nil or ""; the catalog omits the property.
-const same = (registryValue, upstreamValue) => (registryValue ?? "") === (upstreamValue ?? "");
+const same = (catalogValue, upstreamValue) => (catalogValue ?? "") === (upstreamValue ?? "");
 
 function fieldRules(upstream) {
   return [
@@ -223,7 +222,7 @@ export function compareProviders(catalog, upstreamById, allowedDivergences = {})
           continue;
         }
         problems.push(
-          `${id}: stale ALLOWED_DIVERGENCES entry for ${field} — recorded ours="${allowance.ours}" upstream="${allowance.upstream}", ` +
+          `${id}: stale ALLOWED_DIVERGENCES entry for ${field}. Recorded ours="${allowance.ours}" upstream="${allowance.upstream}", ` +
             `actual ours="${catalogValue}" upstream="${upstreamValue}". Re-review and update or delete it.`,
         );
         continue;
@@ -243,7 +242,7 @@ export function compareProviders(catalog, upstreamById, allowedDivergences = {})
   for (const [id, fields] of Object.entries(allowedDivergences)) {
     for (const field of Object.keys(fields)) {
       if (!usedAllowances.has(`${id}.${field}`)) {
-        problems.push(`${id}: ALLOWED_DIVERGENCES entry for ${field} matched no comparison — delete it.`);
+        problems.push(`${id}: ALLOWED_DIVERGENCES entry for ${field} matched no comparison. Delete it.`);
       }
     }
   }

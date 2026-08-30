@@ -8,10 +8,7 @@ import { optimize } from "svgo";
 import { PROVIDER_CATALOG } from "../src/providers/catalog.ts";
 import { createUpstreamSource, isMainModule } from "./lib/upstream.mjs";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const ROOT = path.resolve(__dirname, "..");
-const ASSETS_DIR = path.join(ROOT, "assets/provider-icons");
+const ASSETS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../assets/provider-icons");
 const CONCURRENCY = 6;
 const CHECK_ONLY = process.argv.includes("--check");
 
@@ -43,19 +40,8 @@ function normalizeSvgRootDimensions(svg) {
   });
 }
 
-export function collectIconSlugsFromCatalog(catalog) {
-  const slugs = [];
-  const skippedProviders = [];
-
-  for (const [providerId, entry] of Object.entries(catalog)) {
-    if (entry.iconSlug) {
-      slugs.push({ providerId, slug: assertSafeIconSlug(entry.iconSlug) });
-    } else {
-      skippedProviders.push({ providerId });
-    }
-  }
-
-  return { slugs, skippedProviders };
+function collectIconSlugsFromCatalog(catalog) {
+  return Object.values(catalog).map((entry) => assertSafeIconSlug(entry.iconSlug));
 }
 
 async function readLocalIcon(slug) {
@@ -133,7 +119,7 @@ async function mapWithConcurrency(items, concurrency, mapper) {
 }
 
 async function main() {
-  const { slugs, skippedProviders } = collectIconSlugsFromCatalog(PROVIDER_CATALOG);
+  const slugs = collectIconSlugsFromCatalog(PROVIDER_CATALOG);
 
   if (slugs.length === 0) {
     throw new Error("No iconSlug entries found in catalog.ts");
@@ -144,7 +130,7 @@ async function main() {
   }
 
   const source = await createUpstreamSource();
-  const uniqueSlugs = [...new Set(slugs.map(({ slug }) => slug))].sort();
+  const uniqueSlugs = [...new Set(slugs)].sort();
   const results = await mapWithConcurrency(uniqueSlugs, CONCURRENCY, (slug) => syncOne(source, slug));
   const changed = results.filter((result) => result.changed).map((result) => result.slug);
   const unchanged = results.filter((result) => !result.changed).map((result) => result.slug);
@@ -168,14 +154,6 @@ async function main() {
 
   if (unchanged.length > 0) {
     console.log(`Unchanged icons (${unchanged.length}): ${unchanged.join(", ")}`);
-  }
-
-  if (skippedProviders.length > 0) {
-    console.warn(
-      `Providers without providerIcon(...) (${skippedProviders.length}): ${skippedProviders
-        .map(({ providerId }) => providerId)
-        .join(", ")}`,
-    );
   }
 
   if (staleSlugs.length > 0) {
