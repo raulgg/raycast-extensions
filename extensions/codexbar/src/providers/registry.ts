@@ -26,8 +26,6 @@ export type ProviderRegistryEntry = {
   statusPageUrl?: string;
 };
 
-type ProviderDefinition = Omit<ProviderRegistryEntry, "id" | "progressPalette">;
-
 const DEFAULT_PROGRESS_PALETTE: ProviderProgressPalette = {
   lightFill: "#22B8CF",
   darkFill: "#4EC8DD",
@@ -52,18 +50,6 @@ function iconFromFallback(name: ProviderIconFallback | undefined): Icon {
   }
 
   return value;
-}
-
-function definitionFromCatalog(entry: ProviderCatalogEntry): ProviderDefinition {
-  return {
-    name: entry.name,
-    icon: providerIcon(entry.iconSlug, iconFromFallback(entry.iconFallback)),
-    brandColor: entry.brandColor,
-    usageSectionLabels: entry.usageSectionLabels,
-    dashboardUrl: entry.dashboardUrl,
-    subscriptionDashboardUrl: entry.subscriptionDashboardUrl,
-    statusPageUrl: entry.statusPageUrl,
-  };
 }
 
 export function resolveProviderId(id: string): string {
@@ -122,16 +108,22 @@ function buildProgressPalette(brandColor: string): ProviderProgressPalette {
   };
 }
 
-function buildProviderEntry(id: string, definition: ProviderDefinition): ProviderRegistryEntry {
+function registryEntryFromCatalog(id: string, entry: ProviderCatalogEntry): ProviderRegistryEntry {
+  const brandColor = normalizeHexColor(entry.brandColor);
   return {
     id,
-    ...definition,
-    brandColor: normalizeHexColor(definition.brandColor),
-    progressPalette: buildProgressPalette(definition.brandColor),
+    name: entry.name,
+    icon: providerIcon(entry.iconSlug, iconFromFallback(entry.iconFallback)),
+    brandColor,
+    progressPalette: buildProgressPalette(brandColor),
+    usageSectionLabels: entry.usageSectionLabels,
+    dashboardUrl: entry.dashboardUrl,
+    subscriptionDashboardUrl: entry.subscriptionDashboardUrl,
+    statusPageUrl: entry.statusPageUrl,
   };
 }
 
-const PROVIDER_ENTRIES = PROVIDER_IDS.map((id) => buildProviderEntry(id, definitionFromCatalog(PROVIDER_CATALOG[id])));
+const PROVIDER_ENTRIES = PROVIDER_IDS.map((id) => registryEntryFromCatalog(id, PROVIDER_CATALOG[id]));
 
 const PROVIDER_REGISTRY = new Map<string, ProviderRegistryEntry>(PROVIDER_ENTRIES.map((entry) => [entry.id, entry]));
 
