@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { calculateUsagePacing } from "./usagePacing";
-import { inferredMonthlyWindowMinutes, resolveExtraWindowPace, resolveSlotPace } from "./paceCapabilities";
+import {
+  inferredMonthlyWindowMinutes,
+  PACE_CAPABILITIES,
+  resolveExtraWindowPace,
+  resolveSlotPace,
+} from "./paceCapabilities";
 
 describe("inferredMonthlyWindowMinutes", () => {
   it("uses the previous calendar month in UTC, clamping the day", () => {
@@ -69,5 +74,14 @@ describe("resolveExtraWindowPace", () => {
     expect(resolveExtraWindowPace("claude", { windowMinutes: 300 })).toBeUndefined();
     expect(resolveExtraWindowPace("factory", { windowMinutes: 10_080 })).toBeUndefined();
     expect(resolveExtraWindowPace("zai", { windowMinutes: 43_200, resetDescription: "MCP" })).toBeUndefined();
+  });
+});
+
+describe("secondaryAllowsDefaultWindow", () => {
+  it("is pinned to Codex only", () => {
+    const ids = Object.entries(PACE_CAPABILITIES)
+      .filter(([, capability]) => capability.secondaryAllowsDefaultWindow)
+      .map(([id]) => id);
+    expect(ids).toEqual(["codex"]);
   });
 });

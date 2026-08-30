@@ -1,56 +1,10 @@
 // Pure parsing and comparison logic for scripts/check-upstream.mjs, kept side-effect
 // free so scripts/check-upstream.test.mjs can exercise it against fixture strings.
 //
-// Both sides are parsed with regexes over stable formatting (registry.ts is
-// prettier-formatted; upstream descriptors follow one ProviderMetadata literal per
-// file). Every parser throws or surfaces a problem when the shape drifts, so a format
-// change breaks the check loudly instead of quietly narrowing what it verifies.
-
-// ---------------------------------------------------------------------------
-// Extension registry (src/providers/registry.ts)
-// ---------------------------------------------------------------------------
-
-export function parseRegistryEntries(registrySource) {
-  const definitionsStart = registrySource.indexOf("const PROVIDER_DEFINITIONS = {");
-  const definitionsEnd = registrySource.indexOf("} satisfies Record<string, ProviderDefinition>;");
-  if (definitionsStart === -1 || definitionsEnd === -1) {
-    throw new Error("Could not locate PROVIDER_DEFINITIONS in registry.ts — did the format change?");
-  }
-
-  const body = registrySource.slice(definitionsStart, definitionsEnd);
-  const entries = new Map();
-  // Entries are two-space-indented `id: {` blocks closed by a two-space-indented `},`.
-  for (const match of body.matchAll(/^ {2}(\w+): \{\n([\s\S]*?)^ {2}\},$/gm)) {
-    const [, id, block] = match;
-    const labelsMatch = block.match(
-      /usageSectionLabels: \{ primary: "([^"]*)"(?:, secondary: "([^"]*)")?(?:, tertiary: "([^"]*)")? \}/,
-    );
-    if (!labelsMatch) {
-      throw new Error(`registry.ts entry "${id}" has no parseable usageSectionLabels.`);
-    }
-
-    const field = (name) => block.match(new RegExp(`(?<![\\w])${name}:\\s*"([^"]*)"`))?.[1];
-    entries.set(id, {
-      name: field("name"),
-      // Raw icon expression (`providerIcon("codex", Icon.Terminal)` or `Icon.Circle`);
-      // consumed by sync-provider-icons.mjs, not compared against upstream.
-      icon: block.match(/(?<![\w])icon: ([^\n]+),\n/)?.[1],
-      brandColor: field("brandColor"),
-      dashboardUrl: field("dashboardUrl"),
-      subscriptionDashboardUrl: field("subscriptionDashboardUrl"),
-      statusPageUrl: field("statusPageUrl"),
-      labels: { primary: labelsMatch[1], secondary: labelsMatch[2], tertiary: labelsMatch[3] },
-    });
-  }
-
-  // Guard against a quietly narrowed parse: every `id: {` opener in the definitions
-  // block must have produced an entry, or some block no longer matches the shape.
-  const openers = body.match(/^ {2}\w+: \{$/gm)?.length ?? 0;
-  if (entries.size === 0 || entries.size !== openers) {
-    throw new Error(`Parsed ${entries.size} of ${openers} provider entries from registry.ts — did the format change?`);
-  }
-  return entries;
-}
+// The extension catalog is imported as data. Upstream descriptors are parsed with
+// regexes over stable formatting. Every parser throws or surfaces a problem when the
+// shape drifts, so a format change breaks the check loudly instead of quietly
+// narrowing what it verifies.
 
 // ---------------------------------------------------------------------------
 // Upstream descriptors (Sources/CodexBarCore/Providers/**/…ProviderDescriptor.swift)
@@ -217,15 +171,15 @@ export function parseDynamicOverrideProviders(rendererSources) {
 // Comparison
 // ---------------------------------------------------------------------------
 
-// Upstream expresses "no value" as nil or ""; the registry omits the property.
+// Upstream expresses "no value" as nil or ""; the catalog omits the property.
 const same = (registryValue, upstreamValue) => (registryValue ?? "") === (upstreamValue ?? "");
 
 function fieldRules(upstream) {
   return [
     ["name", upstream.displayName],
-    ["labels.primary", upstream.sessionLabel],
-    ["labels.secondary", upstream.weeklyLabel],
-    ["labels.tertiary", upstream.opusLabel],
+    ["usageSectionLabels.primary", upstream.sessionLabel],
+    ["usageSectionLabels.secondary", upstream.weeklyLabel],
+    ["usageSectionLabels.tertiary", upstream.opusLabel],
     ["dashboardUrl", upstream.dashboardURL],
     ["subscriptionDashboardUrl", upstream.subscriptionDashboardURL],
     // The extension only ever opens this URL in a browser, so upstream's
@@ -235,47 +189,54 @@ function fieldRules(upstream) {
   ];
 }
 
-function registryFieldValue(entry, field) {
-  return field.startsWith("labels.") ? entry.labels[field.slice("labels.".length)] : entry[field];
+function catalogFieldValue(entry, field) {
+  return field.startsWith("usageSectionLabels.")
+    ? entry.usageSectionLabels[field.slice("usageSectionLabels.".length)]
+    : entry[field];
 }
 
 // allowedDivergences: { providerId: { field: { ours, upstream, reason } } }.
 // An entry only suppresses the exact recorded pair; when either side moves (including
 // into agreement) the entry is reported as stale so it gets re-reviewed and removed.
-export function compareProviders(registryEntries, upstreamById, allowedDivergences = {}) {
+export function compareProviders(catalog, upstreamById, allowedDivergences = {}) {
+  const catalogEntries = Object.entries(catalog);
+  if (catalogEntries.length === 0) {
+    throw new Error("PROVIDER_CATALOG is empty.");
+  }
+
   const problems = [];
   const usedAllowances = new Set();
 
-  for (const [id, entry] of registryEntries) {
+  for (const [id, entry] of catalogEntries) {
     const upstream = upstreamById.get(id);
     if (!upstream) {
-      problems.push(`${id}: present in registry.ts but has no upstream descriptor (renamed or removed upstream?)`);
+      problems.push(`${id}: present in catalog.ts but has no upstream descriptor (renamed or removed upstream?)`);
       continue;
     }
 
     for (const [field, upstreamValue, equals = same] of fieldRules(upstream)) {
-      const registryValue = registryFieldValue(entry, field);
+      const catalogValue = catalogFieldValue(entry, field);
       const allowance = allowedDivergences[id]?.[field];
       if (allowance) {
         usedAllowances.add(`${id}.${field}`);
-        if (same(registryValue, allowance.ours) && same(upstreamValue, allowance.upstream)) {
+        if (same(catalogValue, allowance.ours) && same(upstreamValue, allowance.upstream)) {
           continue;
         }
         problems.push(
           `${id}: stale ALLOWED_DIVERGENCES entry for ${field} — recorded ours="${allowance.ours}" upstream="${allowance.upstream}", ` +
-            `actual ours="${registryValue}" upstream="${upstreamValue}". Re-review and update or delete it.`,
+            `actual ours="${catalogValue}" upstream="${upstreamValue}". Re-review and update or delete it.`,
         );
         continue;
       }
-      if (!equals(registryValue, upstreamValue)) {
-        problems.push(`${id}: ${field} "${registryValue}" != upstream "${upstreamValue}"`);
+      if (!equals(catalogValue, upstreamValue)) {
+        problems.push(`${id}: ${field} "${catalogValue}" != upstream "${upstreamValue}"`);
       }
     }
   }
 
   for (const id of upstreamById.keys()) {
-    if (!registryEntries.has(id)) {
-      problems.push(`${id}: upstream provider missing from registry.ts`);
+    if (!Object.hasOwn(catalog, id)) {
+      problems.push(`${id}: upstream provider missing from catalog.ts`);
     }
   }
 

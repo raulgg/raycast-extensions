@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { checkUpstream } from "./check-upstream.mjs";
 import {
   compareProviders,
   parseDescriptorMetadata,
   parseDynamicOverrideProviders,
-  parseRegistryEntries,
   providerColorToHex,
 } from "./lib/upstream-metadata.mjs";
 import {
@@ -14,11 +14,10 @@ import {
   parseSecondarySessionPaceProviders,
 } from "./lib/upstream-pace.mjs";
 
-const REGISTRY_FIXTURE = `
-const PROVIDER_DEFINITIONS = {
+const CATALOG_FIXTURE = {
   codex: {
     name: "Codex",
-    icon: providerIcon("codex", Icon.Terminal),
+    iconSlug: "codex",
     brandColor: "#49A3B0",
     usageSectionLabels: { primary: "Session", secondary: "Weekly" },
     dashboardUrl: "https://chatgpt.com/codex/settings/usage",
@@ -26,7 +25,7 @@ const PROVIDER_DEFINITIONS = {
   },
   claude: {
     name: "Claude",
-    icon: providerIcon("claude", Icon.Bubble),
+    iconSlug: "claude",
     brandColor: "#CC7C5E",
     usageSectionLabels: { primary: "Session", secondary: "Weekly", tertiary: "Sonnet" },
     dashboardUrl: "https://console.anthropic.com/settings/billing",
@@ -34,12 +33,11 @@ const PROVIDER_DEFINITIONS = {
   },
   mistral: {
     name: "Mistral",
-    icon: providerIcon("mistral", Icon.Bolt),
+    iconSlug: "mistral",
     brandColor: "#FF500F",
     usageSectionLabels: { primary: "Balance" },
   },
-} satisfies Record<string, ProviderDefinition>;
-`;
+};
 
 function descriptorFixture({
   id = "codex",
@@ -79,36 +77,6 @@ public enum FixtureProviderDescriptor {
 }
 `;
 }
-
-describe("parseRegistryEntries", () => {
-  it("parses every field of a provider entry", () => {
-    const entries = parseRegistryEntries(REGISTRY_FIXTURE);
-    expect(entries.size).toBe(3);
-    expect(entries.get("claude")).toEqual({
-      name: "Claude",
-      icon: 'providerIcon("claude", Icon.Bubble)',
-      brandColor: "#CC7C5E",
-      dashboardUrl: "https://console.anthropic.com/settings/billing",
-      subscriptionDashboardUrl: "https://claude.ai/settings/usage",
-      statusPageUrl: undefined,
-      labels: { primary: "Session", secondary: "Weekly", tertiary: "Sonnet" },
-    });
-    expect(entries.get("mistral").labels).toEqual({ primary: "Balance", secondary: undefined, tertiary: undefined });
-  });
-
-  it("throws when the definitions block or labels are unparseable", () => {
-    expect(() => parseRegistryEntries("const SOMETHING_ELSE = {};")).toThrow(/PROVIDER_DEFINITIONS/);
-    const withoutLabels = REGISTRY_FIXTURE.replace(/ *usageSectionLabels: \{ primary: "Balance" \},\n/, "");
-    expect(() => parseRegistryEntries(withoutLabels)).toThrow(/mistral/);
-  });
-
-  it("throws when an entry block stops matching the expected shape", () => {
-    // Reformatting an entry (here: extra indentation on its closing brace) must fail
-    // the coverage guard rather than silently dropping the provider.
-    const malformed = REGISTRY_FIXTURE.replace('usageSectionLabels: { primary: "Balance" },\n  },', "},");
-    expect(() => parseRegistryEntries(malformed)).toThrow(/Parsed 2 of 3/);
-  });
-});
 
 describe("parseDescriptorMetadata", () => {
   it("parses string fields, nil fields, and colors", () => {
@@ -233,7 +201,6 @@ describe("parseDynamicOverrideProviders", () => {
 });
 
 describe("compareProviders", () => {
-  const registry = parseRegistryEntries(REGISTRY_FIXTURE);
   const matchingUpstream = new Map(
     [
       parseDescriptorMetadata(descriptorFixture()),
@@ -273,8 +240,12 @@ describe("compareProviders", () => {
     },
   };
 
-  it("passes when registry and upstream agree", () => {
-    expect(compareProviders(registry, matchingUpstream, claudeAllowance)).toEqual([]);
+  it("passes when catalog and upstream agree", () => {
+    expect(compareProviders(CATALOG_FIXTURE, matchingUpstream, claudeAllowance)).toEqual([]);
+  });
+
+  it("throws when the catalog is empty", () => {
+    expect(() => compareProviders({}, matchingUpstream)).toThrow(/empty/);
   });
 
   it("reports field mismatches, missing providers on both sides, and empty-vs-omitted equality", () => {
@@ -283,9 +254,11 @@ describe("compareProviders", () => {
     drifted.set("extra", { ...matchingUpstream.get("codex"), id: "extra" });
     drifted.delete("mistral");
 
-    const problems = compareProviders(registry, drifted, claudeAllowance);
-    expect(problems).toContainEqual(expect.stringContaining('codex: labels.primary "Session" != upstream "5-hour"'));
-    expect(problems).toContainEqual(expect.stringContaining("mistral: present in registry.ts"));
+    const problems = compareProviders(CATALOG_FIXTURE, drifted, claudeAllowance);
+    expect(problems).toContainEqual(
+      expect.stringContaining('codex: usageSectionLabels.primary "Session" != upstream "5-hour"'),
+    );
+    expect(problems).toContainEqual(expect.stringContaining("mistral: present in catalog.ts"));
     expect(problems).toContainEqual(expect.stringContaining("extra: upstream provider missing"));
     expect(problems).toHaveLength(3);
   });
@@ -295,7 +268,7 @@ describe("compareProviders", () => {
       ...claudeAllowance,
       codex: { dashboardUrl: { ours: "https://old.example", upstream: "https://other.example", reason: "fixture" } },
     };
-    const problems = compareProviders(registry, matchingUpstream, allowances);
+    const problems = compareProviders(CATALOG_FIXTURE, matchingUpstream, allowances);
     expect(problems).toContainEqual(expect.stringContaining("codex: stale ALLOWED_DIVERGENCES entry for dashboardUrl"));
   });
 
@@ -304,7 +277,7 @@ describe("compareProviders", () => {
       ...claudeAllowance,
       ghost: { dashboardUrl: { ours: "x", upstream: "y", reason: "fixture" } },
     };
-    const problems = compareProviders(registry, matchingUpstream, allowances);
+    const problems = compareProviders(CATALOG_FIXTURE, matchingUpstream, allowances);
     expect(problems).toContainEqual(expect.stringContaining("ghost: ALLOWED_DIVERGENCES entry"));
   });
 });
@@ -492,6 +465,97 @@ describe("comparePaceCapabilities", () => {
     expect(problems).toEqual([
       'grok: resetWindowPace {"type":"custom","id":"grokWeeklyCredits"} != upstream {"type":"windowDurationPresent"}',
     ]);
+  });
+});
+
+function fakeSource(files) {
+  return {
+    label: "fixture tree",
+    listFiles: async (prefix, suffix) =>
+      Object.keys(files).filter((filePath) => filePath.startsWith(prefix) && filePath.endsWith(suffix)),
+    readFile: async (filePath) => {
+      if (!(filePath in files)) {
+        throw new Error(`missing ${filePath}`);
+      }
+      return files[filePath];
+    },
+  };
+}
+
+const TOY_CATALOG = {
+  toy: {
+    name: "Codex",
+    iconSlug: "toy",
+    brandColor: "#49A3B0",
+    usageSectionLabels: { primary: "Session", secondary: "Weekly" },
+    dashboardUrl: "https://chatgpt.com/codex/settings/usage",
+    statusPageUrl: "https://status.openai.com/",
+  },
+};
+
+const TOY_PACE = {
+  toy: {
+    resetWindowPace: { type: "unsupported" },
+    inferredMonthlyDuration: { type: "unsupported" },
+    sessionPaceWindowRule: { type: "unsupported" },
+  },
+};
+
+const LABEL_RENDERER = "let labels = descriptor.presentation.rateWindowLabels(metadata: meta, snapshot: snap)\n";
+const PACE_RENDERER = "func extraRateWindowPaceDetail(provider: UsageProvider) -> PaceDetail? { return nil }\n";
+
+const TOY_POLICY = {
+  catalog: TOY_CATALOG,
+  paceCapabilities: TOY_PACE,
+  extraWindowIds: new Set(),
+  implementedTitles: new Set(),
+  unportableTitles: {},
+  customPaceRules: {},
+  allowedDivergences: {},
+  unportableHeadroom: {},
+  unportablePresentation: {},
+  rendererPaths: ["Sources/CodexBar/MenuDescriptor.swift"],
+  paceRendererPaths: ["Sources/CodexBar/MenuCardView.swift"],
+};
+
+describe("checkUpstream", () => {
+  it("passes a matching one-provider fixture tree", async () => {
+    const result = await checkUpstream(
+      fakeSource({
+        "Sources/CodexBarCore/Providers/Toy/ToyProviderDescriptor.swift": descriptorFixture({ id: "toy" }),
+        "Sources/CodexBar/MenuDescriptor.swift": LABEL_RENDERER,
+        "Sources/CodexBar/MenuCardView.swift": PACE_RENDERER,
+      }),
+      TOY_POLICY,
+    );
+    expect(result.problems).toEqual([]);
+  });
+
+  it("fails when the catalog omits an upstream provider", async () => {
+    const result = await checkUpstream(
+      fakeSource({
+        "Sources/CodexBarCore/Providers/Toy/ToyProviderDescriptor.swift": descriptorFixture({ id: "toy" }),
+        "Sources/CodexBar/MenuDescriptor.swift": LABEL_RENDERER,
+        "Sources/CodexBar/MenuCardView.swift": PACE_RENDERER,
+      }),
+      { ...TOY_POLICY, catalog: { other: TOY_CATALOG.toy } },
+    );
+    expect(result.problems.some((problem) => problem.includes("toy: upstream provider missing"))).toBe(true);
+  });
+
+  it("fails when descriptor pace: drifts from the imported table", async () => {
+    const result = await checkUpstream(
+      fakeSource({
+        "Sources/CodexBarCore/Providers/Toy/ToyProviderDescriptor.swift": descriptorFixture({
+          id: "toy",
+          pace: "ProviderPaceCapability(resetWindowPace: .windowDurationPresent)",
+        }),
+        "Sources/CodexBar/MenuDescriptor.swift": LABEL_RENDERER,
+        "Sources/CodexBar/MenuCardView.swift": PACE_RENDERER,
+      }),
+      TOY_POLICY,
+    );
+    expect(result.problems.some((problem) => problem.includes("toy: resetWindowPace"))).toBe(true);
   });
 });
 

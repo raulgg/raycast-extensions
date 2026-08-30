@@ -21,20 +21,12 @@ vi.mock("@raycast/api", () => ({
   Color: {
     PrimaryText: "raycast-primary-text",
   },
-  Icon: {
-    Terminal: "Terminal",
-    Bubble: "Bubble",
-    ArrowRightCircle: "ArrowRightCircle",
-    Code: "Code",
-    Circle: "Circle",
-    Bolt: "Bolt",
-    Person: "Person",
-    Globe: "Globe",
-    BarChart: "BarChart",
-    AppWindow: "AppWindow",
-    Box: "Box",
-    TwoPeople: "TwoPeople",
-  },
+  Icon: new Proxy(
+    {},
+    {
+      get: (_target, prop) => String(prop),
+    },
+  ),
   List: {
     Item: {
       Detail,

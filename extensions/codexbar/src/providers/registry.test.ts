@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { Color, Icon } from "@raycast/api";
 import { describe, expect, it } from "vitest";
+import { PROVIDER_CATALOG } from "./catalog";
 import {
   getProviderMetadata,
   getProviderUsageSectionDisplayTitle,
@@ -29,60 +30,6 @@ describe("provider registry", () => {
   it("recognizes known providers", () => {
     expect(isKnownProviderId("codex")).toBe(true);
     expect(isKnownProviderId("unknown-provider")).toBe(false);
-  });
-
-  it("covers every provider id the upstream CLI exposes", () => {
-    const upstreamEnumIds = [
-      "openai",
-      "azureopenai",
-      "alibabatokenplan",
-      "manus",
-      "moonshot",
-      "t3chat",
-      "elevenlabs",
-      "windsurf",
-      "mimo",
-      "doubao",
-      "abacus",
-      "mistral",
-      "deepseek",
-      "codebuff",
-      "crof",
-      "venice",
-      "commandcode",
-      "stepfun",
-      "bedrock",
-      "grok",
-      "groq",
-      "llmproxy",
-      "deepgram",
-      "devin",
-      "zed",
-      "sakana",
-      "qoder",
-      "litellm",
-      "poe",
-      "chutes",
-      "clawrouter",
-      "wayfinder",
-      "clinepass",
-      "qwencloud",
-      "fireworks",
-      "deepinfra",
-      "neuralwatt",
-      "longcat",
-      "sub2api",
-      "zenmux",
-      "aiand",
-      "zoommate",
-      "xai",
-      "notion",
-      "ibmbob",
-    ];
-
-    for (const providerId of upstreamEnumIds) {
-      expect(PROVIDER_IDS, `missing registry entry for ${providerId}`).toContain(providerId);
-    }
   });
 
   it("resolves upstream CLI aliases to canonical provider ids", () => {
@@ -225,6 +172,17 @@ describe("provider registry", () => {
     expect(getProviderUsageSectionDisplayTitle("mistral", "Secondary")).toBe("Secondary");
   });
 
+  it("passes catalog iconFallback through instead of substituting Circle", () => {
+    for (const id of PROVIDER_IDS) {
+      const fallback = PROVIDER_CATALOG[id].iconFallback;
+      if (!fallback) {
+        continue;
+      }
+
+      expect(getProviderMetadata(id).icon).toMatchObject({ fallback });
+    }
+  });
+
   it("returns friendly metadata for known providers", () => {
     expect(getProviderMetadata("openrouter")).toEqual({
       id: "openrouter",
@@ -284,10 +242,10 @@ describe("provider registry", () => {
     });
   });
 
-  it("has a local svg asset for every providerIcon reference", () => {
+  it("has a local svg asset for every catalog iconSlug", () => {
     const currentDir = path.join(process.cwd(), "src/providers");
-    const registrySource = readFileSync(path.join(currentDir, "registry.ts"), "utf8");
-    const providerIconSlugs = [...registrySource.matchAll(/providerIcon\("([^"]+)"/g)].map((match) => match[1]);
+    const catalogSource = readFileSync(path.join(currentDir, "catalog.ts"), "utf8");
+    const providerIconSlugs = [...catalogSource.matchAll(/iconSlug: "([^"]+)"/g)].map((match) => match[1]);
 
     expect(providerIconSlugs.length).toBeGreaterThan(0);
 

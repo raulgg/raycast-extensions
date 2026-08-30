@@ -14,9 +14,10 @@ invention.
 1. **Upstream parity wins.** Wording, pacing semantics, provider metadata, and icons track the
    upstream app. [docs/upstream-parity.md](docs/upstream-parity.md) is required reading before
    touching any of those surfaces.
-2. **Provider metadata and icons are script-synced.** Never hand-edit provider entries in
-   `src/providers/registry.ts` or files in `assets/provider-icons/`. Run `npm run upstream:check`
-   to detect drift and `npm run upstream:sync-icons` to refresh icons.
+2. **Provider metadata is transcribed, icons are harvested.** Copy names, labels, URLs, and colors
+   from the upstream descriptor into `catalog.ts`; do not invent values. Run `npm run upstream:check`
+   after editing `catalog.ts` or `paceCapabilities.ts`. Refresh icons with
+   `npm run upstream:sync-icons` — do not hand-draw files in `assets/provider-icons/`.
 3. **Vocabulary is fixed.** [CONTEXT.md](CONTEXT.md) defines the domain language (Provider, reset
    window, pacing, supplemental usage, …) and lists terms to avoid. Use those exact terms in code,
    UI copy, and docs.

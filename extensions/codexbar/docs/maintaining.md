@@ -37,11 +37,13 @@ src/
     detailMarkdown.ts, svg.ts, twoBarAccessoryIcon.ts   Rendering helpers.
 
   providers/
-    registry.ts               PROVIDER_DEFINITIONS + PROVIDER_ID_ALIASES. Parity surface 1. Also
-                              derives brand palettes and exposes resolveProviderId / lookups.
+    catalog.ts                Raycast-free provider metadata + aliases. Imported by upstream:check.
+    registry.ts               Raycast adapter over catalog.ts (icons, palettes, lookups).
+    paceCapabilities.ts       GUI pace gating table + dynamic usage-bar title map. Imported by
+                              upstream:check.
     normalize.ts              Raw payload -> ProviderSection[]. Dynamic label overrides
-                              (resolveSlotDisplayTitle), pacing defaults, supplemental mappers.
-    usagePacing.ts            The pace formula, mirroring UsagePace.swift. Parity surface 4.
+                              (resolveDynamicSlotTitle), pacing defaults, supplemental mappers.
+    usagePacing.ts            The pace formula and labels. Hand-maintained (not script-diffed).
     usageMeter.ts             Usage-meter widget (title row, bar, pacing footer) for the detail card.
     markdown.ts               Detail-card composer: header, meters, info, status, markdown wrap.
     status.ts                 Parse the CLI status object into a badge model.
@@ -53,10 +55,12 @@ src/
   mocks/codexbar.ts           Dev-only mock payloads (see "Working with mock data").
 
 scripts/
-  check-upstream.mjs          npm run upstream:check      — provider metadata + override drift guard.
+  check-upstream.mjs          npm run upstream:check      — metadata, override ids, pace gating.
+  bump-upstream.mjs           npm run upstream:bump       — check latest release, then pin lockfile.
   sync-provider-icons.mjs     npm run upstream:sync-icons — icon harvest / drift guard.
   lib/upstream.mjs            Shared upstream source (ref resolution, GitHub / local checkout).
-  lib/upstream-metadata.mjs   Pure parse/compare logic (unit-tested).
+  lib/upstream-metadata.mjs   Catalog/descriptor parse and compare (unit-tested).
+  lib/upstream-pace.mjs       Descriptor pace: parse and compare (unit-tested).
 
 docs/                         This directory. upstream-parity.md, maintaining.md, adr/.
 CONTEXT.md                    Domain glossary.
@@ -74,8 +78,9 @@ Tests are **colocated** (`src/**/*.test.ts[x]`, `scripts/*.test.mjs`) with share
 | `npm run test:watch` | Vitest in watch mode. |
 | `npm run lint` / `npm run fix-lint` | Raycast ESLint (`--fix` to autofix). |
 | `npm run build` | `ray build` — production build. |
-| `npm run upstream:check` | Guard: provider metadata + dynamic overrides vs upstream. |
-| `npm run upstream:sync-icons [-- --check]` | Sync (or check) provider icons vs upstream. |
+| `npm run upstream:check` | Guard: provider metadata, override **ids**, and pace gating vs the lockfile SHA. |
+| `npm run upstream:bump` | Move `codexbar-upstream.lock` to the latest GitHub release, then run both guards. |
+| `npm run upstream:sync-icons [-- --check]` | Sync (or check) provider icons vs the lockfile SHA. |
 
 Before opening a PR: `npm test && npm run lint && npm run upstream:check && npm run upstream:sync-icons -- --check`.
 
@@ -119,26 +124,28 @@ newly pace-eligible, fix its mock too — see the pacing worked example in
 
 Upstream ships often. A periodic sync pass:
 
-1. **Point at the ref you want.** Default is the latest release tag. For iterating, clone upstream
-   once and export `CODEXBAR_DIR=~/code/CodexBar` (no network, no rate limit). To preview an
-   unreleased change, `CODEXBAR_REF=main`. Set `GITHUB_TOKEN` if you hit a `403`.
+1. **Point at the ref you want.** Default is the SHA in `codexbar-upstream.lock`. To take a new
+   upstream release, `npm run upstream:bump` (writes the lock only after `upstream:check` and
+   `upstream:sync-icons -- --check` pass against that SHA). For iterating, clone upstream once and
+   export `CODEXBAR_DIR=~/code/CodexBar` (no network, no rate limit). To preview an unreleased
+   change without moving the pin, `CODEXBAR_REF=main`. Set `GITHUB_TOKEN` if you hit a `403`.
 2. **Run the guards.**
    ```
    npm run upstream:check
    npm run upstream:sync-icons -- --check
    ```
-3. **Fix what they flag.** New provider → add a `PROVIDER_DEFINITIONS` entry (name, brandColor,
-   labels, URLs, icon) transcribed from its `…ProviderDescriptor.swift`; **don't invent values**. New
-   alias → `PROVIDER_ID_ALIASES`. Field mismatch → update the registry, or record an intentional
-   `ALLOWED_DIVERGENCES` entry with a reason. New/removed dynamic override → port it into
-   `resolveSlotDisplayTitle` and update the override lists, or mark it unportable. New descriptor
-   `pace:` → add a `paceCapabilities.ts` row (GUI fields only, plus a `CUSTOM_PACE_RULES`
-   fingerprint for `.custom` closures), or mark presentation-only paths in
-   `UNPORTABLE_PRESENTATION_PACE` / `UNPORTABLE_HEADROOM_HINT`. Icons out of date →
-   drop the `-- --check` and let the sync script write them.
-4. **Re-verify the remaining hand-maintained surfaces** the scripts *can't* see: supplemental
-   shapes if you now have live JSON to sample. Pacing is covered by `upstream:check` against
-   `paceCapabilities.ts`.
+3. **Fix what they flag.** New provider → add a `PROVIDER_CATALOG` entry (name, brandColor,
+   labels, URLs, iconSlug) transcribed from its `…ProviderDescriptor.swift`; **don't invent values**. New
+   alias → `PROVIDER_ID_ALIASES` in `catalog.ts`. Field mismatch → update the catalog, or record an
+   intentional `ALLOWED_DIVERGENCES` entry with a reason. New/removed dynamic override → port it
+   into `DYNAMIC_SLOT_TITLES` or mark it unportable. New descriptor `pace:` → add a
+   `paceCapabilities.ts` row (GUI fields only, plus a `CUSTOM_PACE_RULES` fingerprint for `.custom`
+   closures), or mark presentation-only paths in `UNPORTABLE_PRESENTATION_PACE` /
+   `UNPORTABLE_HEADROOM_HINT`. Icons out of date → drop the `-- --check` and let the sync script
+   write them.
+4. **Re-verify the remaining hand-maintained surfaces** the scripts *can't* see: pace formula and
+   labels in `usagePacing.ts`, plus supplemental shapes, CLI install, and aliases. After a bump, commit
+   the lockfile with any catalog/title/pace/icon edits.
 5. **Cite the ref.** In commit messages / plan notes / code comments, name the upstream file and SHA
    you verified against, so the next sync can tell what's already been checked.
 6. **Test and lint**, then commit.

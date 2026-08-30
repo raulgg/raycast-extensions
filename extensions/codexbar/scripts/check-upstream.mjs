@@ -1,41 +1,40 @@
 #!/usr/bin/env node
 
-// Checks src/providers/registry.ts and paceCapabilities.ts against the upstream
-// CodexBar provider descriptors so the Raycast extension shows the same provider
-// names, usage-bar labels, dashboard and status URLs, brand colors, and pace
-// gating as the CodexBar GUI. Also verifies that every dynamic label override in
-// the upstream renderers is either ported to normalize.ts or documented as unportable.
+// Checks catalog.ts and paceCapabilities.ts against the upstream CodexBar provider
+// descriptors so the Raycast extension shows the same provider names, usage-bar
+// labels, dashboard and status URLs, brand colors, and pace gating as the CodexBar
+// GUI. Also verifies that every dynamic label override in the upstream renderers is
+// either ported to DYNAMIC_SLOT_TITLES or documented as unportable.
 //
 // Usage:
-//   npm run upstream:check                      # compare against the latest release tag
+//   npm run upstream:check                      # compare against codexbar-upstream.lock
+//   npm run upstream:bump                       # check latest release, then pin lockfile
 //   CODEXBAR_REF=main npm run upstream:check    # compare against a branch/tag/sha
 //   CODEXBAR_DIR=~/code/CodexBar npm run ...    # compare against a local checkout
 //
 // Exits 1 on any undocumented divergence, missing provider, stale allowlist entry,
 // unported dynamic override, or pace-capability mismatch.
 
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { PROVIDER_CATALOG } from "../src/providers/catalog.ts";
 import {
-  CUSTOM_WINDOW_RULES,
+  DYNAMIC_SLOT_TITLES,
   EXTRA_WINDOW_PACE_PROVIDER_IDS,
   PACE_CAPABILITIES,
+  UNPORTABLE_DYNAMIC_TITLES,
 } from "../src/providers/paceCapabilities.ts";
 import { createUpstreamSource, readFilesWithConcurrency } from "./lib/upstream.mjs";
-import { compareProviders, parseDescriptorMetadata, parseDynamicOverrideProviders, parseRegistryEntries } from "./lib/upstream-metadata.mjs";
+import { compareProviders, parseDescriptorMetadata, parseDynamicOverrideProviders } from "./lib/upstream-metadata.mjs";
 import {
   comparePaceCapabilities,
-  fingerprintSource,
   parseDescriptorPace,
   parseExtraRateWindowPaceProviders,
   parsePresentationPaceFlags,
   parseSecondarySessionPaceProviders,
 } from "./lib/upstream-pace.mjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REGISTRY_PATH = path.resolve(__dirname, "../src/providers/registry.ts");
 const DESCRIPTOR_DIR = "Sources/CodexBarCore/Providers";
 // Every upstream surface that renders usage-bar titles; a dynamic override added to
 // any of them must be ported (or documented below) for the extension to stay aligned.
@@ -57,50 +56,38 @@ const PACE_RENDERER_PATHS = [
   "Sources/CodexBar/MenuCardView+ModelHelpers.swift",
 ];
 
-// Custom Swift closures, keyed provider.field. fingerprint is the expanded Swift
-// body; tsFingerprint is CUSTOM_WINDOW_RULES[id].toString().
+// Custom Swift closures, keyed provider.field. fingerprint is the expanded Swift body.
 const CUSTOM_PACE_RULES = {
   "antigravity.sessionPaceWindowRule": {
     id: "antigravitySession",
     fingerprint: "window, _ in window.windowMinutes == nil || window.windowMinutes == 300",
-    tsFingerprint: "(window) => window.windowMinutes === undefined || window.windowMinutes === 300",
   },
   "claude.sessionPaceWindowRule": {
     id: "claudeSessionAlways",
     fingerprint: "_, _ in true",
-    tsFingerprint: "() => true",
   },
   "codex.sessionPaceWindowRule": {
     id: "codexSessionRejectsWeeklyMonthly",
     fingerprint:
       "window, _ in guard let minutes = window.windowMinutes else { return true } return minutes != 7 * 24 * 60 && minutes != 30 * 24 * 60",
-    tsFingerprint:
-      "(window) => { if (window.windowMinutes === undefined) { return true; } return window.windowMinutes !== 7 * 24 * 60 && window.windowMinutes !== 30 * 24 * 60; }",
   },
   "grok.resetWindowPace": {
     id: "grokWeeklyCredits",
     fingerprint:
       'window, now in guard Self.primaryLabel(window: window, now: now) == "Weekly", let resetsAt = window.resetsAt else { return false } let windowMinutes = window.windowMinutes ?? 7 * 24 * 60 let timeUntilReset = resetsAt.timeIntervalSince(now) return windowMinutes > 0 && timeUntilReset > 0 && timeUntilReset <= TimeInterval(windowMinutes) * 60',
-    tsFingerprint:
-      'function grokWeeklyCredits(window , now ) { if (!window.resetsAt) { return false; } if (grokPrimaryDisplayTitle(grokWindowDurationMs(window.windowMinutes, window.resetsAt, now)) !== "Weekly") { return false; } const resetAtMs = Date.parse(window.resetsAt); if (Number.isNaN(resetAtMs)) { return false; } const windowMinutes = window.windowMinutes ?? WEEKLY_PACE_DEFAULT_WINDOW_MINUTES; const timeUntilResetSeconds = (resetAtMs - now) / 1000; return windowMinutes > 0 && timeUntilResetSeconds > 0 && timeUntilResetSeconds <= windowMinutes * 60; }',
   },
   "notion.sessionPaceWindowRule": {
     id: "notionRollingSession",
     fingerprint:
       "window, _ in guard let minutes = window.windowMinutes else { return false } return minutes <= 360",
-    tsFingerprint: "(window) => window.windowMinutes !== undefined && window.windowMinutes <= 6 * 60",
   },
   "zai.resetWindowPace": {
     id: "zaiMonthlyMcp",
     fingerprint: 'window.windowMinutes == 43200 && window.resetDescription == "MCP"',
-    tsFingerprint:
-      '(window) => window.windowMinutes === MONTHLY_WINDOW_SENTINEL_MINUTES && window.resetDescription === "MCP"',
   },
   "zai.inferredMonthlyDuration": {
     id: "zaiMonthlyMcp",
     fingerprint: 'window.windowMinutes == 43200 && window.resetDescription == "MCP"',
-    tsFingerprint:
-      '(window) => window.windowMinutes === MONTHLY_WINDOW_SENTINEL_MINUTES && window.resetDescription === "MCP"',
   },
 };
 
@@ -115,29 +102,6 @@ const UNPORTABLE_PRESENTATION_PACE = {
 
 const UNPORTABLE_HEADROOM_HINT = {
   codex: "1.5× session headroom hint, not implemented",
-};
-
-// Dynamic overrides ported to normalize.ts (resolveSlotDisplayTitle). When upstream
-// adds a provider to its renderers, this check fails until the override is ported and
-// listed here.
-const IMPLEMENTED_DYNAMIC_OVERRIDES = new Set([
-  "codex",
-  "factory",
-  "grok",
-  "doubao",
-  "crof",
-  "amp",
-  "alibabatokenplan",
-  "sub2api",
-]);
-
-// Dynamic overrides that CANNOT be ported: the CLI JSON payload the extension consumes
-// lacks the data they key on.
-const UNPORTABLE_DYNAMIC_OVERRIDES = {
-  // MenuCardView relabels legacy request-quota Cursor plans as "Requests" based on
-  // snapshot.detailRow(label: "Request quota"), a live GUI detail the CLI JSON
-  // does not expose as a usage-bar field.
-  cursor: "keyed on snapshot.detailRow(label: \"Request quota\"), which the CLI JSON does not expose as a usage-bar field",
 };
 
 // Known intentional differences from upstream, keyed provider → field. Entries record
@@ -189,18 +153,36 @@ const ALLOWED_DIVERGENCES = {
   },
 };
 
-function tsFingerprintFor(id) {
-  const fn = CUSTOM_WINDOW_RULES[id];
-  if (!fn) {
-    throw new Error(`CUSTOM_WINDOW_RULES is missing ${id}`);
-  }
-  return fingerprintSource(fn.toString());
-}
+export const DEFAULT_POLICY = {
+  catalog: PROVIDER_CATALOG,
+  paceCapabilities: PACE_CAPABILITIES,
+  extraWindowIds: EXTRA_WINDOW_PACE_PROVIDER_IDS,
+  implementedTitles: new Set(Object.keys(DYNAMIC_SLOT_TITLES)),
+  unportableTitles: UNPORTABLE_DYNAMIC_TITLES,
+  customPaceRules: CUSTOM_PACE_RULES,
+  allowedDivergences: ALLOWED_DIVERGENCES,
+  unportableHeadroom: UNPORTABLE_HEADROOM_HINT,
+  unportablePresentation: UNPORTABLE_PRESENTATION_PACE,
+  rendererPaths: RENDERER_PATHS,
+  paceRendererPaths: PACE_RENDERER_PATHS,
+};
 
-async function main() {
-  const registryEntries = parseRegistryEntries(await readFile(REGISTRY_PATH, "utf8"));
-  const paceEntries = new Map(Object.entries(PACE_CAPABILITIES));
-  const source = await createUpstreamSource();
+export async function checkUpstream(source, policy = DEFAULT_POLICY) {
+  const {
+    catalog,
+    paceCapabilities,
+    extraWindowIds,
+    implementedTitles,
+    unportableTitles,
+    customPaceRules,
+    allowedDivergences,
+    unportableHeadroom,
+    unportablePresentation,
+    rendererPaths,
+    paceRendererPaths,
+  } = policy;
+
+  const paceEntries = new Map(Object.entries(paceCapabilities));
 
   // `<Name>ProviderDescriptor.swift` files only — the bare ProviderDescriptor.swift is
   // the shared registry/protocol file, not a provider.
@@ -212,8 +194,8 @@ async function main() {
   }
   const [descriptorFiles, rendererFiles, paceRendererFiles] = await Promise.all([
     readFilesWithConcurrency(source, descriptorPaths),
-    readFilesWithConcurrency(source, RENDERER_PATHS),
-    readFilesWithConcurrency(source, PACE_RENDERER_PATHS),
+    readFilesWithConcurrency(source, rendererPaths),
+    readFilesWithConcurrency(source, paceRendererPaths),
   ]);
 
   const upstreamById = new Map();
@@ -225,8 +207,8 @@ async function main() {
     presentationFlagsById.set(metadata.id, parsePresentationPaceFlags(content));
   }
 
-  const problems = compareProviders(registryEntries, upstreamById, ALLOWED_DIVERGENCES);
-  const paceComparison = comparePaceCapabilities(paceEntries, upstreamById, CUSTOM_PACE_RULES);
+  const problems = compareProviders(catalog, upstreamById, allowedDivergences);
+  const paceComparison = comparePaceCapabilities(paceEntries, upstreamById, customPaceRules);
   problems.push(...paceComparison.problems);
 
   const dynamicOverrides = parseDynamicOverrideProviders(rendererFiles);
@@ -236,41 +218,32 @@ async function main() {
     }
   }
   for (const providerId of dynamicOverrides) {
-    if (IMPLEMENTED_DYNAMIC_OVERRIDES.has(providerId) || providerId in UNPORTABLE_DYNAMIC_OVERRIDES) {
+    if (implementedTitles.has(providerId) || Object.hasOwn(unportableTitles, providerId)) {
       continue;
     }
     problems.push(
       `${providerId}: upstream renderers apply a dynamic label override the extension does not implement ` +
-        `(port it in normalize.ts resolveSlotDisplayTitle, then add it to IMPLEMENTED_DYNAMIC_OVERRIDES)`,
+        `(port it in paceCapabilities.ts DYNAMIC_SLOT_TITLES)`,
     );
   }
-  for (const providerId of [...IMPLEMENTED_DYNAMIC_OVERRIDES, ...Object.keys(UNPORTABLE_DYNAMIC_OVERRIDES)]) {
+  for (const providerId of [...implementedTitles, ...Object.keys(unportableTitles)]) {
     if (!dynamicOverrides.has(providerId)) {
       problems.push(
         `${providerId}: listed as a dynamic override but upstream renderers no longer apply one — ` +
-          `remove it from the override lists (and normalize.ts if implemented).`,
-      );
-    }
-  }
-
-  for (const [key, rule] of Object.entries(CUSTOM_PACE_RULES)) {
-    const actual = tsFingerprintFor(rule.id);
-    if (actual !== rule.tsFingerprint) {
-      problems.push(
-        `${key}: stale tsFingerprint for ${rule.id} — recorded "${rule.tsFingerprint}" actual "${actual}". Re-review CUSTOM_WINDOW_RULES.`,
+          `remove it from DYNAMIC_SLOT_TITLES / UNPORTABLE_DYNAMIC_TITLES.`,
       );
     }
   }
 
   const extraWindowProviders = parseExtraRateWindowPaceProviders(paceRendererFiles);
   for (const id of extraWindowProviders) {
-    if (!EXTRA_WINDOW_PACE_PROVIDER_IDS.has(id)) {
+    if (!extraWindowIds.has(id)) {
       problems.push(
         `${id}: MenuCardView paces extra rate windows but EXTRA_WINDOW_PACE_PROVIDER_IDS does not include it`,
       );
     }
   }
-  for (const id of EXTRA_WINDOW_PACE_PROVIDER_IDS) {
+  for (const id of extraWindowIds) {
     if (!extraWindowProviders.has(id)) {
       problems.push(
         `${id}: EXTRA_WINDOW_PACE_PROVIDER_IDS lists extra-window pace but MenuCardView extraRateWindowPaceDetail no longer names it`,
@@ -299,13 +272,13 @@ async function main() {
     if (!metadata.pace.showsHeadroomHint) {
       continue;
     }
-    if (!UNPORTABLE_HEADROOM_HINT[id]) {
+    if (!unportableHeadroom[id]) {
       problems.push(`${id}: descriptor sets showsHeadroomHint. Port it or add UNPORTABLE_HEADROOM_HINT.`);
       continue;
     }
     usedHeadroom.add(id);
   }
-  for (const id of Object.keys(UNPORTABLE_HEADROOM_HINT)) {
+  for (const id of Object.keys(unportableHeadroom)) {
     if (!usedHeadroom.has(id)) {
       problems.push(`${id}: stale UNPORTABLE_HEADROOM_HINT — delete it.`);
     }
@@ -313,7 +286,7 @@ async function main() {
 
   const usedPresentation = new Set();
   for (const [id, flags] of presentationFlagsById) {
-    const allowance = UNPORTABLE_PRESENTATION_PACE[id] ?? {};
+    const allowance = unportablePresentation[id] ?? {};
     for (const flag of ["usesAbacusPace", "usesSyntheticRollingRegen"]) {
       if (!flags[flag]) {
         continue;
@@ -327,7 +300,7 @@ async function main() {
       usedPresentation.add(`${id}.${flag}`);
     }
   }
-  for (const [id, flags] of Object.entries(UNPORTABLE_PRESENTATION_PACE)) {
+  for (const [id, flags] of Object.entries(unportablePresentation)) {
     for (const flag of Object.keys(flags)) {
       if (!usedPresentation.has(`${id}.${flag}`)) {
         problems.push(`${id}: stale UNPORTABLE_PRESENTATION_PACE entry for ${flag} — delete it.`);
@@ -335,9 +308,21 @@ async function main() {
     }
   }
 
-  if (problems.length > 0) {
-    console.error(`Registry out of sync with ${source.label}:\n`);
-    for (const problem of problems) {
+  return {
+    problems,
+    label: source.label,
+    registryCount: Object.keys(catalog).length,
+    overrideCount: dynamicOverrides.size,
+    paceCount: paceEntries.size,
+  };
+}
+
+async function main() {
+  const source = await createUpstreamSource();
+  const result = await checkUpstream(source);
+  if (result.problems.length > 0) {
+    console.error(`Registry out of sync with ${result.label}:\n`);
+    for (const problem of result.problems) {
       console.error(`  - ${problem}`);
     }
     process.exitCode = 1;
@@ -345,13 +330,17 @@ async function main() {
   }
 
   console.log(
-    `Registry in sync: ${registryEntries.size} providers match ${source.label} ` +
-      `(labels, names, URLs, colors, ${dynamicOverrides.size} dynamic overrides, ` +
-        `${paceEntries.size} pace capabilities accounted for).`,
+    `Registry in sync: ${result.registryCount} providers match ${result.label} ` +
+      `(labels, names, URLs, colors, ${result.overrideCount} dynamic overrides, ` +
+      `${result.paceCount} pace capabilities accounted for).`,
   );
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 1;
-});
+const invokedDirectly =
+  process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === pathToFileURL(fileURLToPath(import.meta.url)).href;
+if (invokedDirectly) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}

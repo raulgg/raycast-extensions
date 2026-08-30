@@ -15,6 +15,8 @@
 - Cursor, Copilot, Kimi, Zai, Notion, and calendar-month providers (Alibaba, Amp, Command Code, Doubao, MiMo, OpenCode Go, StepFun) show the same plain usage pacer as the CodexBar app
 - Codex, Claude, and Antigravity extra rate windows show the same session and weekly pacer as the CodexBar app
 - `npm run upstream:check` diffs each provider's `pace:` capability against `paceCapabilities.ts` so a new upstream pacer fails the check instead of drifting silently
+- `npm run upstream:sync-icons -- --check` fails when leftover SVGs remain under `assets/provider-icons/`
+- `npm run upstream:check` pins CodexBar to `codexbar-upstream.lock` and imports `catalog.ts` / `paceCapabilities.ts` instead of regex-parsing `registry.ts`
 - Background refresh restarts the CodexBar serve daemon when it predates the installed CLI binary, so payload shapes stay consistent across app updates
 - Usage payloads that nondeterministically omit supplemental sections (e.g. Claude's scoped extra rate windows) are repaired from a per-provider section memory, keeping meter sets stable across refresh paths
 - When the CodexBar CLI is missing but the CodexBar app is installed, the extension offers to set up the app's bundled CLI itself after an explicit confirmation — a faithful mirror of the app's own Install CLI button (never overwrites existing files, never asks for a password)

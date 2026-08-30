@@ -39,6 +39,8 @@ export type PaceWindow = {
   resetDescription?: string;
 };
 
+export type SlotTitle = "Primary" | "Secondary" | "Tertiary";
+
 export type ResolvedSlotPace = {
   context: ProviderUsagePacingContext;
   defaultWindowMinutes: number;
@@ -201,7 +203,7 @@ export function getPaceCapability(providerId: string): PaceCapability {
 
 export function resolveSlotPace(
   providerId: string,
-  slot: "Primary" | "Secondary" | "Tertiary",
+  slot: SlotTitle,
   window: PaceWindow,
   now: number,
 ): ResolvedSlotPace | undefined {
@@ -352,3 +354,123 @@ export const PACE_CAPABILITIES: Record<string, PaceCapability> = {
     sessionPaceWindowRule: { type: "windowDuration", minutes: 300 },
   },
 };
+
+export type DynamicTitleOptions = {
+  windowMinutes?: number;
+  resetsAt?: string;
+  resetDescription?: string;
+  factoryHasTertiary: boolean;
+  hasSecondary: boolean;
+  now: number;
+};
+
+export type DynamicTitleFn = (slotTitle: SlotTitle, options: DynamicTitleOptions) => string | undefined;
+
+export const DYNAMIC_SLOT_TITLES: Record<string, DynamicTitleFn> = {
+  factory(slotTitle, options) {
+    if (!options.factoryHasTertiary) {
+      return undefined;
+    }
+
+    return slotTitle === "Primary" ? "5-hour" : slotTitle === "Secondary" ? "Weekly" : "Monthly";
+  },
+  codex(slotTitle, options) {
+    if (slotTitle !== "Primary" && slotTitle !== "Secondary") {
+      return undefined;
+    }
+
+    if (options.windowMinutes === 5 * 60) {
+      return "Session";
+    }
+
+    if (options.windowMinutes === 7 * 24 * 60) {
+      return "Weekly";
+    }
+
+    if (options.windowMinutes === 30 * 24 * 60) {
+      return "Monthly";
+    }
+
+    return undefined;
+  },
+  grok(slotTitle, options) {
+    if (slotTitle !== "Primary") {
+      return undefined;
+    }
+
+    const durationMs = grokWindowDurationMs(options.windowMinutes, options.resetsAt, options.now);
+    const dynamicTitle = grokPrimaryDisplayTitle(durationMs);
+    if (dynamicTitle) {
+      return dynamicTitle;
+    }
+
+    if (options.windowMinutes === undefined && options.resetsAt) {
+      return "Weekly";
+    }
+
+    return undefined;
+  },
+  doubao(slotTitle, options) {
+    if (
+      slotTitle === "Primary" &&
+      options.windowMinutes === undefined &&
+      options.resetDescription?.toLowerCase().includes("request")
+    ) {
+      return "Requests";
+    }
+
+    return undefined;
+  },
+  crof(slotTitle, options) {
+    if (slotTitle !== "Primary") {
+      return undefined;
+    }
+
+    return options.hasSecondary ? "Requests" : "Credits";
+  },
+  amp(slotTitle, options) {
+    if (!options.hasSecondary) {
+      return undefined;
+    }
+
+    if (slotTitle === "Primary") {
+      return "Other usage";
+    }
+
+    if (slotTitle === "Secondary") {
+      return "Orb usage";
+    }
+
+    return undefined;
+  },
+  alibabatokenplan(slotTitle, options) {
+    if (slotTitle === "Primary" && options.windowMinutes === 5 * 60) {
+      return "5-hour";
+    }
+
+    if (slotTitle === "Secondary" && options.windowMinutes === 7 * 24 * 60) {
+      return "7-day";
+    }
+
+    return undefined;
+  },
+  sub2api(slotTitle, options) {
+    if (slotTitle === "Primary" && options.hasSecondary) {
+      return "Daily quota";
+    }
+
+    return undefined;
+  },
+};
+
+export const UNPORTABLE_DYNAMIC_TITLES: Record<string, { reason: string }> = {
+  cursor: { reason: "needs snapshot.detailRow Request quota" },
+};
+
+export function resolveDynamicSlotTitle(
+  providerId: string,
+  slotTitle: SlotTitle,
+  options: DynamicTitleOptions,
+): string | undefined {
+  return DYNAMIC_SLOT_TITLES[providerId]?.(slotTitle, options);
+}

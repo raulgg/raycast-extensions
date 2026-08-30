@@ -1,9 +1,4 @@
-import {
-  grokPrimaryDisplayTitle,
-  grokWindowDurationMs,
-  resolveExtraWindowPace,
-  resolveSlotPace,
-} from "./paceCapabilities";
+import { resolveDynamicSlotTitle, resolveExtraWindowPace, resolveSlotPace } from "./paceCapabilities";
 import { getProviderMetadata, getProviderUsageSectionDisplayTitle } from "./registry";
 import { calculateUsagePacing } from "./usagePacing";
 import { parseProviderStatus } from "./status";
@@ -222,96 +217,6 @@ function computeSlotUsagePacing(
   );
 }
 
-type SlotTitle = "Primary" | "Secondary" | "Tertiary";
-
-// Upstream MenuDescriptor.rateWindowLabels layers dynamic overrides on top of the
-// static registry labels: factory (tertiary → 5-hour/Weekly/Monthly), grok (primary
-// by window length), doubao (windowless requests), crof/amp/sub2api (secondary
-// present), alibabatokenplan (5-hour / 7-day), codex (title follows windowMinutes).
-function resolveSlotDisplayTitle(
-  providerId: string,
-  slotTitle: SlotTitle,
-  options: {
-    windowMinutes?: number;
-    resetsAt?: string;
-    resetDescription?: string;
-    factoryHasTertiary: boolean;
-    hasSecondary: boolean;
-    now: number;
-  },
-): string {
-  if (providerId === "factory" && options.factoryHasTertiary) {
-    return slotTitle === "Primary" ? "5-hour" : slotTitle === "Secondary" ? "Weekly" : "Monthly";
-  }
-
-  if (providerId === "codex" && (slotTitle === "Primary" || slotTitle === "Secondary")) {
-    if (options.windowMinutes === 5 * 60) {
-      return "Session";
-    }
-    if (options.windowMinutes === 7 * 24 * 60) {
-      return "Weekly";
-    }
-    if (options.windowMinutes === 30 * 24 * 60) {
-      return "Monthly";
-    }
-  }
-
-  // Deliberate widening vs upstream: options.resetsAt includes the payload-level
-  // sessionResetsAt/resetsAt fallbacks, while GrokProviderDescriptor.displayLabel reads
-  // only the primary window's own resetsAt. Real CLI payloads carry no top-level reset
-  // fields, and the label should agree with whatever countdown the section renders.
-  if (providerId === "grok" && slotTitle === "Primary") {
-    const durationMs = grokWindowDurationMs(options.windowMinutes, options.resetsAt, options.now);
-    const dynamicTitle = grokPrimaryDisplayTitle(durationMs);
-    if (dynamicTitle) {
-      return dynamicTitle;
-    }
-    // Untyped window with resetsAt is the weekly pool (displayLabel / #2929).
-    if (options.windowMinutes === undefined && options.resetsAt) {
-      return "Weekly";
-    }
-  }
-
-  // Mirrors DoubaoProviderDescriptor.primaryLabel: pay-as-you-go Doubao accounts have no
-  // 5h window — the payload carries a "requests"-style resetDescription instead.
-  if (
-    providerId === "doubao" &&
-    slotTitle === "Primary" &&
-    options.windowMinutes === undefined &&
-    options.resetDescription?.toLowerCase().includes("request")
-  ) {
-    return "Requests";
-  }
-
-  if (providerId === "crof" && slotTitle === "Primary") {
-    return options.hasSecondary ? "Requests" : "Credits";
-  }
-
-  if (providerId === "amp" && options.hasSecondary) {
-    if (slotTitle === "Primary") {
-      return "Other usage";
-    }
-    if (slotTitle === "Secondary") {
-      return "Orb usage";
-    }
-  }
-
-  if (providerId === "alibabatokenplan") {
-    if (slotTitle === "Primary" && options.windowMinutes === 5 * 60) {
-      return "5-hour";
-    }
-    if (slotTitle === "Secondary" && options.windowMinutes === 7 * 24 * 60) {
-      return "7-day";
-    }
-  }
-
-  if (providerId === "sub2api" && slotTitle === "Primary" && options.hasSecondary) {
-    return "Daily quota";
-  }
-
-  return getProviderUsageSectionDisplayTitle(providerId, slotTitle);
-}
-
 // CodexConsumerProjection.weeklyCapsSession: weekly is the binding cap while remaining
 // is 0 and the weekly reset is still in the future (or unknown).
 function codexWeeklyCapsSession(
@@ -456,14 +361,15 @@ function buildUsageSections(providerId: string, payload: RawProviderPayload, now
       sections.push({
         kind: "usage",
         title: slot.title,
-        displayTitle: resolveSlotDisplayTitle(providerId, slot.title, {
-          windowMinutes: toFiniteNumber(record.windowMinutes),
-          resetsAt: resolvedResetsAt,
-          resetDescription: toTrimmedString(record.resetDescription),
-          factoryHasTertiary,
-          hasSecondary,
-          now,
-        }),
+        displayTitle:
+          resolveDynamicSlotTitle(providerId, slot.title, {
+            windowMinutes: toFiniteNumber(record.windowMinutes),
+            resetsAt: resolvedResetsAt,
+            resetDescription: toTrimmedString(record.resetDescription),
+            factoryHasTertiary,
+            hasSecondary,
+            now,
+          }) ?? getProviderUsageSectionDisplayTitle(providerId, slot.title),
         remainingPercent: clampPercent(progressPercent),
         resetsIn: buildWindowReset(record, slot.resetTimestamp, now),
         usagePacing,

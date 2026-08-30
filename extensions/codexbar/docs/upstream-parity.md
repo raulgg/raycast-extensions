@@ -34,17 +34,18 @@ Upstream is the public repo `steipete/CodexBar`. It changes **fast**: a new prov
    or the tables below), name the upstream file and, where you can, the commit SHA. A parity claim
    with no ref rots silently; a claim with a ref can be re-checked.
 
-### Which ref? The latest **release tag**, not `main`
+### Which ref? The SHA in `codexbar-upstream.lock`
 
-The sync scripts default to the latest GitHub **release tag** — what actually shipped to users — not
-`main`, which may contain unreleased churn. This is deliberate (`scripts/lib/upstream.mjs`). Override
-when you need to:
+The sync scripts default to the **pinned commit** in [`codexbar-upstream.lock`](../codexbar-upstream.lock)
+(tag + SHA of a shipped GitHub release). They do not float on `releases/latest`. Run
+`npm run upstream:bump` to move the pin to the current latest release, then fix whatever the
+check flags. Override when you need to:
 
 | Env var | Effect |
 | --- | --- |
-| _(none)_ | Resolve and compare against the latest release tag. |
-| `CODEXBAR_REF=main` | Compare against a branch / tag / SHA (use to preview what a future release will demand). |
-| `CODEXBAR_DIR=~/code/CodexBar` | Compare against a local checkout — skips the network entirely. Best for iterating. |
+| _(none)_ | Compare against the lockfile SHA. Missing or malformed lockfile throws. |
+| `CODEXBAR_REF=main` | Compare against a branch / tag / SHA (preview a future release). |
+| `CODEXBAR_DIR=~/code/CodexBar` | Compare against a local checkout — skips the network entirely. Ignores the lockfile and `CODEXBAR_REF`. |
 | `GITHUB_TOKEN=…` | Raise the GitHub API rate limit. The unauthenticated limit is low; a bare `403` from `api.github.com` is almost always this. Set the token or use `CODEXBAR_DIR`. |
 
 Resolution failures throw rather than falling back to a different ref — a checker that silently
@@ -60,13 +61,14 @@ Swift).
 
 | # | Surface | Where it lives here | How drift is caught | Upstream source |
 | - | --- | --- | --- | --- |
-| 1 | Provider metadata — names, labels, dashboard/status URLs, brand colors | `registry.ts` `PROVIDER_DEFINITIONS` | `npm run upstream:check` | `Sources/CodexBarCore/Providers/**/…ProviderDescriptor.swift` |
-| 2 | Dynamic usage-bar label overrides | `normalize.ts` `resolveSlotDisplayTitle` | `npm run upstream:check` | renderer files (see below) + descriptor `primaryLabel` |
+| 1 | Provider metadata — names, labels, dashboard/status URLs, brand colors | `catalog.ts` `PROVIDER_CATALOG` | `npm run upstream:check` | `Sources/CodexBarCore/Providers/**/…ProviderDescriptor.swift` |
+| 2 | Dynamic usage-bar label overrides | `paceCapabilities.ts` `DYNAMIC_SLOT_TITLES` | `npm run upstream:check` (id lists only; see Surface 2) | renderer files (see below) + descriptor `primaryLabel` |
 | 3 | Provider icons | `assets/provider-icons/*.svg` | `npm run upstream:sync-icons -- --check` | `Sources/CodexBar/Resources/ProviderIcon-<slug>.svg` |
-| 4 | Pacing — formula, gating, labels | `paceCapabilities.ts`, `usagePacing.ts`, `normalize.ts` | `npm run upstream:check` | descriptor `pace:` + `UsagePace.swift`, `UsagePaceText.swift`, `MenuCardView*.swift` |
+| 4 | Pacing — **gating** | `paceCapabilities.ts` | `npm run upstream:check` | descriptor `pace:` + MenuCardView extra/secondary scans |
+| 4b | Pacing — formula and labels | `usagePacing.ts` | ❌ hand-maintained | `UsagePace.swift`, `UsagePaceText.swift` |
 | 5 | Supplemental usage shapes | `normalize.ts` mappers | ❌ hand-maintained | descriptor / snapshot shapes |
 | 6 | CLI install routine — the app's **Install CLI** button | `cliInstall.ts` `installCodexBarCli` | ❌ hand-maintained | `Sources/CodexBar/PreferencesAdvancedPane.swift` |
-| — | Provider id aliases | `registry.ts` `PROVIDER_ID_ALIASES` | ❌ hand-maintained | `ProviderCLIConfig` (`cliName` + aliases) |
+| — | Provider id aliases | `catalog.ts` `PROVIDER_ID_ALIASES` | ❌ hand-maintained | `ProviderCLIConfig` (`cliName` + aliases) |
 
 Everything else the extension renders is derived, not tracked — e.g. the dark-mode progress fill is
 `brandColor` mixed 20% toward white (`buildProgressPalette`), so it follows the brand color
@@ -76,26 +78,26 @@ automatically and is **not** a parity surface. Don't hand-edit derived values.
 
 ## Surface 1 — Provider metadata (`upstream:check`)
 
-`registry.ts` `PROVIDER_DEFINITIONS` holds one entry per provider id: `name`, `brandColor`,
+`catalog.ts` `PROVIDER_CATALOG` holds one entry per provider id: `name`, `brandColor`,
 `usageSectionLabels` (Primary/Secondary/Tertiary display titles — see CONTEXT.md "Display title"),
-`dashboardUrl`, `subscriptionDashboardUrl`, `statusPageUrl`, and `icon`.
+`dashboardUrl`, `subscriptionDashboardUrl`, `statusPageUrl`, `iconSlug`, and optional `iconFallback`.
+`registry.ts` is the Raycast adapter over that catalog (icons, palettes, lookups).
 
-`npm run upstream:check` parses each upstream `…ProviderDescriptor.swift`, parses `registry.ts` with
-regexes, and diffs them. It exits non-zero on:
+`npm run upstream:check` imports the catalog and diffs it against each upstream
+`…ProviderDescriptor.swift`. It exits non-zero on:
 
-- a provider present upstream but **missing** from the registry (a new provider shipped);
-- a provider in the registry with **no upstream descriptor** (renamed/removed upstream);
+- a provider present upstream but **missing** from the catalog (a new provider shipped);
+- a provider in the catalog with **no upstream descriptor** (renamed/removed upstream);
 - any field mismatch (`name`, the three labels, the URLs, `brandColor`);
 - a **stale** `ALLOWED_DIVERGENCES` entry (see below);
 - an unaccounted dynamic override (surface 2).
 
-Both sides are parsed by regex over stable formatting. Descriptor fields are read from the
+The catalog is imported as data, so reformatting it cannot hide a field. Upstream descriptors are
+still parsed by regex over stable formatting. Descriptor fields are read from the
 `ProviderMetadata(` literal (not an earlier `displayName:` in a validator) and branding colors
 from `ProviderColor(red:green:blue:)` or `ProviderColor(hex: 0xRRGGBB)`. If a parser can no longer
 find what it expects it **throws loudly** rather than quietly verifying less — so a format change
-on either side is a failure to fix, not a silent gap. If you reformat `PROVIDER_DEFINITIONS`, keep
-the shape the parser expects (two-space-indented `id: {` … `},` blocks; one
-`usageSectionLabels: { … }` line).
+on the Swift side is a failure to fix, not a silent gap.
 
 ### `ALLOWED_DIVERGENCES` — recording an intentional difference
 
@@ -122,7 +124,8 @@ update `ours`; the stale-entry failure is what tells you to.
 ## Surface 2 — Dynamic usage-bar label overrides
 
 Static labels live in `usageSectionLabels`. On top of them, upstream's renderers relabel some bars
-**dynamically** from payload contents. We port these into `resolveSlotDisplayTitle` (`normalize.ts`):
+**dynamically** from payload contents. We port these into `DYNAMIC_SLOT_TITLES` (`paceCapabilities.ts`).
+`normalize.ts` applies that map, then falls back to the catalog's static label:
 
 - **codex** — titles follow window length (`CodexConsumerProjection.rateTitle`): 5-hour → Session,
   7-day → Weekly, 30-day → Monthly.
@@ -136,17 +139,15 @@ Static labels live in `usageSectionLabels`. On top of them, upstream's renderers
 - **sub2api** — a present secondary window relabels primary as "Daily quota" (MenuCardView
   shortens secondary/tertiary; we keep the descriptor's Weekly quota / Monthly quota).
 
-`upstream:check` scans the renderer files for override call sites and cross-checks them against two
-lists in `check-upstream.mjs`:
+`upstream:check` scans the renderer files for override call sites and cross-checks them against
+`DYNAMIC_SLOT_TITLES` and `UNPORTABLE_DYNAMIC_TITLES` in `paceCapabilities.ts` (imported, the same
+map `normalize.ts` uses). `cursor` is unportable: MenuCardView keys on
+`snapshot.detailRow(label: "Request quota")`, which the CLI JSON does not expose.
 
-- `IMPLEMENTED_DYNAMIC_OVERRIDES` — ported in `resolveSlotDisplayTitle` (`codex`, `factory`, `grok`,
-  `doubao`, `crof`, `amp`, `alibabatokenplan`, `sub2api`).
-- `UNPORTABLE_DYNAMIC_OVERRIDES` — cannot be ported because the CLI JSON lacks the field they key on
-  (e.g. `cursor`'s legacy "Requests" relabel keys on `snapshot.detailRow(label: "Request quota")`).
-
-If upstream adds a dynamic override for a new provider, the check fails until you either port it (and
-add the id to `IMPLEMENTED_DYNAMIC_OVERRIDES`) or justify it as unportable. If upstream *removes* one,
-the check flags the now-orphaned list entry.
+A green check means every scanned id is a key of that map or the unportable list. Presentation
+meters (`schemaVersion === 1`) still use the CLI's `meter.label` and never call
+`resolveDynamicSlotTitle`. If upstream adds a dynamic override, the check fails until you add a
+map entry or mark it unportable.
 
 The renderer files scanned are pinned in `RENDERER_PATHS`:
 
@@ -171,13 +172,13 @@ Every `providerIcon("<slug>")` in the registry maps to
 
 - `npm run upstream:sync-icons` — fetch, optimize (SVGO), normalize the root to `width/height="100"`
   while keeping `viewBox`, and write any changed icons.
-- `npm run upstream:sync-icons -- --check` — same, but exit non-zero if anything is out of date
-  (writes nothing). Use this as the drift guard.
+- `npm run upstream:sync-icons -- --check` — same, but writes nothing and exits non-zero if an
+  icon is out of date **or** a local SVG has no registry `providerIcon(...)` pointing at it.
 
-It also warns about **stale local icons** (an SVG with no registry entry pointing at it) and about
-registry entries whose `icon` isn't a `providerIcon(...)` (those use a bare Raycast `Icon` and have no
-SVG to sync — fine, but listed so you notice). Icons are tinted `Color.PrimaryText` at render time, so
-upstream's own fills don't matter; the geometry does.
+It warns about registry entries whose `icon` isn't a `providerIcon(...)` (bare Raycast `Icon`, no SVG
+to sync). Icons are tinted `Color.PrimaryText` at render time, so upstream's own fills don't matter;
+the geometry does. SVGO runs `preset-default` plus `removeScripts` before compare/write. Slugs that
+contain `..`, a leading `/`, or a path separator fail the script.
 
 ## Surface 4 — Pacing (`upstream:check`)
 
@@ -190,15 +191,18 @@ mirrors each descriptor's `pace: ProviderPaceCapability(...)`. `computeSlotUsage
 
 - **The formula** → `calculateUsagePacing` in [`usagePacing.ts`](../src/providers/usagePacing.ts),
   mirroring `UsagePace.swift`. Session default 300 minutes; weekly default 10_080. Calendar-month
-  sentinels (43_200) are expanded to the real month via `inferredMonthlyWindowMinutes`.
+  sentinels (43_200) are expanded to the real month via `inferredMonthlyWindowMinutes`. **Not**
+  compared by `upstream:check`.
 - **Gating** → `sessionPaceWindowRule` on primary (and Kimi's secondary), else `resetWindowPace`.
   Secondary (not tertiary) then uses the generic weekly rule (`windowMinutes` required except Codex
   via `secondaryAllowsDefaultWindow`). Named extra rate windows use `resolveExtraWindowPace`
   (Codex/Claude/Antigravity; 300-minute extras as session except Claude, 10080 as weekly).
-- **Labels** → `formatUsagePacingLabels` in `usagePacing.ts`.
+- **Labels** → `formatUsagePacingLabels` in `usagePacing.ts`. **Not** compared by `upstream:check`.
 
 `upstream:check` imports `PACE_CAPABILITIES` and diffs the GUI fields (`resetWindowPace`,
 `inferredMonthlyDuration`, `sessionPaceWindowRule`) against each descriptor `pace:` argument.
+`secondaryAllowsDefaultWindow` is TypeScript-only (not a Swift `pace:` field); the check pins it to
+Codex.
 CLI `resolvedKind` lanes are parsed so an unknown field still throws, but they are not compared.
 `.custom { ... }` closures are fingerprints in `CUSTOM_PACE_RULES`: Swift `Self.foo` wrappers are
 inlined, and the TypeScript predicate's `toString()` is hashed the same way. An unknown custom, a

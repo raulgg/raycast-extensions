@@ -1,16 +1,68 @@
 // Shared access to the upstream CodexBar repository for the upstream:* scripts.
 //
-// Both scripts compare/harvest against the same ref by default: the latest GitHub
-// release tag (what shipped to users), not main. Override with CODEXBAR_REF, or point
-// CODEXBAR_DIR at a local checkout to skip the network entirely. Resolution failures
-// throw — a checker that silently falls back to a different ref answers a question
-// nobody asked.
+// Default ref is the SHA in codexbar-upstream.lock (a pinned release). Override with
+// CODEXBAR_REF, or point CODEXBAR_DIR at a local checkout to skip the network.
+// Resolution failures throw — a checker that silently falls back to a different ref
+// answers a question nobody asked.
 
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 export const UPSTREAM_REPO = "steipete/CodexBar";
+
+const LOCK_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../codexbar-upstream.lock");
+
+export function upstreamLockPath() {
+  return LOCK_PATH;
+}
+
+export function readUpstreamLock(lockSource) {
+  let lock;
+  try {
+    lock = JSON.parse(lockSource);
+  } catch {
+    throw new Error("codexbar-upstream.lock is not valid JSON.");
+  }
+
+  if (!lock || typeof lock !== "object" || Array.isArray(lock)) {
+    throw new Error("codexbar-upstream.lock must be a JSON object.");
+  }
+
+  if (lock.repo !== UPSTREAM_REPO) {
+    throw new Error(`codexbar-upstream.lock repo must be "${UPSTREAM_REPO}".`);
+  }
+
+  if (typeof lock.tag !== "string" || lock.tag.trim() === "") {
+    throw new Error("codexbar-upstream.lock is missing tag.");
+  }
+
+  if (typeof lock.sha !== "string" || !/^[0-9a-f]{40}$/i.test(lock.sha)) {
+    throw new Error("codexbar-upstream.lock sha must be a 40-character hex commit.");
+  }
+
+  return { repo: UPSTREAM_REPO, tag: lock.tag, sha: lock.sha.toLowerCase() };
+}
+
+export function assertSafeUpstreamRef(ref) {
+  if (typeof ref !== "string" || ref.trim() === "") {
+    throw new Error("Upstream ref is empty.");
+  }
+
+  if (ref.includes("..") || ref.includes("?") || ref.includes("#") || ref.includes("://") || ref.includes("\\")) {
+    throw new Error(`Unsafe upstream ref "${ref}".`);
+  }
+
+  return ref;
+}
+
+export function encodeRefForUrl(ref) {
+  return assertSafeUpstreamRef(ref)
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
 
 function githubHeaders() {
   const token = process.env.GITHUB_TOKEN;
@@ -29,18 +81,48 @@ async function fetchText(url, headers = {}) {
   return response.text();
 }
 
-export async function resolveUpstreamRef() {
+export async function resolveUpstreamTarget() {
   if (process.env.CODEXBAR_REF) {
-    return process.env.CODEXBAR_REF;
+    const ref = assertSafeUpstreamRef(process.env.CODEXBAR_REF);
+    return { ref, label: `CodexBar ref "${ref}"` };
   }
 
+  let lockSource;
+  try {
+    lockSource = await readFile(LOCK_PATH, "utf8");
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      throw new Error(`Missing ${LOCK_PATH}. Run npm run upstream:bump to create it.`);
+    }
+    throw error;
+  }
+
+  const lock = readUpstreamLock(lockSource);
+  return { ref: lock.sha, label: `CodexBar ${lock.tag} (${lock.sha.slice(0, 12)})` };
+}
+
+export async function resolveUpstreamRef() {
+  const target = await resolveUpstreamTarget();
+  return target.ref;
+}
+
+export async function fetchLatestReleaseTarget() {
   const release = JSON.parse(
     await fetchText(`https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest`, githubHeaders()),
   );
   if (!release.tag_name) {
     throw new Error(`Could not resolve the latest ${UPSTREAM_REPO} release tag.`);
   }
-  return release.tag_name;
+
+  const tag = assertSafeUpstreamRef(release.tag_name);
+  const commit = JSON.parse(
+    await fetchText(`https://api.github.com/repos/${UPSTREAM_REPO}/commits/${encodeRefForUrl(tag)}`, githubHeaders()),
+  );
+  if (typeof commit.sha !== "string" || !/^[0-9a-f]{40}$/i.test(commit.sha)) {
+    throw new Error(`Could not resolve commit SHA for ${UPSTREAM_REPO} ${tag}.`);
+  }
+
+  return { repo: UPSTREAM_REPO, tag, sha: commit.sha.toLowerCase() };
 }
 
 async function listLocalFiles(dir, suffix) {
@@ -72,17 +154,21 @@ export async function createUpstreamSource() {
     };
   }
 
-  const ref = await resolveUpstreamRef();
-  const rawUrl = (repoPath) => `https://raw.githubusercontent.com/${UPSTREAM_REPO}/${ref}/${repoPath}`;
+  const target = await resolveUpstreamTarget();
+  const encodedRef = encodeRefForUrl(target.ref);
+  const rawUrl = (repoPath) => `https://raw.githubusercontent.com/${UPSTREAM_REPO}/${encodedRef}/${repoPath}`;
   return {
-    label: `CodexBar ref "${ref}"`,
-    ref,
+    label: target.label,
+    ref: target.ref,
     listFiles: async (prefix, suffix) => {
       const tree = JSON.parse(
-        await fetchText(`https://api.github.com/repos/${UPSTREAM_REPO}/git/trees/${ref}?recursive=1`, githubHeaders()),
+        await fetchText(
+          `https://api.github.com/repos/${UPSTREAM_REPO}/git/trees/${encodedRef}?recursive=1`,
+          githubHeaders(),
+        ),
       );
       if (tree.truncated) {
-        throw new Error(`GitHub tree listing for ref "${ref}" was truncated; cannot enumerate ${prefix}.`);
+        throw new Error(`GitHub tree listing for ref "${target.ref}" was truncated; cannot enumerate ${prefix}.`);
       }
       return tree.tree
         .filter((entry) => entry.path.startsWith(prefix) && entry.path.endsWith(suffix))
