@@ -1,5 +1,7 @@
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
-import { assertSafeUpstreamRef, encodeRefForUrl, readUpstreamLock } from "./upstream.mjs";
+import { assertSafeUpstreamRef, encodeRefForUrl, isMainModule, readUpstreamLock } from "./upstream.mjs";
 
 describe("assertSafeUpstreamRef", () => {
   it("accepts tags, SHAs, and slashed branch names", () => {
@@ -20,6 +22,22 @@ describe("encodeRefForUrl", () => {
   it("encodes each path segment", () => {
     expect(encodeRefForUrl("v0.55.1")).toBe("v0.55.1");
     expect(encodeRefForUrl("feature/foo")).toBe("feature/foo");
+  });
+});
+
+describe("isMainModule", () => {
+  const moduleUrl = pathToFileURL(path.resolve("/tmp/scripts/check-upstream.mjs")).href;
+
+  it("is true when argv1 resolves to the module URL", () => {
+    expect(isMainModule(moduleUrl, "/tmp/scripts/check-upstream.mjs")).toBe(true);
+  });
+
+  it("is false when another script is the entry point", () => {
+    expect(isMainModule(moduleUrl, "/tmp/scripts/bump-upstream.mjs")).toBe(false);
+  });
+
+  it("is false when argv1 is missing", () => {
+    expect(isMainModule(moduleUrl, undefined)).toBe(false);
   });
 });
 

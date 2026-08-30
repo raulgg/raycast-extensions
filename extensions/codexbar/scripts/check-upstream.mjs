@@ -15,9 +15,7 @@
 // Exits 1 on any undocumented divergence, missing provider, stale allowlist entry,
 // unported dynamic override, or pace-capability mismatch.
 
-import path from "node:path";
 import process from "node:process";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { PROVIDER_CATALOG } from "../src/providers/catalog.ts";
 import {
   DYNAMIC_SLOT_TITLES,
@@ -25,7 +23,7 @@ import {
   PACE_CAPABILITIES,
   UNPORTABLE_DYNAMIC_TITLES,
 } from "../src/providers/paceCapabilities.ts";
-import { createUpstreamSource, readFilesWithConcurrency } from "./lib/upstream.mjs";
+import { createUpstreamSource, isMainModule, readFilesWithConcurrency } from "./lib/upstream.mjs";
 import { compareProviders, parseDescriptorMetadata, parseDynamicOverrideProviders } from "./lib/upstream-metadata.mjs";
 import {
   comparePaceCapabilities,
@@ -336,9 +334,7 @@ async function main() {
   );
 }
 
-const invokedDirectly =
-  process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === pathToFileURL(fileURLToPath(import.meta.url)).href;
-if (invokedDirectly) {
+if (isMainModule(import.meta.url)) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;

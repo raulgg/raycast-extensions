@@ -8,7 +8,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const UPSTREAM_REPO = "steipete/CodexBar";
 
@@ -62,6 +62,10 @@ export function encodeRefForUrl(ref) {
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
+}
+
+export function isMainModule(moduleUrl, argv1 = process.argv[1]) {
+  return Boolean(argv1 && pathToFileURL(path.resolve(argv1)).href === moduleUrl);
 }
 
 function githubHeaders() {

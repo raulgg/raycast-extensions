@@ -4,8 +4,8 @@ import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { fetchLatestReleaseTarget, upstreamLockPath } from "./lib/upstream.mjs";
+import { fileURLToPath } from "node:url";
+import { fetchLatestReleaseTarget, isMainModule, upstreamLockPath } from "./lib/upstream.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -43,8 +43,7 @@ async function bump() {
   console.log(`Wrote ${lockPath}: ${target.tag} ${target.sha}`);
 }
 
-const invokedDirectly = process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
-if (invokedDirectly) {
+if (isMainModule(import.meta.url)) {
   bump().catch((error) => {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;
