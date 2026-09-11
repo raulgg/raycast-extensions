@@ -51,6 +51,10 @@ describe("AirPods status refresh", () => {
     expect(result).toEqual({
       listeningMode: { status: "fulfilled", value: "anc" },
       conversationAwareness: { status: "fulfilled", value: "on" },
+      subtitleDispatch: {
+        listeningMode: { status: "fulfilled", value: undefined },
+        conversationAwareness: { status: "fulfilled", value: undefined },
+      },
     });
     expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
     expect(AirPodsControlCli.getConversationAwareness).toHaveBeenCalledOnce();
@@ -63,6 +67,43 @@ describe("AirPods status refresh", () => {
       name: TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME,
       type: LaunchType.Background,
       context: { operation: "refresh-conversation-awareness-subtitle", state: "on" },
+    });
+  });
+
+  it("preserves a rejected Cycle Listening Mode launch separately from successful reads", async () => {
+    const error = new Error("Cycle Listening Mode is disabled");
+    mockLaunchCommand.mockRejectedValueOnce(error);
+
+    const result = await refreshAirPodsStatus();
+
+    expect(result.listeningMode).toEqual({ status: "fulfilled", value: "anc" });
+    expect(result.conversationAwareness).toEqual({ status: "fulfilled", value: "on" });
+    expect(result.subtitleDispatch.listeningMode).toEqual({ status: "rejected", reason: error });
+    expect(result.subtitleDispatch.conversationAwareness).toEqual({ status: "fulfilled", value: undefined });
+  });
+
+  it("preserves a rejected Conversation Awareness launch separately from successful reads", async () => {
+    const error = new Error("Conversation Awareness is disabled");
+    mockLaunchCommand.mockResolvedValueOnce(undefined).mockRejectedValueOnce(error);
+
+    const result = await refreshAirPodsStatus();
+
+    expect(result.listeningMode).toEqual({ status: "fulfilled", value: "anc" });
+    expect(result.conversationAwareness).toEqual({ status: "fulfilled", value: "on" });
+    expect(result.subtitleDispatch.listeningMode).toEqual({ status: "fulfilled", value: undefined });
+    expect(result.subtitleDispatch.conversationAwareness).toEqual({ status: "rejected", reason: error });
+  });
+
+  it("preserves both rejected subtitle launches", async () => {
+    const listeningError = new Error("Cycle Listening Mode is disabled");
+    const conversationError = new Error("Conversation Awareness is disabled");
+    mockLaunchCommand.mockRejectedValueOnce(listeningError).mockRejectedValueOnce(conversationError);
+
+    const result = await refreshAirPodsStatus();
+
+    expect(result.subtitleDispatch).toEqual({
+      listeningMode: { status: "rejected", reason: listeningError },
+      conversationAwareness: { status: "rejected", reason: conversationError },
     });
   });
 
@@ -92,11 +133,42 @@ describe("AirPods status refresh", () => {
     );
   });
 
+  it("logs rejected subtitle launches during setup fallback", async () => {
+    const error = new Error("Cycle Listening Mode is disabled");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mockLaunchCommand.mockRejectedValueOnce(error);
+
+    await resetAirPodsStatusSubtitles();
+
+    expect(consoleError).toHaveBeenCalledWith("Failed to dispatch Cycle Listening Mode subtitle refresh", error);
+  });
+
   it("stays silent on a scheduled refresh", async () => {
     await runAirPodsStatusRefresh({ showFeedback: false });
 
     expect(mockShowToast).not.toHaveBeenCalled();
     expect(mockLaunchCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it("logs each rejected subtitle launch while staying silent in the background", async () => {
+    const listeningError = new Error("Cycle Listening Mode is disabled");
+    const conversationError = new Error("Conversation Awareness is disabled");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mockLaunchCommand.mockRejectedValueOnce(listeningError).mockRejectedValueOnce(conversationError);
+
+    await runAirPodsStatusRefresh({ showFeedback: false });
+
+    expect(mockShowToast).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenNthCalledWith(
+      1,
+      "Failed to dispatch Cycle Listening Mode subtitle refresh",
+      listeningError,
+    );
+    expect(consoleError).toHaveBeenNthCalledWith(
+      2,
+      "Failed to dispatch Toggle Conversation Awareness subtitle refresh",
+      conversationError,
+    );
   });
 
   it("keeps Raycast open and reports both confirmed states in a success toast", async () => {
@@ -110,9 +182,45 @@ describe("AirPods status refresh", () => {
       title: "Refreshing AirPods status...",
     });
     expect(toast.style).toBe(Toast.Style.Success);
-    expect(toast.title).toBe("AirPods status refreshed");
+    expect(toast.title).toBe("AirPods status read");
     expect(toast.message).toBe("Listening: Noise Cancellation ● · Conversation Awareness: On ●");
     expect(toast.primaryAction).toBeUndefined();
+    expect(toast.show).toHaveBeenCalledOnce();
+  });
+
+  it("reports a subtitle launch failure while retaining both confirmed states", async () => {
+    const toast = makeToast();
+    const error = new Error("Cycle Listening Mode is disabled");
+    mockShowToast.mockResolvedValueOnce(toast);
+    mockLaunchCommand.mockRejectedValueOnce(error);
+
+    await runAirPodsStatusRefresh({ showFeedback: true });
+
+    expect(toast.style).toBe(Toast.Style.Failure);
+    expect(toast.title).toBe("Could not refresh subtitles");
+    expect(toast.message).toBe(
+      "Listening: Noise Cancellation ● · Conversation Awareness: On ● · Listening Mode subtitle: Cycle Listening Mode is disabled",
+    );
+    expect(toast.primaryAction).toEqual(expect.objectContaining({ title: "Copy Error" }));
+    expect(toast.show).toHaveBeenCalledOnce();
+  });
+
+  it("includes read and subtitle launch failures in manual feedback", async () => {
+    const toast = makeToast();
+    const readError = new CliError("unsupported");
+    const launchError = new Error("Cycle Listening Mode is disabled");
+    mockShowToast.mockResolvedValueOnce(toast);
+    vi.mocked(AirPodsControlCli.getConversationAwareness).mockRejectedValue(readError);
+    mockLaunchCommand.mockRejectedValueOnce(launchError);
+
+    await runAirPodsStatusRefresh({ showFeedback: true });
+
+    expect(toast.style).toBe(Toast.Style.Failure);
+    expect(toast.title).toBe("AirPods status partially refreshed");
+    expect(toast.message).toContain("Listening: Noise Cancellation ●");
+    expect(toast.message).toContain("Conversation Awareness: This feature is not supported");
+    expect(toast.message).toContain("Listening Mode subtitle: Cycle Listening Mode is disabled");
+    expect(toast.primaryAction).toEqual(expect.objectContaining({ title: "Copy Error" }));
     expect(toast.show).toHaveBeenCalledOnce();
   });
 
