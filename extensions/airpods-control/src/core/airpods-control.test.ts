@@ -1,4 +1,4 @@
-import { getPreferenceValues } from "@raycast/api";
+import { getPreferenceValues, openCommandPreferences } from "@raycast/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   refreshConversationAwarenessSubtitle,
@@ -41,6 +41,7 @@ vi.mock("./toast-manager", () => ({
 }));
 
 const mockGetPreferenceValues = vi.mocked(getPreferenceValues);
+const mockOpenCommandPreferences = vi.mocked(openCommandPreferences);
 const mockPublishCommandSubtitle = vi.mocked(publishCommandSubtitle);
 const mockResetCommandSubtitle = vi.mocked(resetCommandSubtitle);
 const mockToastManager = vi.mocked(ToastManager);
@@ -198,28 +199,49 @@ describe("airpods-control workflows", () => {
       );
       expect(toast.setToSuccess).toHaveBeenCalledWith({
         titleOverride: "Set to Adaptive ◑",
-        titleSuffix: undefined,
       });
     });
 
-    it("uses the CLI default cycle when fewer than two modes are selected", async () => {
+    it.each([
+      ["zero", { cycleOff: false, cycleTransparency: false, cycleAdaptive: false, cycleAnc: false }],
+      ["one", { cycleOff: false, cycleTransparency: true, cycleAdaptive: false, cycleAnc: false }],
+    ] as const)("rejects %s selected cycle modes before reading or writing", async (_count, preferences) => {
+      mockGetPreferenceValues.mockReturnValue(preferences as never);
+
+      await runCycleListeningModeCommand();
+
+      expect(AirPodsControlCli.getListeningMode).not.toHaveBeenCalled();
+      expect(AirPodsControlCli.cycleListeningMode).not.toHaveBeenCalled();
+      expect(mockPublishCommandSubtitle).not.toHaveBeenCalled();
+      expect(mockResetCommandSubtitle).not.toHaveBeenCalled();
+      expect(toast.setToFailure).toHaveBeenCalledWith({
+        error: expect.objectContaining({ message: expect.stringContaining("at least two") }),
+        action: {
+          title: "Open Command Preferences",
+          onAction: mockOpenCommandPreferences,
+        },
+      });
+      expect(toast.setToSuccess).not.toHaveBeenCalled();
+    });
+
+    it("advances in canonical order when the current mode is not selected", async () => {
       mockGetPreferenceValues.mockReturnValue({
         cycleOff: false,
         cycleTransparency: true,
         cycleAdaptive: false,
-        cycleAnc: false,
+        cycleAnc: true,
       } as never);
-      vi.mocked(AirPodsControlCli.getListeningMode).mockResolvedValue("off");
+      vi.mocked(AirPodsControlCli.getListeningMode).mockResolvedValue("adaptive");
+      vi.mocked(AirPodsControlCli.cycleListeningMode).mockResolvedValue("anc");
 
       await runCycleListeningModeCommand();
 
-      expect(AirPodsControlCli.cycleListeningMode).toHaveBeenCalledWith(undefined);
+      expect(AirPodsControlCli.cycleListeningMode).toHaveBeenCalledWith(["transparency", "anc"]);
       expect(mockPublishCommandSubtitle).toHaveBeenCalledOnce();
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Transparency ○");
-      expect(toast.setToSuccess).toHaveBeenCalledWith({
-        titleOverride: "Set to Transparency ○",
-        titleSuffix: "cycled all modes (fewer than two selected in preferences)",
-      });
+      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Noise Cancellation ●");
+      expect(mockPublishCommandSubtitle.mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(AirPodsControlCli.cycleListeningMode).mock.invocationCallOrder[0],
+      );
     });
 
     it("publishes confirmed state while preserving selected-mode failure guidance", async () => {
@@ -236,6 +258,10 @@ describe("airpods-control workflows", () => {
       expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ●");
       expect(toast.setToFailure).toHaveBeenCalledWith({
         error: expect.objectContaining({ message: expect.stringContaining("fewer than two") }),
+        action: {
+          title: "Open Command Preferences",
+          onAction: mockOpenCommandPreferences,
+        },
       });
     });
 
@@ -248,7 +274,6 @@ describe("airpods-control workflows", () => {
       expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ●");
       expect(toast.setToSuccess).toHaveBeenCalledWith({
         titleOverride: "Set to Noise Cancellation ●",
-        titleSuffix: undefined,
       });
     });
 

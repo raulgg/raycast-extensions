@@ -1,4 +1,4 @@
-import { getPreferenceValues } from "@raycast/api";
+import { getPreferenceValues, openCommandPreferences } from "@raycast/api";
 import * as AirPodsControlCli from "./airpods-control-cli";
 import { CliError } from "./cli";
 import { publishCommandSubtitle, resetCommandSubtitle } from "./command-metadata";
@@ -123,8 +123,14 @@ export async function runSetListeningModeCommand(
 }
 
 function nextCycleMode(currentMode: ListeningModes, cycleModes: ListeningModes[]): ListeningModes {
-  const currentIndex = cycleModes.indexOf(currentMode);
-  return cycleModes[(currentIndex + 1) % cycleModes.length];
+  const currentIndex = CYCLE_MODE_ORDER.indexOf(currentMode);
+  for (let offset = 1; offset <= CYCLE_MODE_ORDER.length; offset += 1) {
+    const candidate = CYCLE_MODE_ORDER[(currentIndex + offset) % CYCLE_MODE_ORDER.length];
+    if (cycleModes.includes(candidate)) {
+      return candidate;
+    }
+  }
+  return cycleModes[0];
 }
 
 function getSelectedCycleModes(): ListeningModes[] {
@@ -147,32 +153,43 @@ export async function runCycleListeningModeCommand(): Promise<void> {
   await toast.setToLoading();
 
   const selectedModes = getSelectedCycleModes();
-  const useSelection = selectedModes.length >= 2;
-  const cycleModes = useSelection ? selectedModes : CYCLE_MODE_ORDER;
+  if (selectedModes.length < 2) {
+    await toast.setToFailure({
+      error: new Error("Select at least two listening modes in Cycle Listening Mode preferences."),
+      action: {
+        title: "Open Command Preferences",
+        onAction: openCommandPreferences,
+      },
+    });
+    return;
+  }
 
   try {
     const currentMode = await AirPodsControlCli.getListeningMode();
-    const expectedMode = nextCycleMode(currentMode, cycleModes);
+    const expectedMode = nextCycleMode(currentMode, selectedModes);
     await publishCommandSubtitle(listeningModeSubtitle(expectedMode));
-    const confirmedMode = await AirPodsControlCli.cycleListeningMode(useSelection ? selectedModes : undefined);
+    const confirmedMode = await AirPodsControlCli.cycleListeningMode(selectedModes);
     if (confirmedMode !== expectedMode) {
       await publishCommandSubtitle(listeningModeSubtitle(confirmedMode));
     }
     await toast.setToSuccess({
       titleOverride: listeningModeHud(confirmedMode),
-      titleSuffix: useSelection ? undefined : "cycled all modes (fewer than two selected in preferences)",
     });
   } catch (error) {
     await publishConfirmedListeningMode(error, true);
-    if (error instanceof CliError && error.code === "unsupported" && useSelection) {
+    if (error instanceof CliError && error.code === "unsupported") {
       await toast.setToFailure({
         error: new Error(
           "Your AirPods support fewer than two of the selected cycle modes. Adjust the command preferences.",
         ),
+        action: {
+          title: "Open Command Preferences",
+          onAction: openCommandPreferences,
+        },
       });
       return;
     }
-    await showCliFailure(toast, error, { offRequested: useSelection && selectedModes.includes("off") });
+    await showCliFailure(toast, error, { offRequested: selectedModes.includes("off") });
   }
 }
 

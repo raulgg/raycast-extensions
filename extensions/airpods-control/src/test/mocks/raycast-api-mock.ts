@@ -11,6 +11,8 @@ export const Toast = {
 
 export const openExtensionPreferences: Mock<() => Promise<void>> = vi.fn(async () => {});
 
+export const openCommandPreferences: Mock<() => Promise<void>> = vi.fn(async () => {});
+
 export const LaunchType = {
   UserInitiated: "userInitiated",
   Background: "background",

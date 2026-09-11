@@ -84,19 +84,27 @@ export class ToastManager {
     titleOverride,
     titleSuffix,
     error,
-  }: { titleOverride?: string; titleSuffix?: string; error?: unknown } = {}): Promise<ToastManager> {
+    action,
+  }: {
+    titleOverride?: string;
+    titleSuffix?: string;
+    error?: unknown;
+    action?: Toast.ActionOptions;
+  } = {}): Promise<ToastManager> {
     const style = Toast.Style.Failure;
     const title = titleOverride ?? this.titles.failure;
     const finalTitle = titleSuffix ? `${title} - ${titleSuffix}` : title;
     const message = getErrorMessage(error);
-    const primaryAction = createCopyErrorAction(message);
+    const copyErrorAction = createCopyErrorAction(message);
+    const primaryAction = action ?? copyErrorAction;
+    const secondaryAction = action ? copyErrorAction : undefined;
 
     if (this.toast) {
       this.toast.style = style;
       this.toast.title = finalTitle;
       this.toast.message = message;
       this.toast.primaryAction = primaryAction;
-      this.toast.secondaryAction = undefined;
+      this.toast.secondaryAction = secondaryAction;
       // Flush the update before the command's promise resolves and the process exits.
       await this.toast.show();
     } else {
@@ -105,6 +113,7 @@ export class ToastManager {
         title: finalTitle,
         message,
         primaryAction,
+        secondaryAction,
       });
     }
 

@@ -165,6 +165,38 @@ describe("toast-manager", () => {
       expect(mockShowHUD).not.toHaveBeenCalled();
     });
 
+    it("uses a provided failure action and keeps copy error as the secondary action", async () => {
+      const manager = new ToastManager(titles);
+      const action = { title: "Open Command Preferences", onAction: vi.fn() };
+
+      await manager.setToFailure({ error: new Error("Invalid cycle preferences"), action });
+
+      const options = mockShowToast.mock.calls[0][0] as unknown as Toast.Options;
+      expect(options.primaryAction).toBe(action);
+      expect(options.secondaryAction).toEqual(
+        expect.objectContaining({ title: "Copy Error", shortcut: Keyboard.Shortcut.Common.Copy }),
+      );
+      await options.secondaryAction?.onAction?.(makeMockToast() as unknown as Toast);
+      expect(mockClipboardCopy).toHaveBeenCalledWith("Invalid cycle preferences");
+    });
+
+    it("updates an existing progress toast with a custom action and copy secondary", async () => {
+      const mockToast = makeMockToast();
+      const action = { title: "Open Command Preferences", onAction: vi.fn() };
+      mockShowToast.mockResolvedValueOnce(mockToast as unknown as Toast);
+      const manager = new ToastManager(titles);
+      await manager.setToLoading();
+
+      await manager.setToFailure({ error: new Error("Invalid cycle preferences"), action });
+
+      expect(mockToast.primaryAction).toBe(action);
+      expect(mockToast.secondaryAction).toEqual(
+        expect.objectContaining({ title: "Copy Error", shortcut: Keyboard.Shortcut.Common.Copy }),
+      );
+      await mockToast.secondaryAction?.onAction?.(makeMockToast() as unknown as Toast);
+      expect(mockClipboardCopy).toHaveBeenCalledWith("Invalid cycle preferences");
+    });
+
     it("updates the progress toast in place and keeps it visible", async () => {
       const mockToast = makeMockToast();
       mockShowToast.mockResolvedValueOnce(mockToast as unknown as Toast);
