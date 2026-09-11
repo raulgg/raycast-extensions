@@ -26,7 +26,6 @@ All AirPods commands of this extension are available.
   return (
     <Detail
       markdown={markdown}
-      navigationTitle="AirPods Control CLI"
       actions={
         <ActionPanel>
           <Action title="Recheck" icon={Icon.ArrowClockwise} onAction={() => setCliPath(findCliPath())} />

@@ -57,7 +57,6 @@ export function InstallCliView({ onRetry }: { onRetry: () => void }) {
     <Detail
       markdown={markdown}
       isLoading={isInstalling}
-      navigationTitle="Install AirPods Control CLI"
       actions={
         <ActionPanel>
           <Action.CopyToClipboard title="Copy Install Command" content={CLI_INSTALL_COMMAND} />
