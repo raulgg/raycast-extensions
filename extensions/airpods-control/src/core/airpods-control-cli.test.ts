@@ -75,11 +75,14 @@ describe("airpods-control CLI shim", () => {
     await expect(getListeningMode()).resolves.toBe("anc");
   });
 
-  it.each([null, "future-mode"])("rejects invalid listening mode %s", async (listeningMode) => {
-    mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode });
+  it.each([null, "", "future-mode", "toString", "constructor", "__proto__"])(
+    "rejects invalid listening mode %s",
+    async (listeningMode) => {
+      mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode });
 
-    await expect(getListeningMode()).rejects.toMatchObject({ code: "invalid-response" });
-  });
+      await expect(getListeningMode()).rejects.toMatchObject({ code: "invalid-response" });
+    },
+  );
 
   it("gets Conversation Awareness", async () => {
     mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", conversationAwareness: "on" });

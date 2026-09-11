@@ -16,7 +16,7 @@ const EXTENSION_MODES: Record<CliListeningMode, ListeningModes> = {
 };
 
 function isCliListeningMode(value: string): value is CliListeningMode {
-  return value in EXTENSION_MODES;
+  return Object.hasOwn(EXTENSION_MODES, value);
 }
 
 export function confirmedListeningMode(payload: CliPayload | null): ListeningModes | null {
