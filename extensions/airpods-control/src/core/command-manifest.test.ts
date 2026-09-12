@@ -20,13 +20,6 @@ describe("background command manifest", () => {
       name: "update-airpods-control-cli",
       title: "Update Airpods-Control CLI",
       mode: "view",
-      preferences: [
-        {
-          name: "simulateHomebrewUnavailable",
-          type: "checkbox",
-          default: false,
-        },
-      ],
     });
   });
   it("refreshes AirPods status approximately once a minute", () => {

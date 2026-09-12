@@ -2,7 +2,6 @@ import {
   Action,
   ActionPanel,
   Detail,
-  getPreferenceValues,
   Icon,
   Keyboard,
   openCommandPreferences,
@@ -31,8 +30,7 @@ export default function Command() {
     setError(undefined);
     setCompleted(false);
     try {
-      const preferences = getPreferenceValues<{ simulateHomebrewUnavailable?: boolean }>();
-      const detected = await detectCliSetup(preferences);
+      const detected = await detectCliSetup();
       if (mounted.current) setSetup(detected);
     } catch (error) {
       if (mounted.current) {

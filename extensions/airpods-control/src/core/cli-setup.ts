@@ -24,10 +24,10 @@ export interface CliSetup {
   developerTools: DeveloperToolsStatus | null;
 }
 
-export async function detectCliSetup(options: { simulateHomebrewUnavailable?: boolean } = {}): Promise<CliSetup> {
+export async function detectCliSetup(): Promise<CliSetup> {
   const cliPath = findCliPath();
   const configuredCliPath = getConfiguredCliPath();
-  const brewPath = options.simulateHomebrewUnavailable ? null : findBrewPath();
+  const brewPath = findBrewPath();
   if (await isBrewOperationRunning()) {
     return { state: "installing", cliPath, configuredCliPath, brewPath, brewCliPrefix: null, developerTools: null };
   }

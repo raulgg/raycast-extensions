@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import { Clipboard, getPreferenceValues, launchCommand } from "@raycast/api";
+import { Clipboard, launchCommand } from "@raycast/api";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,7 +18,6 @@ describe("CLI setup view", () => {
   let root: Root;
   let unmounted: boolean;
   beforeEach(() => {
-    vi.mocked(getPreferenceValues).mockReturnValue({});
     vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
     vi.mocked(runCliInstallation).mockReset().mockResolvedValue(installedCli);
     container = document.createElement("div");
@@ -95,7 +94,7 @@ describe("CLI setup view", () => {
     await render();
     expect(action("Copy Developer Tools Install Command")).toBeNull();
     expect(action("Open Apple Developer Downloads")).not.toBeNull();
-    expect(markdown()).toContain("xcode-select command is unavailable");
+    expect(markdown()).toContain("The `xcode-select` command is unavailable");
   });
   it.each(["installing", "manual-cli", "invalid-cli-path", "needs-link"] as const)(
     "offers recovery instead of install or upgrade for %s",
@@ -145,11 +144,6 @@ describe("CLI setup view", () => {
     expect(action("Open CLI Installation Instructions")).not.toBeNull();
     await click("Refresh Setup");
     expect(action("Install with Homebrew")).not.toBeNull();
-  });
-  it("passes the testing preference to detection without changing the command guard", async () => {
-    vi.mocked(getPreferenceValues).mockReturnValue({ simulateHomebrewUnavailable: true });
-    await render();
-    expect(detectCliSetup).toHaveBeenCalledWith({ simulateHomebrewUnavailable: true });
   });
   it("does not navigate or start installation after leaving during detection", async () => {
     const detection = deferred<ReturnType<typeof cliSetup>>();

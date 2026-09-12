@@ -7,8 +7,19 @@ vi.mock("child_process", () => ({ execFile: vi.fn() }));
 vi.mock("fs", () => ({ accessSync: vi.fn(), constants: { X_OK: 1 } }));
 const exec = vi.mocked(execFile);
 
+function mockXcodeSelectAvailable() {
+  vi.mocked(accessSync).mockImplementation(() => undefined);
+}
+
+function mockXcodeSelectUnavailable() {
+  vi.mocked(accessSync).mockImplementation(() => {
+    throw new Error("ENOENT");
+  });
+}
+
 beforeEach(() => {
   vi.mocked(accessSync).mockReset();
+  mockXcodeSelectAvailable();
   exec.mockImplementation((_file, _args, _options, callback) => {
     if (typeof callback === "function") callback(null, "", "");
     return {} as ReturnType<typeof execFile>;
@@ -28,9 +39,7 @@ it("accepts a working selected Swift toolchain, including full Xcode", async () 
 });
 
 it("provides downloads recovery when xcode-select is absent", async () => {
-  vi.mocked(accessSync).mockImplementation(() => {
-    throw new Error("ENOENT");
-  });
+  mockXcodeSelectUnavailable();
   expect(await detectDeveloperTools()).toBe("unavailable");
   expect(exec).not.toHaveBeenCalled();
 });
