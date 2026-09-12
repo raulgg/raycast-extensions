@@ -14,7 +14,7 @@ import { ToastManager } from "./toast-manager";
 import type { ConversationAwarenessState, CycleCommandPreferences, ListeningModes } from "./types";
 
 const OFF_NOT_APPLIED_HINT =
-  "Your AirPods reverted the change. Off may be disabled in your AirPods noise-control settings; " +
+  "macOS did not confirm Off after the requested change. Off may be disabled in your AirPods noise-control settings; " +
   "if so, uncheck Off in the Cycle Listening Mode preferences and disable the Disable Noise Control command.";
 
 interface SetListeningModeCommandOptions {

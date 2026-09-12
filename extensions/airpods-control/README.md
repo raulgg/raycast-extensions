@@ -38,8 +38,8 @@ Status and successful changes reflect macOS provider readback, not a direct ackn
 
 ## Commands
 
-- **Set Noise Cancellation / Set Transparency / Set Adaptive / Set Off** — set a specific listening mode. The **Cycle Listening Mode** subtitle anticipates the requested mode and reconciles with macOS readback.
-- **Cycle Listening Mode** — cycle through modes selected in command preferences. Its subtitle anticipates the next mode and reconciles with macOS readback.
+- **Set Noise Cancellation / Set Transparency / Set Adaptive / Disable Noise Control** — set a specific listening mode. The **Cycle Listening Mode** subtitle anticipates the requested mode and reconciles with macOS readback.
+- **Cycle Listening Mode** — cycle through modes selected in command preferences; select at least two modes. Its subtitle anticipates the next mode and reconciles with macOS readback.
 - **Toggle Conversation Awareness** — read the current state and flip it. Its subtitle anticipates the new state and reconciles with macOS readback.
 - **Refresh AirPods Status** — safely refresh both status subtitles immediately and, when Background Refresh is active, about once a minute. Manual refreshes keep Raycast open and show both confirmed states in a toast.
 - **Install AirPods Control CLI** — check whether the CLI is detected, copy the install command, or install it with Homebrew directly.
@@ -56,5 +56,5 @@ Dynamic status subtitles fall back to **AirPods** whenever a change or backgroun
 - If no device is available, connect your AirPods and select them as the Mac's audio output. Conversation Awareness requires a compatible selected output interface.
 - If several compatible devices are connected and the CLI cannot select one, disconnect the others. This extension does not expose the CLI's device selector.
 - Adaptive and Conversation Awareness require model support. Enable **Set Adaptive** in Raycast preferences if you want that command; it is disabled by default.
-- Off can be unavailable because of your device's noise-control settings. Enable it in the AirPods settings if supported, or leave it out of your cycle selection. The explicit Off command is disabled by default.
+- Off can be unavailable because of your device's noise-control settings. Enable it in the AirPods settings if supported, or leave it out of your cycle selection. The **Disable Noise Control** command is disabled by default.
 - If commands fail after a macOS update, check the CLI compatibility matrix and upgrade the CLI. A successful installation alone does not establish hardware compatibility.
