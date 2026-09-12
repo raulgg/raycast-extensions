@@ -14,13 +14,13 @@ export default function Command() {
   const markdown = `
 # AirPods Control CLI Detected
 
-The [airpods-control](${CLI_REPO_URL}) CLI is installed and ready:
+The [airpods-control](${CLI_REPO_URL}) CLI executable was detected at:
 
 \`\`\`
 ${cliPath}
 \`\`\`
 
-All AirPods commands of this extension are available.
+Detection confirms that the executable exists. Available commands still depend on your AirPods, firmware, macOS version, and CLI compatibility.
 `;
 
   return (
