@@ -95,13 +95,14 @@ describe("toast-manager", () => {
   });
 
   describe("setToSuccess", () => {
-    it("shows a success HUD even when no progress toast exists", async () => {
+    it("shows success without closing Raycast when no progress toast exists", async () => {
       const manager = new ToastManager(titles);
 
       await manager.setToSuccess();
 
-      expect(mockShowHUD).toHaveBeenCalledWith(titles.success);
-      expect(mockShowToast).not.toHaveBeenCalled();
+      expect(mockShowToast).toHaveBeenCalledWith({ style: Toast.Style.Success, title: titles.success });
+      expect(mockShowHUD).not.toHaveBeenCalled();
+      expect(mockCloseMainWindow).not.toHaveBeenCalled();
     });
 
     it("supports success title overrides and suffixes", async () => {
@@ -109,22 +110,28 @@ describe("toast-manager", () => {
 
       await manager.setToSuccess({ titleOverride: "Custom success title", titleSuffix: "Device 1" });
 
-      expect(mockShowHUD).toHaveBeenCalledWith("Custom success title - Device 1");
+      expect(mockShowToast).toHaveBeenCalledWith({
+        style: Toast.Style.Success,
+        title: "Custom success title - Device 1",
+      });
     });
 
-    it("hides the progress toast before showing the success HUD", async () => {
+    it("replaces progress through showToast to allow the HUD fallback", async () => {
       const mockToast = makeMockToast();
       mockShowToast.mockResolvedValueOnce(mockToast as unknown as Toast);
       const manager = new ToastManager(titles);
       await manager.setToLoading();
+      vi.clearAllMocks();
 
       await manager.setToSuccess();
 
       expect(mockToast.hide).toHaveBeenCalled();
-      expect(mockShowHUD).toHaveBeenCalledWith(titles.success);
+      expect(mockShowToast).toHaveBeenCalledWith({ style: Toast.Style.Success, title: titles.success });
       expect(vi.mocked(mockToast.hide).mock.invocationCallOrder[0]).toBeLessThan(
-        mockShowHUD.mock.invocationCallOrder[0],
+        mockShowToast.mock.invocationCallOrder[0],
       );
+      expect(mockShowHUD).not.toHaveBeenCalled();
+      expect(mockCloseMainWindow).not.toHaveBeenCalled();
     });
 
     it("returns the manager for chaining", async () => {

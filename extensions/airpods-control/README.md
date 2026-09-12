@@ -38,6 +38,8 @@ Status and successful changes reflect macOS provider readback, not a direct ackn
 
 ## Commands
 
+Control commands keep Raycast open and show a confirmation toast. If Raycast is closed when the command finishes, including when launched by a keyboard shortcut with the window closed, the confirmation appears in a HUD instead.
+
 - **Set Noise Cancellation / Set Transparency / Set Adaptive / Disable Noise Control**. Set a specific listening mode. The **Cycle Listening Mode** subtitle anticipates the requested mode and reconciles with macOS readback.
 - **Cycle Listening Mode**. Cycle through modes selected in command preferences; select at least two modes. Its subtitle anticipates the next mode and reconciles with macOS readback.
 - **Toggle Conversation Awareness**. Read the current state and flip it. Its subtitle anticipates the new state and reconciles with macOS readback.

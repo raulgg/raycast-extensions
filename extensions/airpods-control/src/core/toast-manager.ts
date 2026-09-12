@@ -1,4 +1,4 @@
-import { Clipboard, Keyboard, showHUD, showToast, Toast } from "@raycast/api";
+import { Clipboard, Keyboard, showToast, Toast } from "@raycast/api";
 
 const UNEXPECTED_ERROR_MESSAGE = "An unexpected error occurred.";
 
@@ -28,10 +28,6 @@ export function createCopyErrorAction(message: string): Toast.ActionOptions {
   };
 }
 
-/**
- * Manages command feedback across an in-window progress toast, a copyable
- * failure toast, and a success HUD.
- */
 export class ToastManager {
   private toast: Toast | null = null;
   private readonly titles: ToastTitles;
@@ -75,7 +71,8 @@ export class ToastManager {
     const finalTitle = titleSuffix ? `${title} - ${titleSuffix}` : title;
 
     await this.hide();
-    await showHUD(finalTitle);
+    // Show a new toast so Raycast chooses toast or HUD using the current window state.
+    this.toast = await showToast({ style: Toast.Style.Success, title: finalTitle });
 
     return this;
   }
