@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { findBrewPath, installCliWithBrew, updateCliWithBrew } from "./core/brew";
 import { findCliPath } from "./core/cli";
 import { runBrewOperationWithProgress } from "./core/cli-installation";
+import { CLI_INSTALL_COMMAND } from "./core/consts";
 import Command from "./update-airpods-control-cli";
 
 vi.mock("./core/brew", () => ({
@@ -98,9 +99,34 @@ describe("Update airpods-control CLI", () => {
   it("offers installation when Homebrew exists but the CLI is missing", () => {
     render();
 
-    expect(container.querySelector('[data-testid="markdown"]')?.textContent).toContain("CLI not found");
+    const markdown = container.querySelector('[data-testid="markdown"]')?.textContent ?? "";
+    expect(markdown).toContain("Install airpods-control CLI");
+    expect(markdown).not.toContain("Homebrew is ready");
+    expect(markdown).toContain("Install the CLI with Homebrew:");
+    expect(markdown).toContain("If Homebrew reports that the Command Line Tools are missing, run:");
+    expect(markdown).toContain("xcode-select --install");
+    expect(markdown).toContain("When installation finishes, choose **Retry Detection** below.");
+    expect(markdown.indexOf(CLI_INSTALL_COMMAND)).toBeLessThan(markdown.indexOf("xcode-select --install"));
     expect(actionButton(container, "Install with Homebrew")).toBeDefined();
     expect(actionButton(container, "Copy Install Command")).toBeDefined();
+  });
+
+  it("uses the same installation title with and without Homebrew", () => {
+    mockFindBrewPath.mockReturnValue(null);
+    render();
+    const withoutHomebrew = container.querySelector('[data-testid="markdown"]')?.textContent;
+
+    act(() => {
+      root?.unmount();
+      root = createRoot(container);
+    });
+
+    mockFindBrewPath.mockReturnValue("/opt/homebrew/bin/brew");
+    render();
+    const withHomebrew = container.querySelector('[data-testid="markdown"]')?.textContent;
+
+    expect(withoutHomebrew?.split("\n")[1]).toBe("# Install airpods-control CLI");
+    expect(withHomebrew?.split("\n")[1]).toBe("# Install airpods-control CLI");
   });
 
   it("offers an update and copies the upgrade command when the CLI is detected", () => {

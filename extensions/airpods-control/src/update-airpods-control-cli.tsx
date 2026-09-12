@@ -68,13 +68,21 @@ ${CLI_UPDATE_COMMAND}
   }
 
   return `
-# airpods-control CLI not found
+# Install airpods-control CLI
 
-Homebrew is ready, but the CLI is not installed. Install it with:
+Install the CLI with Homebrew:
 
 \`\`\`bash
 ${CLI_INSTALL_COMMAND}
 \`\`\`
+
+If Homebrew reports that the Command Line Tools are missing, run:
+
+\`\`\`bash
+xcode-select --install
+\`\`\`
+
+When installation finishes, choose **Retry Detection** below.
 `;
 }
 
