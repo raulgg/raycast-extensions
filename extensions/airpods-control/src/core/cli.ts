@@ -11,23 +11,46 @@ import type { CliPayload, ExtensionPreferences } from "./types";
 const CLI_TIMEOUT_MS = 15000;
 
 export type CliErrorCode =
-  "not-installed" | "no-device" | "bad-args" | "no-op" | "unsupported" | "invalid-response" | "unknown";
+  | "not-installed"
+  | "no-device"
+  | "bad-args"
+  | "no-op"
+  | "unsupported"
+  | "read-error"
+  | "unavailable"
+  | "ambiguous-device"
+  | "invalid-response"
+  | "unknown";
 
-const CLI_ERROR_CODES = ["no-device", "bad-args", "no-op", "unsupported"] as const;
+const CLI_ERROR_CODES = [
+  "no-device",
+  "bad-args",
+  "no-op",
+  "unsupported",
+  "read-error",
+  "unavailable",
+  "ambiguous-device",
+] as const;
 
 const EXIT_CODE_ERRORS: Record<number, CliErrorCode> = {
   1: "no-device",
   2: "bad-args",
   3: "no-op",
   4: "unsupported",
+  5: "read-error",
+  6: "unavailable",
+  8: "ambiguous-device",
 };
 
 const ERROR_MESSAGES: Record<CliErrorCode, string> = {
   "not-installed": "The airpods-control CLI is not installed.",
   "no-device": "Connect your AirPods to your Mac and try again.",
   "bad-args": "The airpods-control CLI rejected the command arguments.",
-  "no-op": "Your AirPods did not confirm the change.",
+  "no-op": "macOS did not confirm the change.",
   unsupported: "This feature is not supported by the connected device.",
+  "read-error": "The CLI could not read AirPods status. Check that your AirPods are connected and try again.",
+  unavailable: "AirPods controls are unavailable. Select your AirPods as the audio output and check CLI compatibility.",
+  "ambiguous-device": "Multiple compatible devices are connected. Disconnect all but one and try again.",
   "invalid-response": "The airpods-control CLI returned an invalid response.",
   unknown: "The airpods-control CLI failed unexpectedly.",
 };
@@ -112,6 +135,10 @@ export async function runCli(args: string[]): Promise<CliPayload> {
       throw new CliError("unknown", payload, "The airpods-control CLI timed out.");
     }
     throw new CliError(toErrorCode(payload?.error, error.code), payload);
+  }
+
+  if (payload?.result === "no-op") {
+    throw new CliError("no-op", payload);
   }
 
   if (!payload || payload.result !== "ok") {

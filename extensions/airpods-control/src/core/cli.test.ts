@@ -145,6 +145,75 @@ describe("cli", () => {
       });
     });
 
+    it.each([
+      ["read-error", "The CLI could not read AirPods status. Check that your AirPods are connected and try again."],
+      [
+        "unavailable",
+        "AirPods controls are unavailable. Select your AirPods as the audio output and check CLI compatibility.",
+      ],
+      ["ambiguous-device", "Multiple compatible devices are connected. Disconnect all but one and try again."],
+    ] as const)("should map the %s payload error to actionable feedback", async (code, message) => {
+      const error = new Error("Command failed") as Error & { code?: number };
+      error.code = 70;
+      mockExecFileResult(error, JSON.stringify({ device: null, error: code, result: "error" }));
+
+      await expect(runCli(["listening-mode", "get"])).rejects.toMatchObject({
+        name: "CliError",
+        code,
+        message,
+      });
+    });
+
+    it.each([
+      [5, "read-error", "The CLI could not read AirPods status. Check that your AirPods are connected and try again."],
+      [
+        6,
+        "unavailable",
+        "AirPods controls are unavailable. Select your AirPods as the audio output and check CLI compatibility.",
+      ],
+      [8, "ambiguous-device", "Multiple compatible devices are connected. Disconnect all but one and try again."],
+    ] as const)("should map exit code %s to %s", async (exitCode, code, message) => {
+      const error = new Error("Command failed") as Error & { code?: number };
+      error.code = exitCode;
+      mockExecFileResult(error, "not json");
+
+      await expect(runCli(["listening-mode", "get"])).rejects.toMatchObject({
+        name: "CliError",
+        code,
+        message,
+      });
+    });
+
+    it("should map a no-op result payload without an error token", async () => {
+      const error = new Error("Command failed") as Error & { code?: number };
+      error.code = 3;
+      mockExecFileResult(
+        error,
+        JSON.stringify({ device: "My AirPods Pro", listeningMode: "transparency", result: "no-op" }),
+      );
+
+      await expect(runCli(["listening-mode", "set", "noise-cancellation"])).rejects.toMatchObject({
+        name: "CliError",
+        code: "no-op",
+        message: "macOS did not confirm the change.",
+        payload: { device: "My AirPods Pro", listeningMode: "transparency", result: "no-op" },
+      });
+    });
+
+    it("should map a no-op result payload after a zero exit code", async () => {
+      mockExecFileResult(
+        null,
+        JSON.stringify({ device: "My AirPods Pro", listeningMode: "transparency", result: "no-op" }),
+      );
+
+      await expect(runCli(["listening-mode", "set", "noise-cancellation"])).rejects.toMatchObject({
+        name: "CliError",
+        code: "no-op",
+        message: "macOS did not confirm the change.",
+        payload: { device: "My AirPods Pro", listeningMode: "transparency", result: "no-op" },
+      });
+    });
+
     it("should map the exit code when stdout is not parseable JSON", async () => {
       const error = new Error("Command failed") as Error & { code?: number };
       error.code = 1;

@@ -9,7 +9,7 @@ export type ConversationAwarenessState = "on" | "off";
  * Command-specific state fields are null when unavailable or on errors.
  */
 export interface CliPayload {
-  result: "ok" | "error";
+  result: "ok" | "error" | "no-op";
   device: string | null;
   error?: string;
   listeningMode?: string | null;
