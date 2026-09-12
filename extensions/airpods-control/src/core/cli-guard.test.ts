@@ -3,7 +3,9 @@ import { showFailureToast } from "@raycast/utils";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { isCliInstalled } from "./cli";
 import { runWithCliGuard } from "./cli-guard";
-import { INSTALL_CLI_COMMAND_NAME } from "./consts";
+import { promptForCliInstallation } from "./cli-installation";
+
+vi.mock("./cli-installation", () => ({ promptForCliInstallation: vi.fn() }));
 
 vi.mock("./cli", () => ({
   isCliInstalled: vi.fn(),
@@ -33,16 +35,23 @@ describe("cli-guard", () => {
     expect(mockLaunchCommand).not.toHaveBeenCalled();
   });
 
-  it("should open the install command instead of running the action when the CLI is missing", async () => {
+  it("offers setup without running the action, even if installation succeeds", async () => {
     mockIsCliInstalled.mockReturnValue(false);
     const perform = vi.fn();
     const onUnavailable = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(promptForCliInstallation).mockImplementation(async () => {
+      mockIsCliInstalled.mockReturnValue(true);
+    });
 
     await runWithCliGuard(perform, { onUnavailable });
 
     expect(onUnavailable).toHaveBeenCalledOnce();
-    expect(mockLaunchCommand).toHaveBeenCalledWith(expect.objectContaining({ name: INSTALL_CLI_COMMAND_NAME }));
+    expect(promptForCliInstallation).toHaveBeenCalledOnce();
+    expect(mockLaunchCommand).not.toHaveBeenCalled();
     expect(perform).not.toHaveBeenCalled();
+
+    await runWithCliGuard(perform);
+    expect(perform).toHaveBeenCalledOnce();
   });
 
   it("should not run unavailable cleanup when the CLI is installed", async () => {

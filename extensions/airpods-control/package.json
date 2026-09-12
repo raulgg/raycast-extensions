@@ -162,17 +162,18 @@
       ]
     },
     {
-      "name": "install-cli",
-      "title": "Install AirPods Control CLI",
+      "name": "update-airpods-control-cli",
+      "title": "Update Airpods-Control CLI",
       "subtitle": "AirPods",
-      "description": "Check whether the airpods-control CLI is installed, copy the install command, or install it with Homebrew. The CLI powers the listening-mode and Conversation Awareness commands.",
+      "description": "Install the airpods-control CLI when it is missing or update it through Homebrew.",
       "mode": "view",
       "keywords": [
         "airpods",
         "cli",
         "install",
+        "update",
+        "upgrade",
         "setup",
-        "status",
         "homebrew",
         "brew"
       ]

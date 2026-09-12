@@ -21,6 +21,14 @@ export function findBrewPath(): string | null {
 }
 
 export async function installCliWithBrew(): Promise<void> {
+  return runBrewCommand(["install", CLI_BREW_FORMULA]);
+}
+
+export async function updateCliWithBrew(): Promise<void> {
+  return runBrewCommand(["upgrade", CLI_BREW_FORMULA]);
+}
+
+async function runBrewCommand(args: string[]): Promise<void> {
   const brewPath = findBrewPath();
   if (!brewPath) {
     throw new Error(`Homebrew was not found. Install it from ${HOMEBREW_URL} or copy the install command instead.`);
@@ -29,7 +37,7 @@ export async function installCliWithBrew(): Promise<void> {
   return new Promise((resolve, reject) => {
     execFile(
       brewPath,
-      ["install", CLI_BREW_FORMULA],
+      args,
       { timeout: BREW_INSTALL_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, PATH: BREW_PATH_ENV } },
       (error, _stdout, stderr) => {
         if (!error) {

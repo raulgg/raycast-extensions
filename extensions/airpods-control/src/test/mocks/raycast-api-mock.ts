@@ -1,6 +1,14 @@
 import { createElement, type ReactNode } from "react";
 import { vi, type Mock } from "vitest";
-import type { Application, LocalStorage as LocalStorageType, Toast as ToastType, PreferenceValues } from "@raycast/api";
+import type {
+  Alert,
+  Application,
+  LocalStorage as LocalStorageType,
+  Toast as ToastType,
+  PreferenceValues,
+} from "@raycast/api";
+
+export const confirmAlert: Mock<(options: Alert.Options) => Promise<boolean>> = vi.fn(async () => false);
 
 export const Toast = {
   Style: {
@@ -55,8 +63,8 @@ export const showToast: Mock<(options: ToastType.Options) => Promise<ToastType>>
   message: options.message,
   primaryAction: options.primaryAction,
   secondaryAction: options.secondaryAction,
-  hide: vi.fn(),
-  show: vi.fn(),
+  hide: vi.fn(async () => {}),
+  show: vi.fn(async () => {}),
   id: "",
   options,
   callbacks: {},
@@ -86,18 +94,16 @@ export const getPreferenceValues: Mock<<Values extends PreferenceValues = Prefer
 
 interface MockDetailProps {
   actions?: ReactNode;
-  children?: ReactNode;
   isLoading?: boolean;
   markdown?: string;
 }
 
-export function Detail({ actions, children, isLoading, markdown }: MockDetailProps) {
+export function Detail({ actions, isLoading, markdown }: MockDetailProps) {
   return createElement(
     "div",
     { "data-testid": "detail", "data-loading": isLoading ? "true" : "false" },
     createElement("div", { "data-testid": "markdown" }, markdown),
     actions,
-    children,
   );
 }
 
@@ -107,6 +113,7 @@ export function ActionPanel({ children }: { children?: ReactNode }) {
 
 interface MockActionProps {
   children?: ReactNode;
+  icon?: string;
   onAction?: () => void;
   title: string;
 }
@@ -148,5 +155,4 @@ export const Action = MockAction;
 export const Icon = {
   ArrowClockwise: "ArrowClockwise",
   Download: "Download",
-  Gear: "Gear",
 } as const;

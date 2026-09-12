@@ -4,6 +4,24 @@ import manifest from "../../package.json";
 const commands = manifest.commands as Array<{ name: string; interval?: string }>;
 
 describe("background command manifest", () => {
+  it("exposes the seven no-view controls and the CLI update view", () => {
+    expect(manifest.commands.map(({ name }) => name)).toEqual([
+      "set-noise-cancellation",
+      "set-transparency",
+      "set-adaptive",
+      "set-off",
+      "cycle-listening-mode",
+      "toggle-conversation-awareness",
+      "refresh-airpods-status",
+      "update-airpods-control-cli",
+    ]);
+    expect(manifest.commands.slice(0, 7).every(({ mode }) => mode === "no-view")).toBe(true);
+    expect(manifest.commands[7]).toMatchObject({
+      name: "update-airpods-control-cli",
+      title: "Update Airpods-Control CLI",
+      mode: "view",
+    });
+  });
   it("refreshes AirPods status approximately once a minute", () => {
     expect(commands.find(({ name }) => name === "refresh-airpods-status")?.interval).toBe("1m");
   });

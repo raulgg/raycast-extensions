@@ -21,14 +21,18 @@ export function modeFromLaunchContext(context: unknown): ListeningModes | null {
 export async function setListeningMode(mode: ListeningModes): Promise<void> {
   const context: SetListeningModeLaunchContext = { operation: "set", mode };
 
-  try {
-    await launchCommand({
-      name: CYCLE_LISTENING_MODE_COMMAND_NAME,
-      type: LaunchType.UserInitiated,
-      context,
-    });
-  } catch (error) {
-    console.warn("Could not delegate to Cycle Listening Mode; using the CLI fallback", error);
-    await runWithCliGuard(() => runSetListeningModeCommand(mode, { updateCycleSubtitle: false }));
-  }
+  // Keep setup in the originating command. Delegating an installation can time
+  // out while the target is still running, which previously opened setup twice.
+  await runWithCliGuard(async () => {
+    try {
+      await launchCommand({
+        name: CYCLE_LISTENING_MODE_COMMAND_NAME,
+        type: LaunchType.UserInitiated,
+        context,
+      });
+    } catch (error) {
+      console.warn("Could not delegate to Cycle Listening Mode; using the CLI fallback", error);
+      await runSetListeningModeCommand(mode, { updateCycleSubtitle: false });
+    }
+  });
 }

@@ -1,7 +1,7 @@
 import { execFile } from "child_process";
 import { accessSync } from "fs";
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
-import { findBrewPath, installCliWithBrew } from "./brew";
+import { findBrewPath, installCliWithBrew, updateCliWithBrew } from "./brew";
 import { BREW_SEARCH_PATHS, CLI_BREW_FORMULA } from "./consts";
 
 vi.mock("child_process", () => ({
@@ -75,6 +75,20 @@ describe("brew", () => {
       expect(mockExecFile).toHaveBeenCalledWith(
         BREW_SEARCH_PATHS[0],
         ["install", CLI_BREW_FORMULA],
+        expect.anything(),
+        expect.any(Function),
+      );
+    });
+
+    it("should run brew upgrade with the CLI formula", async () => {
+      mockBrewAt(BREW_SEARCH_PATHS[0]);
+      mockExecFileResult(null);
+
+      await updateCliWithBrew();
+
+      expect(mockExecFile).toHaveBeenCalledWith(
+        BREW_SEARCH_PATHS[0],
+        ["upgrade", CLI_BREW_FORMULA],
         expect.anything(),
         expect.any(Function),
       );
