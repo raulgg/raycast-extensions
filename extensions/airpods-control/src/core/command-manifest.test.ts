@@ -18,7 +18,7 @@ describe("background command manifest", () => {
     expect(manifest.commands.slice(0, 7).every(({ mode }) => mode === "no-view")).toBe(true);
     expect(manifest.commands[7]).toMatchObject({
       name: "update-airpods-control-cli",
-      title: "Update Airpods-Control CLI",
+      title: "Manage AirPods Control Helper",
       mode: "view",
     });
   });

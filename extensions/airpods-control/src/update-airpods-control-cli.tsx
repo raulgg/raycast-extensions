@@ -71,19 +71,22 @@ export default function Command() {
     }
   }
 
-  let markdown = setup ? cliSetupMarkdown(setup) : "# Set up airpods-control CLI\n\nChecking your installation…";
+  let markdown = setup ? cliSetupMarkdown(setup) : "# AirPods Control Helper\n\nChecking your installation…";
   if (operation) {
-    markdown = `# ${operation === "install" ? "Installing" : "Updating"} airpods-control CLI\n\nHomebrew can take several minutes. Keep Raycast open until installation finishes.`;
+    markdown = `# ${operation === "install" ? "Installing" : "Updating"} helper…\n\nThis can take several minutes. Keep Raycast open until it finishes.`;
   } else if (error) {
-    markdown = `# CLI setup needs attention\n\n${error}\n\nChoose **Refresh Setup** to refresh setup, or open the installation instructions.`;
+    markdown = `# Helper needs attention\n\nThe helper needs attention before you can continue. Follow the details below, then choose the **Refresh** action to check again. Installation instructions are available in the Action Panel.\n\n## Error details\n\n${error
+      .split("\n")
+      .map((line) => `    ${line}`)
+      .join("\n")}`;
   } else if (completed) {
-    markdown =
-      "# AirPods Control CLI ready\n\nRun your AirPods command again to use it. No AirPods settings have been changed.";
+    markdown = "# Your helper is ready\n\nYou can now run your AirPods commands.";
   }
   const idle = !isChecking && !operation;
   const availableOperation = setup?.state === "install" || setup?.state === "update" ? setup.state : undefined;
   const canRun = idle && !error && !completed && availableOperation;
-  const showSourceAlternative = idle && !error && !completed && setup?.state === "needs-homebrew";
+  const showAlternatives = idle && !error && !completed && setup && ["install", "needs-homebrew"].includes(setup.state);
+  const showManualUpdate = idle && !error && !completed && setup?.state === "manual-cli";
   const showHomebrewHelp = setup?.brewPath === null;
 
   return (
@@ -94,6 +97,13 @@ export default function Command() {
         <ActionPanel>
           {idle && (
             <ActionPanel.Section title="Setup">
+              {showManualUpdate && (
+                <Action.OpenInBrowser
+                  title="Open Update Instructions"
+                  url={CLI_INSTALL_DOCS_URL}
+                  shortcut={Keyboard.Shortcut.Common.Open}
+                />
+              )}
               {canRun && (
                 <Action
                   title={availableOperation === "install" ? "Install with Homebrew" : "Update with Homebrew"}
@@ -101,24 +111,16 @@ export default function Command() {
                   onAction={() => run(availableOperation)}
                 />
               )}
-              {canRun && (
-                <Action
-                  title="Refresh Setup"
-                  icon={Icon.ArrowClockwise}
-                  shortcut={Keyboard.Shortcut.Common.Refresh}
-                  onAction={check}
-                />
-              )}
-              {!error && !completed && setup && <CliSetupActions setup={setup} />}
-              {!canRun && (
-                <Action
-                  title="Refresh Setup"
-                  icon={Icon.ArrowClockwise}
-                  shortcut={Keyboard.Shortcut.Common.Refresh}
-                  onAction={check}
-                />
+              {(!canRun || setup?.state === "update") && !error && !completed && setup && (
+                <CliSetupActions setup={setup} />
               )}
               {error && <Action.CopyToClipboard title="Copy Error" content={error} />}
+            </ActionPanel.Section>
+          )}
+          {showAlternatives && (
+            <ActionPanel.Section title="Alternative Methods">
+              {canRun && <CliSetupActions setup={setup} />}
+              <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />
             </ActionPanel.Section>
           )}
           <ActionPanel.Section title="Help">
@@ -126,31 +128,42 @@ export default function Command() {
               <Action.OpenInBrowser
                 title="Open Homebrew Installation Instructions"
                 url={HOMEBREW_URL}
-                shortcut={Keyboard.Shortcut.Common.Open}
+                shortcut={showManualUpdate ? { modifiers: ["cmd", "opt"], key: "o" } : Keyboard.Shortcut.Common.Open}
               />
             )}
-            <Action.OpenInBrowser
-              title="Open CLI Installation Instructions"
-              url={CLI_INSTALL_DOCS_URL}
-              shortcut={showHomebrewHelp ? { modifiers: ["cmd", "opt"], key: "o" } : Keyboard.Shortcut.Common.Open}
-            />
+            {!showManualUpdate && (
+              <Action.OpenInBrowser
+                title={
+                  setup?.state === "update" || setup?.state === "manual-cli"
+                    ? "Open Update Instructions"
+                    : "Open Installation Instructions"
+                }
+                url={CLI_INSTALL_DOCS_URL}
+                shortcut={showHomebrewHelp ? { modifiers: ["cmd", "opt"], key: "o" } : Keyboard.Shortcut.Common.Open}
+              />
+            )}
             <Action.OpenInBrowser
               title="Open AirPods Control on GitHub"
               url={CLI_REPO_URL}
               shortcut={Keyboard.Shortcut.Common.OpenWith}
             />
           </ActionPanel.Section>
-          {showSourceAlternative && (
-            <ActionPanel.Section title="Alternative Installation">
-              <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />
-            </ActionPanel.Section>
-          )}
           <ActionPanel.Section title="Preferences">
             {idle && (error || setup?.state !== "invalid-cli-path") && (
               <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />
             )}
             <Action title="Open Command Preferences" icon={Icon.Gear} onAction={openCommandPreferences} />
           </ActionPanel.Section>
+          {idle && (
+            <ActionPanel.Section>
+              <Action
+                title="Refresh"
+                icon={Icon.ArrowClockwise}
+                shortcut={Keyboard.Shortcut.Common.Refresh}
+                onAction={check}
+              />
+            </ActionPanel.Section>
+          )}
         </ActionPanel>
       }
     />

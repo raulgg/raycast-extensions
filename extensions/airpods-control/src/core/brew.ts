@@ -35,7 +35,8 @@ export async function updateCliWithBrew(): Promise<void> {
 
 function requireBrew(): string {
   const path = findBrewPath();
-  if (!path) throw new Error(`Homebrew was not found. Install it from ${HOMEBREW_URL}, then choose Refresh Setup.`);
+  if (!path)
+    throw new Error(`Homebrew was not found. Install it from ${HOMEBREW_URL}, then choose the Refresh action.`);
   return path;
 }
 
@@ -52,11 +53,13 @@ function runBrewCommand(brewPath: string, args: string[], timeout = 15000, exclu
         } else if (exclusive && error.code === 75) {
           reject(
             new Error(
-              "A CLI installation or update is already running. Wait for it to finish, then choose Refresh Setup.",
+              "A helper installation or update is already running. Wait for it to finish, then choose the Refresh action.",
             ),
           );
         } else if (error.killed) {
-          reject(new Error(`brew ${args[0]} timed out. Check Homebrew in Terminal, then choose Refresh Setup.`));
+          reject(
+            new Error(`Homebrew ${args[0]} timed out. Check Homebrew in Terminal, then choose the Refresh action.`),
+          );
         } else {
           // Keep Homebrew's recovery instructions, which often span several lines.
           reject(new Error(stderr.trim() || error.message));

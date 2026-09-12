@@ -9,7 +9,7 @@ export async function openCliSetup(): Promise<void> {
     await showToast({
       style: Toast.Style.Failure,
       title: "Could not open CLI setup",
-      message: "Enable Update Airpods-Control CLI in Raycast preferences, or follow the installation instructions.",
+      message: "Enable Manage AirPods Control Helper in Raycast preferences, or follow the installation instructions.",
       primaryAction: { title: "Open Installation Instructions", onAction: () => open(CLI_INSTALL_DOCS_URL) },
       secondaryAction: createCopyErrorAction(getErrorMessage(error)),
     });

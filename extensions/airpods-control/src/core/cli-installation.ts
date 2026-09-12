@@ -2,11 +2,10 @@ import { confirmAlert, showToast, Toast } from "@raycast/api";
 import { installCliWithBrew, updateCliWithBrew } from "./brew";
 import { detectCliSetup, type CliSetup } from "./cli-setup";
 import { openCliSetup } from "./cli-setup-navigation";
-import { CLI_INSTALL_COMMAND } from "./consts";
 import { createCopyErrorAction, getErrorMessage } from "./toast-manager";
 
 export type CliOperation = "install" | "update";
-const READY_MESSAGE = "Ready. Run your command again to use it.";
+const READY_MESSAGE = "Run your AirPods command again.";
 let pendingPrompt: Promise<void> | undefined;
 let pendingOperation: Promise<CliSetup> | undefined;
 
@@ -43,16 +42,16 @@ async function performInstallation(operation: CliOperation): Promise<CliSetup> {
     const before = await detectCliSetup();
     // Installation may have finished elsewhere while the confirmation was open.
     if (operation === "install" && before.cliPath) {
-      await showToast({ style: Toast.Style.Success, title: "AirPods Control CLI detected", message: READY_MESSAGE });
+      await showToast({ style: Toast.Style.Success, title: "AirPods Control helper ready", message: READY_MESSAGE });
       return before;
     }
     if (before.state !== operation) {
-      throw new Error("CLI setup has changed. Choose Refresh Setup in CLI setup before continuing.");
+      throw new Error("Setup has changed. Choose the Refresh action in the setup view, then try again.");
     }
     toast = await showToast({
       style: Toast.Style.Animated,
-      title: operation === "install" ? "Installing airpods-control…" : "Updating airpods-control…",
-      message: "Homebrew can take several minutes. Keep Raycast open to see progress.",
+      title: operation === "install" ? "Installing helper…" : "Updating helper…",
+      message: "This can take several minutes. Keep Raycast open until it finishes.",
     });
     const after = await runBrewOperationWithProgress(toast, async () => {
       await (operation === "install" ? installCliWithBrew() : updateCliWithBrew());
@@ -60,11 +59,11 @@ async function performInstallation(operation: CliOperation): Promise<CliSetup> {
     });
     if (after.state !== "update") {
       throw new Error(
-        "Homebrew finished, but its CLI is not ready for this extension. Open CLI setup to check CLI Path and linking.",
+        "Homebrew finished, but the helper is not ready to use. Open Helper Setup to check the installation.",
       );
     }
     toast.style = Toast.Style.Success;
-    toast.title = operation === "install" ? "AirPods Control CLI installed" : "AirPods Control CLI updated";
+    toast.title = "AirPods Control helper ready";
     toast.message = READY_MESSAGE;
     await toast.show();
     return after;
@@ -72,9 +71,9 @@ async function performInstallation(operation: CliOperation): Promise<CliSetup> {
     const message = getErrorMessage(error);
     const options: Toast.Options = {
       style: Toast.Style.Failure,
-      title: operation === "install" ? "CLI installation failed" : "CLI update failed",
+      title: operation === "install" ? "Helper installation failed" : "Helper update failed",
       message,
-      primaryAction: { title: "Open CLI Setup", onAction: openCliSetup },
+      primaryAction: { title: "Open Helper Setup", onAction: openCliSetup },
       secondaryAction: createCopyErrorAction(message),
     };
     if (toast) {
@@ -105,7 +104,7 @@ async function offerInstallation(): Promise<void> {
     return;
   }
   if (setup.cliPath) {
-    await showToast({ style: Toast.Style.Success, title: "AirPods Control CLI detected", message: READY_MESSAGE });
+    await showToast({ style: Toast.Style.Success, title: "AirPods Control helper ready", message: READY_MESSAGE });
     return;
   }
   if (setup.state !== "install") {
@@ -114,7 +113,8 @@ async function offerInstallation(): Promise<void> {
   }
   const confirmed = await confirmAlert({
     title: "Install AirPods Control helper?",
-    message: `This command needs the airpods-control CLI. Runs: ${CLI_INSTALL_COMMAND}. Installation can take several minutes. Once installed, run your command again.`,
+    message:
+      "Install the helper to control your AirPods from Raycast. Homebrew can take several minutes. When it finishes, run your AirPods command again.",
     primaryAction: { title: "Install with Homebrew" },
     dismissAction: { title: "Cancel" },
   });

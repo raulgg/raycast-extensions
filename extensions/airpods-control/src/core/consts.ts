@@ -12,6 +12,8 @@ export const CLI_INSTALL_COMMAND = `brew install ${CLI_BREW_FORMULA}`;
 
 export const CLI_UPDATE_COMMAND = `brew upgrade ${CLI_BREW_FORMULA}`;
 
+export const CLI_MANUAL_UPDATE_COMMAND = `brew update\n${CLI_UPDATE_COMMAND}`;
+
 export const CLI_SOURCE_INSTALL_COMMAND = [
   `base=https://raw.githubusercontent.com/raulgg/airpods-control/${CLI_VERSION}`,
   `curl -fsSL "$base/scripts/install-from-source.sh" | sh -s --`,

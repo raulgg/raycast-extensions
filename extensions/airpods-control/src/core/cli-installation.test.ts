@@ -75,7 +75,7 @@ describe("CLI installation entry points", () => {
     vi.mocked(detectCliSetup).mockResolvedValueOnce(cliSetup()).mockResolvedValue(installedCli);
     await promptForCliInstallation();
     expect(installCliWithBrew).not.toHaveBeenCalled();
-    expect((await progressToast()).message).toContain("Run your command again");
+    expect((await progressToast()).message).toContain("Run your AirPods command again");
   });
   it("does not install after prerequisites change during confirmation", async () => {
     vi.mocked(detectCliSetup)
@@ -92,7 +92,7 @@ describe("shared installer", () => {
     expect(await runCliInstallation("install")).toEqual(installedCli);
     const toast = await progressToast();
     expect(toast.style).toBe(Toast.Style.Success);
-    expect(toast.message).toContain("Run your command again");
+    expect(toast.message).toContain("Run your AirPods command again");
     expect(launchCommand).not.toHaveBeenCalled();
   });
   it("upgrades a Homebrew-managed CLI", async () => {
@@ -103,7 +103,7 @@ describe("shared installer", () => {
   });
   it("refuses to update a manual CLI", async () => {
     vi.mocked(detectCliSetup).mockResolvedValue(cliSetup({ state: "manual-cli", cliPath: "/custom/cli" }));
-    await expect(runCliInstallation("update")).rejects.toThrow("setup has changed");
+    await expect(runCliInstallation("update")).rejects.toThrow("Setup has changed");
     expect(updateCliWithBrew).not.toHaveBeenCalled();
   });
   it("re-shows the same toast beyond a minute and stops after success", async () => {
@@ -114,7 +114,7 @@ describe("shared installer", () => {
     await vi.advanceTimersByTimeAsync(66000);
     expect(showToast).toHaveBeenCalledOnce();
     expect(toast.show).toHaveBeenCalledTimes(22);
-    expect(toast.message).toBe("Homebrew can take several minutes. Keep Raycast open to see progress.");
+    expect(toast.message).toBe("This can take several minutes. Keep Raycast open until it finishes.");
     vi.mocked(detectCliSetup).mockResolvedValue(installedCli);
     install.resolve();
     await running;
@@ -184,7 +184,7 @@ describe("shared installer", () => {
   });
   it("requires the active CLI to resolve to the Homebrew installation after success", async () => {
     vi.mocked(installCliWithBrew).mockResolvedValue(undefined);
-    await expect(runCliInstallation("install")).rejects.toThrow("not ready");
+    await expect(runCliInstallation("install")).rejects.toThrow("helper is not ready to use");
   });
   it("shares an in-flight operation across callers", async () => {
     const install = deferred<void>();

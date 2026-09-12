@@ -1,9 +1,8 @@
 import { Action, Icon, openExtensionPreferences } from "@raycast/api";
 import {
   CLI_INSTALL_COMMAND,
-  CLI_INSTALL_DOCS_URL,
   CLI_LINK_COMMAND,
-  CLI_UPDATE_COMMAND,
+  CLI_MANUAL_UPDATE_COMMAND,
   DEVELOPER_TOOLS_DOCS_URL,
   DEVELOPER_TOOLS_DOWNLOAD_URL,
   DEVELOPER_TOOLS_INSTALL_COMMAND,
@@ -18,41 +17,35 @@ function code(value: string): string {
 }
 
 export function cliSetupMarkdown(setup: CliSetup): string {
-  const detected = setup.cliPath ? `The CLI is available at:\n\n${code(setup.cliPath)}\n\n` : "";
   switch (setup.state) {
     case "installing":
-      return "# CLI installation is running\n\nAnother command is installing or updating the CLI. Wait for it to finish, then choose **Refresh Setup**. Run your AirPods command again once setup is complete.";
+      return "# Setup is already running\n\nAn installation or update is already running. Wait for it to finish, then choose the **Refresh** action. When setup is complete, run your AirPods command again.";
     case "needs-homebrew":
-      return `# Install airpods-control CLI
+      return `# Install the helper
 
-## Install Homebrew first
+Homebrew is not installed. Homebrew installs and updates the helper.
 
-1. Choose **Copy Homebrew Install Command**, paste it into Terminal, and run it.
+1. Choose the **Copy Homebrew Install Command** action, paste it into Terminal, and run it.
 2. Follow the installer prompts. It may ask for your Mac login password. See the [Homebrew installation instructions](${HOMEBREW_URL}) if you need help.
-3. Return here and choose **Refresh Setup**. Then choose **Install with Homebrew** to install the CLI.
-
-${code(HOMEBREW_INSTALL_COMMAND)}
-
-### Alternative: install from source
-
-If you prefer to skip Homebrew, use the [tagged source-install instructions](${CLI_INSTALL_DOCS_URL}). You can copy the source install command from the Action Panel. After installation, choose **Refresh Setup**.`;
+3. Return here and choose the **Refresh** action. Then choose the **Install with Homebrew** action.
+`;
     case "needs-developer-tools": {
       const instructions =
         setup.developerTools === "unavailable"
-          ? `The \`xcode-select\` command is unavailable. Download the Command Line Tools for your macOS version from [Apple Developer Downloads](${DEVELOPER_TOOLS_DOWNLOAD_URL}) and follow [Apple's installation instructions](${DEVELOPER_TOOLS_DOCS_URL}).`
-          : `Install Apple's Command Line Tools by running this in Terminal:\n\n${code(DEVELOPER_TOOLS_INSTALL_COMMAND)}\n\nIf macOS says they are already installed, follow [Apple's instructions](${DEVELOPER_TOOLS_DOCS_URL}) to update the tools or select a working Xcode installation.`;
-      return `# Set up developer tools\n\n${detected}Installing or updating this CLI requires a working Swift toolchain.\n\n${instructions}\n\nWait for the installation to finish, then return here and choose **Refresh Setup**.${setup.cliPath ? " You can keep using your existing CLI with the AirPods commands." : ""}`;
+          ? `Your Mac cannot use \`xcode-select\`. Download the Command Line Tools for your macOS version from [Apple Developer Downloads](${DEVELOPER_TOOLS_DOWNLOAD_URL}) and follow [Apple's installation instructions](${DEVELOPER_TOOLS_DOCS_URL}).`
+          : `Choose the **Copy Developer Tools Install Command** action, paste the command into Terminal, and run it. If macOS says the tools are already installed, follow [Apple's instructions](${DEVELOPER_TOOLS_DOCS_URL}) to update them or select a working Xcode installation.`;
+      return `# Install Apple's developer tools\n\nApple's developer tools are needed to install or update the helper.\n\n${instructions}\n\nWhen installation finishes, return here and choose the **Refresh** action.${setup.cliPath ? " You can keep using your AirPods commands." : ""}`;
     }
     case "invalid-cli-path":
-      return `# Check CLI Path\n\nThe custom CLI Path does not point to an executable file:\n\n${code(setup.configuredCliPath ?? "")}\n\nOpen **Extension Preferences** and correct this path, or clear it to restore automatic detection. Then choose **Refresh Setup**.`;
+      return `# Fix CLI Path\n\nRaycast could not find the helper at the saved **CLI Path**:\n\n${code(setup.configuredCliPath ?? "")}\n\nChoose the **Open Extension Preferences** action and clear **CLI Path** to let Raycast find the helper automatically. If you use a custom location, correct the saved path instead. Then choose the **Refresh** action.`;
     case "manual-cli":
-      return `# Update airpods-control CLI\n\n${detected}This CLI is not managed by the detected Homebrew installation. Update it using the same method and installation location you originally used.\n\nFor a source installation, follow the [tagged source-install instructions](${CLI_INSTALL_DOCS_URL}). The default installer uses /usr/local; preserve your original prefix if it differs.\n\nTo switch to Homebrew, follow the source uninstall instructions first, install the Homebrew formula, and clear any old **CLI Path** preference. Choose **Refresh Setup** when finished. Your AirPods commands can keep using the existing CLI.`;
+      return `# Update the helper\n\nThis helper needs to be updated manually. Choose the **Open Update Instructions** action and follow the instructions for the method you originally used. Keep the same installation location.\n\nWhen the update finishes, return here and choose the **Refresh** action. Your AirPods commands will use the updated helper.`;
     case "needs-link":
-      return `# Finish CLI setup\n\nHomebrew has the CLI installed, but the extension cannot find its executable. Try linking it in Terminal:\n\n${code(CLI_LINK_COMMAND)}\n\nIf Homebrew reports a conflicting file, follow its instructions before retrying. Then choose **Refresh Setup**. You can also set **CLI Path** to your installed executable in Extension Preferences.`;
+      return `# Finish setting up the helper\n\nHomebrew installed the helper, but Raycast cannot find it. Open Terminal and run:\n\n${code(CLI_LINK_COMMAND)}\n\nIf Homebrew reports a conflicting file, follow its instructions before retrying. Then choose the **Refresh** action. If linking does not work, choose the **Open Extension Preferences** action and set **CLI Path** to the helper's executable.`;
     case "install":
-      return `# Install airpods-control CLI\n\nHomebrew and the developer tools are ready. Choose **Install with Homebrew** to run:\n\n${code(CLI_INSTALL_COMMAND)}\n\nInstallation can take several minutes. When it finishes, run your AirPods command again.`;
+      return `# Install the helper\n\nInstall the helper to control your AirPods from Raycast. Homebrew and Apple's developer tools are ready.\n\nChoose the **Install with Homebrew** action to install it directly in Raycast. Keep Raycast open while it finishes. When it finishes, run your AirPods command again.\n\nTo install from Terminal, choose the **Copy Install Command** action and run the command there. To install without Homebrew, choose the **Copy Source Install Command** action.`;
     case "update":
-      return `# Update airpods-control CLI\n\n${detected}This CLI is managed by Homebrew. Choose **Update with Homebrew** to check for and install an update:\n\n${code(CLI_UPDATE_COMMAND)}\n\nWhen it finishes, run your AirPods command again.`;
+      return `# Update the helper\n\nChoose the **Update with Homebrew** action to update the helper directly in Raycast. Keep Raycast open while it finishes.\n\n## Update manually in Terminal\n\nOpen Terminal and run these commands to update Homebrew and the helper:\n\n${code(CLI_MANUAL_UPDATE_COMMAND)}\n\nChoose the **Copy Update Command** action to copy both commands. After Homebrew finishes, return to Raycast and choose the **Refresh** action.`;
   }
 }
 
@@ -81,7 +74,7 @@ export function CliSetupActions({ setup }: { setup: CliSetup }) {
   if (setup.state === "manual-cli") return null;
   const commands = {
     install: { title: "Copy Install Command", content: CLI_INSTALL_COMMAND },
-    update: { title: "Copy Update Command", content: CLI_UPDATE_COMMAND },
+    update: { title: "Copy Update Command", content: CLI_MANUAL_UPDATE_COMMAND },
     "needs-link": { title: "Copy Link Command", content: CLI_LINK_COMMAND },
   };
   return <Action.CopyToClipboard {...commands[setup.state]} />;

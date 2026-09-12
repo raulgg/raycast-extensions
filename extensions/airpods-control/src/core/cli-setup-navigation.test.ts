@@ -8,7 +8,7 @@ it("offers manual instructions if the setup command is disabled, without retryin
   await openCliSetup();
   expect(launchCommand).toHaveBeenCalledOnce();
   const toast = await vi.mocked(showToast).mock.results[0].value;
-  expect(toast.message).toContain("Enable Update");
+  expect(toast.message).toContain("Enable Manage AirPods Control Helper");
   await toast.primaryAction.onAction(toast);
   expect(open).toHaveBeenCalledWith(CLI_INSTALL_DOCS_URL);
 });

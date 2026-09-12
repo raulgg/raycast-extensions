@@ -5,7 +5,13 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runCliInstallation } from "./core/cli-installation";
 import { detectCliSetup } from "./core/cli-setup";
-import { DEVELOPER_TOOLS_INSTALL_COMMAND, HOMEBREW_INSTALL_COMMAND } from "./core/consts";
+import {
+  CLI_INSTALL_COMMAND,
+  CLI_MANUAL_UPDATE_COMMAND,
+  CLI_SOURCE_INSTALL_COMMAND,
+  DEVELOPER_TOOLS_INSTALL_COMMAND,
+  HOMEBREW_INSTALL_COMMAND,
+} from "./core/consts";
 import { cliSetup, deferred, installedCli } from "./test/cli-setup-fixture";
 import Command from "./update-airpods-control-cli";
 
@@ -55,23 +61,23 @@ describe("CLI setup view", () => {
     await render();
     expect(action("Open Homebrew Installation Instructions")).toBeNull();
     expect(action("Install with Homebrew")).toBeNull();
-    expect(action("Refresh Setup")).toBeNull();
+    expect(action("Refresh")).toBeNull();
     await act(async () => detection.resolve(cliSetup()));
     expect(action("Install with Homebrew")).not.toBeNull();
   });
   it("guides Homebrew installation and copies the actual bootstrap command", async () => {
     vi.mocked(detectCliSetup).mockResolvedValue(cliSetup({ state: "needs-homebrew", brewPath: null }));
     await render();
-    expect(markdown()).toContain("Install Homebrew first");
+    expect(markdown()).toContain("Homebrew");
     expect(markdown()).toContain("Return here");
     await click("Copy Homebrew Install Command");
     expect(Clipboard.copy).toHaveBeenCalledWith(HOMEBREW_INSTALL_COMMAND);
     expect(action("Install with Homebrew")).toBeNull();
   });
-  it("moves from missing Homebrew to install after Refresh Setup without automatically installing", async () => {
+  it("moves from missing Homebrew to install after Refresh without automatically installing", async () => {
     vi.mocked(detectCliSetup).mockResolvedValueOnce(cliSetup({ state: "needs-homebrew", brewPath: null }));
     await render();
-    await click("Refresh Setup");
+    await click("Refresh");
     expect(action("Install with Homebrew")).not.toBeNull();
     expect(runCliInstallation).not.toHaveBeenCalled();
     expect(launchCommand).not.toHaveBeenCalled();
@@ -84,7 +90,7 @@ describe("CLI setup view", () => {
     await click("Copy Developer Tools Install Command");
     expect(Clipboard.copy).toHaveBeenCalledWith(DEVELOPER_TOOLS_INSTALL_COMMAND);
     expect(action("Install with Homebrew")).toBeNull();
-    await click("Refresh Setup");
+    await click("Refresh");
     expect(action("Install with Homebrew")).not.toBeNull();
   });
   it("links to Apple downloads when xcode-select itself is unavailable", async () => {
@@ -94,7 +100,7 @@ describe("CLI setup view", () => {
     await render();
     expect(action("Copy Developer Tools Install Command")).toBeNull();
     expect(action("Open Apple Developer Downloads")).not.toBeNull();
-    expect(markdown()).toContain("The `xcode-select` command is unavailable");
+    expect(markdown()).toContain("Apple Developer Downloads");
   });
   it.each(["installing", "manual-cli", "invalid-cli-path", "needs-link"] as const)(
     "offers recovery instead of install or upgrade for %s",
@@ -103,7 +109,7 @@ describe("CLI setup view", () => {
       await render();
       expect(action("Install with Homebrew")).toBeNull();
       expect(action("Update with Homebrew")).toBeNull();
-      expect(action("Refresh Setup")).not.toBeNull();
+      expect(action("Refresh")).not.toBeNull();
     },
   );
   it("shows a persistent installing state, prevents duplicate actions, and stays on success", async () => {
@@ -111,20 +117,42 @@ describe("CLI setup view", () => {
     vi.mocked(runCliInstallation).mockReturnValue(installation.promise);
     await render();
     await click("Install with Homebrew");
-    expect(markdown()).toContain("# Installing airpods-control CLI");
+    expect(markdown()).toContain("# Installing helper");
     expect(action("Install with Homebrew")).toBeNull();
-    expect(action("Refresh Setup")).toBeNull();
+    expect(action("Refresh")).toBeNull();
     await act(async () => installation.resolve(installedCli));
-    expect(markdown()).toContain("# AirPods Control CLI ready");
-    expect(markdown()).toContain("Run your AirPods command again");
+    expect(markdown()).toContain("# Your helper is ready");
+    expect(markdown()).toContain("You can now run your AirPods commands");
     expect(runCliInstallation).toHaveBeenCalledExactlyOnceWith("install");
     expect(launchCommand).not.toHaveBeenCalled();
   });
-  it("uses the shared updater for a Homebrew-managed CLI", async () => {
-    vi.mocked(detectCliSetup).mockResolvedValue(installedCli);
+  it.each([
+    ["install", "Install with Homebrew", "Copy Install Command", CLI_INSTALL_COMMAND],
+    ["update", "Update with Homebrew", "Copy Update Command", CLI_MANUAL_UPDATE_COMMAND],
+  ] as const)("offers direct %s before manual alternatives", async (state, title, copyTitle, command) => {
+    vi.mocked(detectCliSetup).mockResolvedValue(state === "install" ? cliSetup() : installedCli);
     await render();
-    await click("Update with Homebrew");
-    expect(runCliInstallation).toHaveBeenCalledWith("update");
+    expect(container.querySelector("[data-action-title]")?.getAttribute("data-action-title")).toBe(title);
+    await click(copyTitle);
+    expect(Clipboard.copy).toHaveBeenCalledWith(command);
+    expect(runCliInstallation).not.toHaveBeenCalled();
+    if (state === "install") {
+      expect(action("Open Installation Instructions")).not.toBeNull();
+      await click("Copy Source Install Command");
+      expect(Clipboard.copy).toHaveBeenCalledWith(CLI_SOURCE_INSTALL_COMMAND);
+    } else {
+      expect(action("Open Tagged Installation Instructions")).toBeNull();
+      expect(action("Copy Source Install Command")).toBeNull();
+    }
+    const operation = deferred<ReturnType<typeof cliSetup>>();
+    vi.mocked(runCliInstallation).mockReturnValue(operation.promise);
+    await click(title);
+    expect(runCliInstallation).toHaveBeenCalledExactlyOnceWith(state);
+    expect(action(title)).toBeNull();
+    expect(action(copyTitle)).toBeNull();
+    expect(markdown()).toContain(state === "install" ? "# Installing" : "# Updating");
+    await act(async () => operation.resolve(installedCli));
+    expect(markdown()).toContain("# Your helper is ready");
   });
   it("keeps failure details visible until the user rechecks prerequisites", async () => {
     vi.mocked(runCliInstallation).mockRejectedValueOnce(new Error("Homebrew needs repair\nRun brew doctor"));
@@ -134,16 +162,41 @@ describe("CLI setup view", () => {
     expect(action("Install with Homebrew")).toBeNull();
     await click("Copy Error");
     expect(Clipboard.copy).toHaveBeenCalledWith("Homebrew needs repair\nRun brew doctor");
-    await click("Refresh Setup");
+    await click("Refresh");
     expect(action("Install with Homebrew")).not.toBeNull();
   });
   it("offers retry and instructions after a detection error", async () => {
     vi.mocked(detectCliSetup).mockRejectedValueOnce(new Error("brew permissions"));
     await render();
     expect(markdown()).toContain("brew permissions");
-    expect(action("Open CLI Installation Instructions")).not.toBeNull();
-    await click("Refresh Setup");
+    expect(action("Open Installation Instructions")).not.toBeNull();
+    await click("Refresh");
     expect(action("Install with Homebrew")).not.toBeNull();
+  });
+  it.each([
+    "install",
+    "update",
+    "needs-homebrew",
+    "manual-cli",
+    "needs-link",
+    "invalid-cli-path",
+    "needs-developer-tools",
+    "installing",
+  ] as const)("offers one helper instructions link and puts Refresh last for %s", async (state) => {
+    vi.mocked(detectCliSetup).mockResolvedValue(cliSetup({ state }));
+    await render();
+    const actions = Array.from(container.querySelectorAll("[data-action-title]"), (element) =>
+      element.getAttribute("data-action-title"),
+    );
+    expect(
+      actions.filter((title) => title === "Open Installation Instructions" || title === "Open Update Instructions"),
+    ).toHaveLength(1);
+    expect(actions).not.toContain("Open Tagged Installation Instructions");
+    expect(actions.at(-1)).toBe("Refresh");
+    if (state === "manual-cli") {
+      expect(actions[0]).toBe("Open Update Instructions");
+      expect(container.querySelector('[data-section-title="Alternative Methods"]')).toBeNull();
+    }
   });
   it("does not navigate or start installation after leaving during detection", async () => {
     const detection = deferred<ReturnType<typeof cliSetup>>();
