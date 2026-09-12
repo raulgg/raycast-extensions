@@ -8,4 +8,6 @@
 - Keep listening-mode and Conversation Awareness subtitles synchronized with the state confirmed by macOS readback
 - Refresh AirPods status manually or in the background about once a minute
 - Keep Raycast open for success toasts, with a HUD confirmation when the window is closed, and show matching listening-mode and Conversation Awareness symbols
-- Offer CLI installation through an alert, keep progress visible during Homebrew installation, and add an Update airpods-control CLI command. Run the original command again after setup.
+- Offer CLI installation through an alert when prerequisites are ready, or open the Update Airpods-Control CLI view for Homebrew, developer tools, and source-install instructions.
+- Share installation and recovery across commands, keep progress visible through completion, and require users to run the original command again after setup.
+- Verify Homebrew ownership before updating the active CLI, prevent concurrent installations, and preserve complete Homebrew error instructions.

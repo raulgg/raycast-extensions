@@ -1,178 +1,158 @@
-import { Action, ActionPanel, Detail, Icon, showToast, Toast } from "@raycast/api";
-import { showFailureToast } from "@raycast/utils";
+import {
+  Action,
+  ActionPanel,
+  Detail,
+  getPreferenceValues,
+  Icon,
+  Keyboard,
+  openCommandPreferences,
+  openExtensionPreferences,
+} from "@raycast/api";
 import { useEffect, useRef, useState } from "react";
-import { findBrewPath, installCliWithBrew, updateCliWithBrew } from "./core/brew";
-import { findCliPath } from "./core/cli";
-import { runBrewOperationWithProgress } from "./core/cli-installation";
-import { CLI_INSTALL_COMMAND, CLI_REPO_URL, CLI_UPDATE_COMMAND, HOMEBREW_URL } from "./core/consts";
-import { createCopyErrorAction, getErrorMessage } from "./core/toast-manager";
-
-type Detection = {
-  brewPath: string | null;
-  cliPath: string | null;
-};
-
-function detect(): Detection {
-  return { brewPath: findBrewPath(), cliPath: findCliPath() };
-}
-
-function markdownFor(detection: Detection | null, isRunning: boolean): string {
-  if (!detection) {
-    return "# Update airpods-control CLI\n\nChecking for Homebrew and the CLI…";
-  }
-
-  if (!detection.brewPath) {
-    return `
-# Homebrew required
-
-Homebrew is needed to install or update the [airpods-control](${CLI_REPO_URL}) CLI.
-
-Open [brew.sh](${HOMEBREW_URL}) to install Homebrew, then run **Retry Detection** below. Apple’s Command Line Tools may also be required:
-
-\`\`\`bash
-xcode-select --install
-\`\`\`
-
-After Homebrew is ready, this command can install the CLI with:
-
-\`\`\`bash
-${CLI_INSTALL_COMMAND}
-\`\`\`
-`;
-  }
-
-  if (isRunning) {
-    return `
-# Updating airpods-control CLI
-
-Homebrew is updating the CLI. Keep Raycast open until the progress toast finishes.
-`;
-  }
-
-  if (detection.cliPath) {
-    return `
-# airpods-control CLI detected
-
-The CLI is available at:
-
-\`\`\`
-${detection.cliPath}
-\`\`\`
-
-Update it with Homebrew when a newer version is available:
-
-\`\`\`bash
-${CLI_UPDATE_COMMAND}
-\`\`\`
-`;
-  }
-
-  return `
-# Install airpods-control CLI
-
-Install the CLI with Homebrew:
-
-\`\`\`bash
-${CLI_INSTALL_COMMAND}
-\`\`\`
-
-If Homebrew reports that the Command Line Tools are missing, run:
-
-\`\`\`bash
-xcode-select --install
-\`\`\`
-
-When installation finishes, choose **Retry Detection** below.
-`;
-}
+import { CliSetupActions, cliSetupMarkdown } from "./components/cli-setup-content";
+import { runCliInstallation, type CliOperation } from "./core/cli-installation";
+import { detectCliSetup, type CliSetup } from "./core/cli-setup";
+import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL, CLI_SOURCE_INSTALL_COMMAND, HOMEBREW_URL } from "./core/consts";
+import { getErrorMessage } from "./core/toast-manager";
 
 export default function Command() {
-  const [detection, setDetection] = useState<Detection | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
-  const isRunningRef = useRef(false);
-  const isMountedRef = useRef(true);
+  const [setup, setSetup] = useState<CliSetup>();
+  const [isChecking, setIsChecking] = useState(true);
+  const [operation, setOperation] = useState<CliOperation>();
+  const [error, setError] = useState<string>();
+  const [completed, setCompleted] = useState(false);
+  const busy = useRef(false);
+  const mounted = useRef(false);
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    setDetection(detect());
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  function retryDetection() {
-    if (!isMountedRef.current || isRunningRef.current) return;
-    setDetection(detect());
-  }
-
-  async function updateCli() {
-    if (!detection?.brewPath || isRunningRef.current) return;
-
-    isRunningRef.current = true;
-    setIsRunning(true);
-    const shouldUpdate = detection.cliPath !== null;
-    let toast: Toast | undefined;
-
+  async function check() {
+    if (busy.current) return;
+    busy.current = true;
+    setIsChecking(true);
+    setError(undefined);
+    setCompleted(false);
     try {
-      toast = await showToast({
-        style: Toast.Style.Animated,
-        title: shouldUpdate ? "Updating airpods-control CLI…" : "Installing airpods-control CLI…",
-        message: "Homebrew can take several minutes. Keep Raycast open to see progress.",
-      });
-      await runBrewOperationWithProgress(toast, shouldUpdate ? updateCliWithBrew : installCliWithBrew);
-
-      const nextDetection = detect();
-      if (!nextDetection.cliPath) {
-        throw new Error("The CLI still could not be detected. Check CLI Path in the extension preferences.");
-      }
-
-      toast.style = Toast.Style.Success;
-      toast.title = shouldUpdate ? "airpods-control CLI updated" : "airpods-control CLI installed";
-      toast.message = "Run your AirPods command again to use it.";
-      await toast.show();
-      if (isMountedRef.current) setDetection(nextDetection);
+      const preferences = getPreferenceValues<{ simulateHomebrewUnavailable?: boolean }>();
+      const detected = await detectCliSetup(preferences);
+      if (mounted.current) setSetup(detected);
     } catch (error) {
-      const message = getErrorMessage(error);
-      if (toast) {
-        toast.style = Toast.Style.Failure;
-        toast.title = shouldUpdate ? "CLI update failed" : "CLI installation failed";
-        toast.message = message;
-        toast.primaryAction = createCopyErrorAction(message);
-        await toast.show();
-      } else {
-        await showFailureToast(error, {
-          title: shouldUpdate ? "CLI update failed" : "CLI installation failed",
-          message,
-          primaryAction: createCopyErrorAction(message),
-        });
+      if (mounted.current) {
+        setSetup(undefined);
+        setError(getErrorMessage(error));
       }
     } finally {
-      isRunningRef.current = false;
-      if (isMountedRef.current) setIsRunning(false);
+      busy.current = false;
+      if (mounted.current) setIsChecking(false);
     }
   }
 
-  const canRun = Boolean(detection?.brewPath) && !isRunning;
-  const hasCli = Boolean(detection?.cliPath);
-  const command = hasCli ? CLI_UPDATE_COMMAND : CLI_INSTALL_COMMAND;
+  useEffect(() => {
+    mounted.current = true;
+    void check();
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  async function run(operation: CliOperation) {
+    if (busy.current) return;
+    busy.current = true;
+    setOperation(operation);
+    setCompleted(false);
+    setError(undefined);
+    try {
+      const detected = await runCliInstallation(operation);
+      if (mounted.current) {
+        setSetup(detected);
+        setCompleted(true);
+      }
+    } catch (error) {
+      if (mounted.current) setError(getErrorMessage(error));
+    } finally {
+      busy.current = false;
+      if (mounted.current) setOperation(undefined);
+    }
+  }
+
+  let markdown = setup ? cliSetupMarkdown(setup) : "# Set up airpods-control CLI\n\nChecking your installation…";
+  if (operation) {
+    markdown = `# ${operation === "install" ? "Installing" : "Updating"} airpods-control CLI\n\nHomebrew can take several minutes. Keep Raycast open until installation finishes.`;
+  } else if (error) {
+    markdown = `# CLI setup needs attention\n\n${error}\n\nChoose **Refresh Setup** to refresh setup, or open the installation instructions.`;
+  } else if (completed) {
+    markdown =
+      "# AirPods Control CLI ready\n\nRun your AirPods command again to use it. No AirPods settings have been changed.";
+  }
+  const idle = !isChecking && !operation;
+  const availableOperation = setup?.state === "install" || setup?.state === "update" ? setup.state : undefined;
+  const canRun = idle && !error && !completed && availableOperation;
+  const showSourceAlternative = idle && !error && !completed && setup?.state === "needs-homebrew";
+  const showHomebrewHelp = setup?.brewPath === null;
 
   return (
     <Detail
-      markdown={markdownFor(detection, isRunning)}
-      isLoading={!detection || isRunning}
+      markdown={markdown}
+      isLoading={isChecking || !!operation}
       actions={
         <ActionPanel>
-          {canRun ? (
-            <Action
-              title={hasCli ? "Update with Homebrew" : "Install with Homebrew"}
-              icon={Icon.Download}
-              onAction={updateCli}
+          {idle && (
+            <ActionPanel.Section title="Setup">
+              {canRun && (
+                <Action
+                  title={availableOperation === "install" ? "Install with Homebrew" : "Update with Homebrew"}
+                  icon={Icon.Download}
+                  onAction={() => run(availableOperation)}
+                />
+              )}
+              {canRun && (
+                <Action
+                  title="Refresh Setup"
+                  icon={Icon.ArrowClockwise}
+                  shortcut={Keyboard.Shortcut.Common.Refresh}
+                  onAction={check}
+                />
+              )}
+              {!error && !completed && setup && <CliSetupActions setup={setup} />}
+              {!canRun && (
+                <Action
+                  title="Refresh Setup"
+                  icon={Icon.ArrowClockwise}
+                  shortcut={Keyboard.Shortcut.Common.Refresh}
+                  onAction={check}
+                />
+              )}
+              {error && <Action.CopyToClipboard title="Copy Error" content={error} />}
+            </ActionPanel.Section>
+          )}
+          <ActionPanel.Section title="Help">
+            {showHomebrewHelp && (
+              <Action.OpenInBrowser
+                title="Open Homebrew Installation Instructions"
+                url={HOMEBREW_URL}
+                shortcut={Keyboard.Shortcut.Common.Open}
+              />
+            )}
+            <Action.OpenInBrowser
+              title="Open CLI Installation Instructions"
+              url={CLI_INSTALL_DOCS_URL}
+              shortcut={showHomebrewHelp ? { modifiers: ["cmd", "opt"], key: "o" } : Keyboard.Shortcut.Common.Open}
             />
-          ) : null}
-          {!detection?.brewPath ? <Action.OpenInBrowser title="Open Homebrew Website" url={HOMEBREW_URL} /> : null}
-          <Action.CopyToClipboard title={hasCli ? "Copy Update Command" : "Copy Install Command"} content={command} />
-          <Action title="Retry Detection" icon={Icon.ArrowClockwise} onAction={retryDetection} />
-          <Action.OpenInBrowser title="Open AirPods Control on GitHub" url={CLI_REPO_URL} />
+            <Action.OpenInBrowser
+              title="Open AirPods Control on GitHub"
+              url={CLI_REPO_URL}
+              shortcut={Keyboard.Shortcut.Common.OpenWith}
+            />
+          </ActionPanel.Section>
+          {showSourceAlternative && (
+            <ActionPanel.Section title="Alternative Installation">
+              <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />
+            </ActionPanel.Section>
+          )}
+          <ActionPanel.Section title="Preferences">
+            {idle && (error || setup?.state !== "invalid-cli-path") && (
+              <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />
+            )}
+            <Action title="Open Command Preferences" icon={Icon.Gear} onAction={openCommandPreferences} />
+          </ActionPanel.Section>
         </ActionPanel>
       }
     />

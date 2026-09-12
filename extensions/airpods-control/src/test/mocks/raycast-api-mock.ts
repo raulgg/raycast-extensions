@@ -31,6 +31,9 @@ export const Keyboard = {
   Shortcut: {
     Common: {
       Copy: { modifiers: ["cmd"], key: "c" },
+      Open: { modifiers: ["cmd"], key: "o" },
+      OpenWith: { modifiers: ["cmd", "shift"], key: "o" },
+      Refresh: { modifiers: ["cmd"], key: "r" },
     },
   },
 } as const;
@@ -111,6 +114,10 @@ export function ActionPanel({ children }: { children?: ReactNode }) {
   return createElement("div", { "data-testid": "action-panel" }, children);
 }
 
+ActionPanel.Section = function Section({ children, title }: { children?: ReactNode; title?: string }) {
+  return createElement("div", { "data-section-title": title }, children);
+};
+
 interface MockActionProps {
   children?: ReactNode;
   icon?: string;
@@ -155,4 +162,5 @@ export const Action = MockAction;
 export const Icon = {
   ArrowClockwise: "ArrowClockwise",
   Download: "Download",
+  Gear: "Gear",
 } as const;

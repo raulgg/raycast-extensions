@@ -6,11 +6,13 @@ Control your AirPods from Raycast: switch listening modes (Noise Cancellation, T
 
 The commands require macOS, compatible AirPods connected over Bluetooth, and the [airpods-control](https://github.com/raulgg/airpods-control) CLI. The CLI is developed and tested upstream on macOS Tahoe 26. Support depends on your model, firmware, and macOS version; see its [compatibility matrix](https://github.com/raulgg/airpods-control/blob/v0.4.0/docs/compatibility.md).
 
-Homebrew builds the CLI on your Mac, so install Apple's Command Line Tools first if they are missing:
+The CLI compiles locally on your Mac. Homebrew is the recommended installation path, but the tagged source installer also works without Homebrew. Install Apple's Command Line Tools first if they are missing:
 
 ```bash
 xcode-select --install
 ```
+
+### Homebrew (recommended)
 
 Install [Homebrew](https://brew.sh) if needed, then install the CLI:
 
@@ -18,7 +20,19 @@ Install [Homebrew](https://brew.sh) if needed, then install the CLI:
 brew install raulgg/tap/airpods-control
 ```
 
-If the CLI is missing, each command offers to install it through a confirmation alert. Accept **Install with Homebrew** to start, or **Cancel** to leave setup. Homebrew can take several minutes; keep Raycast open to see the progress toast. After installation, run your command again. Installation never changes an AirPods setting or resumes the original action. The extension looks in `/opt/homebrew/bin` and `/usr/local/bin`. For another location, set the full binary path in **CLI Path**. A custom path overrides automatic detection. Clear it to restore detection after a Homebrew installation.
+### Tagged source install
+
+If you do not use Homebrew, follow the CLI's [installation instructions](https://github.com/raulgg/airpods-control/blob/v0.4.0/README.md#install). **Update Airpods-Control CLI** links to those instructions and offers a source-install command when the CLI is missing. For an existing source installation, preserve the installation prefix used originally. After a manual installation, run **Refresh Setup** in that command or run an AirPods command again. The source installer defaults to `/usr/local`, which the extension checks automatically; a user-local prefix can be configured with **CLI Path**.
+
+If the CLI is missing, control commands check setup before offering installation:
+
+- With Homebrew and working developer tools, accept **Install with Homebrew** in the confirmation alert. Homebrew can take several minutes; keep Raycast open to see the refreshing progress toast.
+- Without Homebrew, the **Update Airpods-Control CLI** view opens with installation instructions and the Homebrew command to copy into Terminal. Follow the installer prompts and return to **Refresh Setup**, then choose **Install with Homebrew**. Source installation remains an alternative.
+- Without a working Swift toolchain, the view provides manual Command Line Tools instructions. If `xcode-select` itself is unavailable, use the Apple download link. A working full Xcode installation is also accepted. Complete this step yourself and choose **Refresh Setup**.
+
+After installation, run your AirPods command again. Setup never changes an AirPods setting or resumes the original action. The setup view keeps its progress, success, or error message visible until you leave or check again. Concurrent Homebrew installations are prevented across command launches.
+
+The extension looks in `/opt/homebrew/bin` and `/usr/local/bin`. For another location, set the full binary path in **CLI Path**. A custom path overrides automatic detection. An invalid custom path opens recovery instructions before attempting installation.
 
 CLI v0.4.0 is the contract reference for this extension. To check or upgrade your installation:
 
@@ -44,7 +58,7 @@ Control commands keep Raycast open and show a confirmation toast. If Raycast is 
 - **Cycle Listening Mode**. Cycle through modes selected in command preferences; select at least two modes. Its subtitle anticipates the next mode and reconciles with macOS readback.
 - **Toggle Conversation Awareness**. Read the current state and flip it. Its subtitle anticipates the new state and reconciles with macOS readback.
 - **Refresh AirPods Status**. Read both states and request subtitle updates immediately and, when Background Refresh is active, about once a minute. Manual refreshes keep Raycast open and show the states read from macOS. Failed subtitle refresh requests are reported.
-- **Update Airpods-Control CLI**. Install the CLI when it is missing or update it through Homebrew. If Homebrew is not installed, this command explains how to install it and provides the CLI command to copy. Run your AirPods command again after an install or update.
+- **Update Airpods-Control CLI**. Install, update, or recover CLI setup. Automatic updates are offered only when the active CLI belongs to the detected Homebrew formula. Source and custom installations receive manual update instructions. Unlinked Homebrew installations and invalid CLI paths get specific recovery steps. Run your AirPods command again after an install or update.
 
 ## Status Refresh
 

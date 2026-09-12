@@ -1,60 +1,66 @@
 import { execFile } from "child_process";
-import { accessSync, constants } from "fs";
+import { accessSync, constants, statSync } from "fs";
+import { brewLockCommand } from "./brew-lock";
 import { BREW_SEARCH_PATHS, CLI_BREW_FORMULA, HOMEBREW_URL } from "./consts";
 
-/** Homebrew clones the tap and may build from source; leave generous headroom. */
+// The tap builds from source. Include time for downloads and compilation.
 const BREW_INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
-
-/** Homebrew shells out to git/curl, which need the standard system PATH that Raycast's process lacks. */
 const BREW_PATH_ENV = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(":");
 
 export function findBrewPath(): string | null {
   for (const candidate of BREW_SEARCH_PATHS) {
     try {
       accessSync(candidate, constants.X_OK);
-      return candidate;
+      if (statSync(candidate).isFile()) return candidate;
     } catch {
-      // Missing or not executable; try the next candidate.
+      // Try the next installation prefix.
     }
   }
   return null;
 }
 
+export async function findBrewCliPrefix(brewPath: string): Promise<string | null> {
+  const installed = await runBrewCommand(brewPath, ["list", "--formula", "--full-name"]);
+  if (!installed.split(/\s+/).includes(CLI_BREW_FORMULA)) return null;
+  return (await runBrewCommand(brewPath, ["--prefix", CLI_BREW_FORMULA])).trim();
+}
+
 export async function installCliWithBrew(): Promise<void> {
-  return runBrewCommand(["install", CLI_BREW_FORMULA]);
+  await runBrewCommand(requireBrew(), ["install", CLI_BREW_FORMULA], BREW_INSTALL_TIMEOUT_MS, true);
 }
 
 export async function updateCliWithBrew(): Promise<void> {
-  return runBrewCommand(["upgrade", CLI_BREW_FORMULA]);
+  await runBrewCommand(requireBrew(), ["upgrade", CLI_BREW_FORMULA], BREW_INSTALL_TIMEOUT_MS, true);
 }
 
-async function runBrewCommand(args: string[]): Promise<void> {
-  const brewPath = findBrewPath();
-  if (!brewPath) {
-    throw new Error(`Homebrew was not found. Install it from ${HOMEBREW_URL} or copy the install command instead.`);
-  }
+function requireBrew(): string {
+  const path = findBrewPath();
+  if (!path) throw new Error(`Homebrew was not found. Install it from ${HOMEBREW_URL}, then choose Refresh Setup.`);
+  return path;
+}
 
+function runBrewCommand(brewPath: string, args: string[], timeout = 15000, exclusive = false): Promise<string> {
+  const command = exclusive ? brewLockCommand(brewPath, args) : { file: brewPath, args };
   return new Promise((resolve, reject) => {
     execFile(
-      brewPath,
-      args,
-      { timeout: BREW_INSTALL_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, PATH: BREW_PATH_ENV } },
-      (error, _stdout, stderr) => {
+      command.file,
+      command.args,
+      { timeout, maxBuffer: 10 * 1024 * 1024, encoding: "utf8", env: { ...process.env, PATH: BREW_PATH_ENV } },
+      (error, stdout, stderr) => {
         if (!error) {
-          resolve();
-          return;
+          resolve(stdout);
+        } else if (exclusive && error.code === 75) {
+          reject(
+            new Error(
+              "A CLI installation or update is already running. Wait for it to finish, then choose Refresh Setup.",
+            ),
+          );
+        } else if (error.killed) {
+          reject(new Error(`brew ${args[0]} timed out. Check Homebrew in Terminal, then choose Refresh Setup.`));
+        } else {
+          // Keep Homebrew's recovery instructions, which often span several lines.
+          reject(new Error(stderr.trim() || error.message));
         }
-        if (error.killed) {
-          reject(new Error("brew install timed out."));
-          return;
-        }
-        // brew reports failures on stderr; its last non-empty line carries the actual error.
-        const lastLine = stderr
-          ?.trim()
-          .split("\n")
-          .filter((line) => line.trim())
-          .pop();
-        reject(new Error(lastLine ?? error.message));
       },
     );
   });

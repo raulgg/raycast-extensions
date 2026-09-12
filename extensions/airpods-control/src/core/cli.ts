@@ -67,9 +67,13 @@ export class CliError extends Error {
   }
 }
 
-export function findCliPath(): string | null {
+export function getConfiguredCliPath(): string | null {
   const preferences = getPreferenceValues<ExtensionPreferences>();
-  const customPath = preferences.cliPath?.trim();
+  return preferences.cliPath?.trim() || null;
+}
+
+export function findCliPath(): string | null {
+  const customPath = getConfiguredCliPath();
   const candidates = customPath ? [customPath] : CLI_SEARCH_PATHS;
 
   for (const candidate of candidates) {

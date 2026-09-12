@@ -176,6 +176,17 @@
         "setup",
         "homebrew",
         "brew"
+      ],
+      "preferences": [
+        {
+          "name": "simulateHomebrewUnavailable",
+          "title": "Testing",
+          "label": "Simulate Homebrew Unavailable",
+          "description": "For local testing only. Hide Homebrew during setup checks while keeping CLI detection active.",
+          "type": "checkbox",
+          "default": false,
+          "required": false
+        }
       ]
     }
   ],

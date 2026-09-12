@@ -1,15 +1,22 @@
 import { execFile } from "child_process";
-import { accessSync } from "fs";
+import { accessSync, statSync } from "fs";
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
-import { findBrewPath, installCliWithBrew, updateCliWithBrew } from "./brew";
+import { findBrewCliPrefix, findBrewPath, installCliWithBrew, updateCliWithBrew } from "./brew";
 import { BREW_SEARCH_PATHS, CLI_BREW_FORMULA } from "./consts";
 
+vi.mock("./brew-lock", () => ({
+  brewLockCommand: (file: string, args: string[]) => ({
+    file: "/usr/bin/lockf",
+    args: ["-k", "-s", "-t", "0", "/test/cli-install.lock", file, ...args],
+  }),
+}));
 vi.mock("child_process", () => ({
   execFile: vi.fn(),
 }));
 
 vi.mock("fs", () => ({
   accessSync: vi.fn(),
+  statSync: vi.fn(() => ({ isFile: () => true })),
   constants: { X_OK: 1 },
 }));
 
@@ -18,9 +25,9 @@ const mockAccessSync = vi.mocked(accessSync);
 
 type ExecCallback = (error: (Error & { killed?: boolean }) | null, stdout: string, stderr: string) => void;
 
-function mockExecFileResult(error: (Error & { killed?: boolean }) | null, stderr = "") {
+function mockExecFileResult(error: (Error & { killed?: boolean }) | null, stderr = "", stdout = "") {
   mockExecFile.mockImplementation((_file: string, _args: string[], _options: unknown, callback: ExecCallback) => {
-    callback(error, "", stderr);
+    callback(error, stdout, stderr);
   });
 }
 
@@ -73,8 +80,8 @@ describe("brew", () => {
       await installCliWithBrew();
 
       expect(mockExecFile).toHaveBeenCalledWith(
-        BREW_SEARCH_PATHS[0],
-        ["install", CLI_BREW_FORMULA],
+        "/usr/bin/lockf",
+        ["-k", "-s", "-t", "0", "/test/cli-install.lock", BREW_SEARCH_PATHS[0], "install", CLI_BREW_FORMULA],
         expect.anything(),
         expect.any(Function),
       );
@@ -87,18 +94,18 @@ describe("brew", () => {
       await updateCliWithBrew();
 
       expect(mockExecFile).toHaveBeenCalledWith(
-        BREW_SEARCH_PATHS[0],
-        ["upgrade", CLI_BREW_FORMULA],
+        "/usr/bin/lockf",
+        ["-k", "-s", "-t", "0", "/test/cli-install.lock", BREW_SEARCH_PATHS[0], "upgrade", CLI_BREW_FORMULA],
         expect.anything(),
         expect.any(Function),
       );
     });
 
-    it("should reject with the last stderr line when brew fails", async () => {
+    it("preserves multiline Homebrew recovery instructions", async () => {
       mockBrewAt(BREW_SEARCH_PATHS[0]);
       mockExecFileResult(new Error("Command failed"), "==> Fetching raulgg/tap\nError: some formula problem\n");
 
-      await expect(installCliWithBrew()).rejects.toThrow("Error: some formula problem");
+      await expect(installCliWithBrew()).rejects.toThrow("==> Fetching raulgg/tap\nError: some formula problem");
     });
 
     it("should reject with the exec error message when stderr is empty", async () => {
@@ -117,4 +124,29 @@ describe("brew", () => {
       await expect(installCliWithBrew()).rejects.toThrow("timed out");
     });
   });
+});
+
+it("rejects directories at a Homebrew executable path", () => {
+  mockBrewAt(BREW_SEARCH_PATHS[0]);
+  vi.mocked(statSync).mockReturnValueOnce({ isFile: () => false } as ReturnType<typeof statSync>);
+  expect(findBrewPath()).toBeNull();
+});
+
+it("does not query a prefix for an uninstalled formula", async () => {
+  mockExecFileResult(null, "", "git\nother/tap/airpods-control\n");
+  expect(await findBrewCliPrefix(BREW_SEARCH_PATHS[0])).toBeNull();
+  expect(mockExecFile).toHaveBeenCalledTimes(1);
+});
+
+it("looks up the prefix of the installed formula from the correct tap", async () => {
+  mockExecFile.mockImplementation((_file: string, args: string[], _options: unknown, callback: ExecCallback) => {
+    callback(null, args[0] === "list" ? CLI_BREW_FORMULA + "\n" : "/opt/homebrew/opt/airpods-control\n", "");
+  });
+  expect(await findBrewCliPrefix(BREW_SEARCH_PATHS[0])).toBe("/opt/homebrew/opt/airpods-control");
+});
+
+it("explains lock contention without running a second installer", async () => {
+  mockBrewAt(BREW_SEARCH_PATHS[0]);
+  mockExecFileResult(Object.assign(new Error("locked"), { code: 75 }));
+  await expect(installCliWithBrew()).rejects.toThrow("already running");
 });
