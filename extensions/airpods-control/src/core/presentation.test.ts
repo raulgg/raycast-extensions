@@ -27,12 +27,12 @@ describe("state presentation", () => {
   });
 
   it.each([
-    [{ listeningMode: "anc", conversationAwareness: "on" }, "Noise Cancellation · Conversation Awareness On"],
-    [{ listeningMode: "transparency", conversationAwareness: "off" }, "Transparency · Conversation Awareness Off"],
-    [{ listeningMode: "adaptive", conversationAwareness: null }, "Adaptive"],
-    [{ listeningMode: null, conversationAwareness: "on" }, "Conversation Awareness On"],
-    [{ listeningMode: null, conversationAwareness: "off" }, "Conversation Awareness Off"],
-    [{ listeningMode: "off", conversationAwareness: null }, "Off"],
+    [{ listeningMode: "anc", conversationAwareness: "on" }, "Noise Cancellation ● · CA ●"],
+    [{ listeningMode: "transparency", conversationAwareness: "off" }, "Transparency ○ · CA ○"],
+    [{ listeningMode: "adaptive", conversationAwareness: null }, "Adaptive ◑"],
+    [{ listeningMode: null, conversationAwareness: "on" }, "CA ●"],
+    [{ listeningMode: null, conversationAwareness: "off" }, "CA ○"],
+    [{ listeningMode: "off", conversationAwareness: null }, "Off ○̸"],
     [{ listeningMode: null, conversationAwareness: null }, null],
   ] as const)("formats a combined status subtitle %#", (status, expected) => {
     expect(formatAirPodsStatusSubtitle(status)).toBe(expected);

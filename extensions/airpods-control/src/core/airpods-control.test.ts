@@ -1,4 +1,4 @@
-import { getPreferenceValues, openCommandPreferences } from "@raycast/api";
+import { getPreferenceValues, launchCommand, LaunchType, openCommandPreferences } from "@raycast/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   refreshConversationAwarenessSubtitle,
@@ -9,7 +9,7 @@ import {
 } from "./airpods-control";
 import * as AirPodsControlCli from "./airpods-control-cli";
 import { CliError } from "./cli";
-import { publishCommandSubtitle, resetCommandSubtitle } from "./command-metadata";
+import { publishCommandSubtitle, resetCommandSubtitle, withSubtitleOperation } from "./command-metadata";
 import { ToastManager } from "./toast-manager";
 import type { CycleCommandPreferences } from "./types";
 
@@ -77,6 +77,62 @@ describe("airpods-control workflows", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["set", () => runSetListeningModeCommand("adaptive", { updateCycleSubtitle: true })],
+    ["fallback set", () => runSetListeningModeCommand("adaptive", { updateCycleSubtitle: false })],
+    ["cycle", runCycleListeningModeCommand],
+    ["toggle", runToggleConversationAwarenessCommand],
+  ] as const)("requests status synchronization after %s releases its lock", async (_name, run) => {
+    let locked = false;
+    vi.mocked(withSubtitleOperation).mockImplementationOnce(async (_channel, operation) => {
+      locked = true;
+      try {
+        return await operation("test-revision");
+      } finally {
+        locked = false;
+      }
+    });
+    vi.mocked(launchCommand).mockImplementationOnce(async () => {
+      expect(locked).toBe(false);
+      expect(toast.setToSuccess).toHaveBeenCalledOnce();
+    });
+
+    await run();
+
+    expect(launchCommand).toHaveBeenCalledExactlyOnceWith({
+      name: "refresh-airpods-status",
+      type: LaunchType.Background,
+    });
+  });
+
+  it("requests reconciliation after a failed control attempt", async () => {
+    vi.mocked(AirPodsControlCli.setListeningMode).mockRejectedValueOnce(new CliError("no-device"));
+    await runSetListeningModeCommand("adaptive", { updateCycleSubtitle: true });
+    expect(toast.setToFailure).toHaveBeenCalledOnce();
+    expect(launchCommand).toHaveBeenCalledOnce();
+  });
+
+  it("preserves control success when the status command is disabled", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.mocked(launchCommand).mockRejectedValueOnce(new Error("command disabled"));
+    await expect(runSetListeningModeCommand("adaptive", { updateCycleSubtitle: true })).resolves.toBeUndefined();
+    expect(toast.setToSuccess).toHaveBeenCalledOnce();
+    expect(toast.setToFailure).not.toHaveBeenCalled();
+  });
+
+  it("does not launch a refresh when the control lock cannot be acquired", async () => {
+    vi.mocked(withSubtitleOperation).mockRejectedValueOnce(new Error("lock unavailable"));
+    await runSetListeningModeCommand("adaptive", { updateCycleSubtitle: true });
+    expect(AirPodsControlCli.setListeningMode).not.toHaveBeenCalled();
+    expect(launchCommand).not.toHaveBeenCalled();
+  });
+
+  it("does not launch another refresh from subtitle-only background reads", async () => {
+    await refreshListeningModeSubtitle();
+    await refreshConversationAwarenessSubtitle();
+    expect(launchCommand).not.toHaveBeenCalled();
   });
 
   describe("background subtitle refresh", () => {

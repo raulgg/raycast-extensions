@@ -43,10 +43,10 @@ export function formatAirPodsStatusSubtitle(status: AirPodsStatusSnapshot): stri
   const parts: string[] = [];
 
   if (status.listeningMode) {
-    parts.push(LISTENING_MODE_PRESENTATION[status.listeningMode].label);
+    parts.push(listeningModeSubtitle(status.listeningMode));
   }
   if (status.conversationAwareness) {
-    parts.push(`Conversation Awareness ${CONVERSATION_AWARENESS_PRESENTATION[status.conversationAwareness].label}`);
+    parts.push(`CA ${CONVERSATION_AWARENESS_PRESENTATION[status.conversationAwareness].symbol}`);
   }
 
   return parts.length > 0 ? parts.join(" · ") : null;

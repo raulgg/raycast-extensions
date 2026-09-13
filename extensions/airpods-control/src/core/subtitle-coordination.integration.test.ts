@@ -80,6 +80,31 @@ describe("subtitle coordination composed workflows", () => {
     ]);
   });
 
+  it("refreshes all subtitles after a control action without retaining its operation lock", async () => {
+    vi.mocked(AirPodsControlCli.setListeningMode).mockImplementationOnce(async () => {
+      vi.mocked(AirPodsControlCli.getListeningMode).mockResolvedValue("adaptive");
+      return "adaptive";
+    });
+    mockLaunchCommand.mockImplementation(async ({ name, context }) => {
+      if (name === "refresh-airpods-status") {
+        await refreshAirPodsStatus();
+      } else if (name === CYCLE_LISTENING_MODE_COMMAND_NAME) {
+        await cycleListeningMode({ launchType: LaunchType.Background, launchContext: context } as never);
+      } else if (name === TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME) {
+        await toggleConversationAwareness({ launchType: LaunchType.Background, launchContext: context } as never);
+      }
+    });
+
+    await runSetListeningModeCommand("adaptive", { updateCycleSubtitle: true });
+
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Adaptive ◑ · CA ○" });
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Adaptive ◑" });
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Off ○" });
+    expect(mockLaunchCommand).toHaveBeenCalledTimes(3);
+    expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
+    expect(AirPodsControlCli.getConversationAwareness).toHaveBeenCalledOnce();
+  });
+
   it("waits for a status read before allowing a control operation to reach the CLI", async () => {
     let resolveListeningRead!: (mode: ListeningModes) => void;
     const listeningRead = new Promise<ListeningModes>((resolve) => {
@@ -128,8 +153,8 @@ describe("subtitle coordination composed workflows", () => {
     await secondRefresh;
 
     expect(mockUpdateCommandMetadata.mock.calls.map(([metadata]) => metadata.subtitle)).toEqual([
-      "Transparency · Conversation Awareness Off",
-      "Noise Cancellation · Conversation Awareness Off",
+      "Transparency ○ · CA ○",
+      "Noise Cancellation ● · CA ○",
     ]);
   });
 

@@ -1,4 +1,4 @@
-import { getPreferenceValues, openCommandPreferences } from "@raycast/api";
+import { getPreferenceValues, launchCommand, LaunchType, openCommandPreferences } from "@raycast/api";
 import * as AirPodsControlCli from "./airpods-control-cli";
 import { CliError } from "./cli";
 import {
@@ -8,7 +8,7 @@ import {
   type SubtitleRevision,
   withSubtitleOperation,
 } from "./command-metadata";
-import { CYCLE_MODE_ORDER } from "./consts";
+import { CYCLE_MODE_ORDER, REFRESH_AIRPODS_STATUS_COMMAND_NAME } from "./consts";
 import {
   conversationAwarenessHud,
   conversationAwarenessSubtitle,
@@ -44,6 +44,17 @@ async function runWithSubtitleOperation(
     // A command must not change AirPods without the cross-process operation
     // lock. This is a coordination failure, so surface it before any CLI call.
     await toast.setToFailure({ error });
+  } finally {
+    // Only control workflows use this wrapper. Launch after releasing the
+    // operation lock so the refresh can read the confirmed outcome, including
+    // a failed change. Subtitle-only background commands never launch it.
+    if (entered) {
+      try {
+        await launchCommand({ name: REFRESH_AIRPODS_STATUS_COMMAND_NAME, type: LaunchType.Background });
+      } catch (error) {
+        console.error("Failed to launch AirPods status refresh after control action", error);
+      }
+    }
   }
 }
 

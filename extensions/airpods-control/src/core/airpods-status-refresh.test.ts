@@ -60,7 +60,7 @@ describe("AirPods status refresh", () => {
     expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
     expect(AirPodsControlCli.getConversationAwareness).toHaveBeenCalledOnce();
     expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({
-      subtitle: "Noise Cancellation · Conversation Awareness On",
+      subtitle: "Noise Cancellation ● · CA ●",
     });
     const listeningRevision = mockLaunchCommand.mock.calls.find(
       ([options]) => options.name === CYCLE_LISTENING_MODE_COMMAND_NAME,
@@ -148,7 +148,7 @@ describe("AirPods status refresh", () => {
 
     await refreshAirPodsStatus();
 
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation" });
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation ●" });
   });
 
   it("restores the manifest status subtitle for a confirmed unavailable device", async () => {
