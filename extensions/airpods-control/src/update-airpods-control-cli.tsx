@@ -7,69 +7,95 @@ import {
   openCommandPreferences,
   openExtensionPreferences,
 } from "@raycast/api";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer } from "react";
 import { CliSetupActions, cliSetupMarkdown } from "./components/cli-setup-content";
 import { runCliInstallation, type CliOperation } from "./core/cli-installation";
 import { detectCliSetup, type CliSetup } from "./core/cli-setup";
 import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL, CLI_SOURCE_INSTALL_COMMAND, HOMEBREW_URL } from "./core/consts";
 import { getErrorMessage } from "./core/toast-manager";
 
-export default function Command() {
-  const [setup, setSetup] = useState<CliSetup>();
-  const [isChecking, setIsChecking] = useState(true);
-  const [operation, setOperation] = useState<CliOperation>();
-  const [error, setError] = useState<string>();
-  const [completed, setCompleted] = useState(false);
-  const busy = useRef(false);
-  const mounted = useRef(false);
+export type CliSetupLifecycle =
+  | { status: "checking" }
+  | { status: "ready"; setup: CliSetup }
+  | { status: "running"; setup: CliSetup; operation: CliOperation }
+  | { status: "failed"; setup?: CliSetup; error: string }
+  | { status: "completed"; setup: CliSetup };
 
-  async function check() {
-    if (busy.current) return;
-    busy.current = true;
-    setIsChecking(true);
-    setError(undefined);
-    setCompleted(false);
-    try {
-      const detected = await detectCliSetup();
-      if (mounted.current) setSetup(detected);
-    } catch (error) {
-      if (mounted.current) {
-        setSetup(undefined);
-        setError(getErrorMessage(error));
-      }
-    } finally {
-      busy.current = false;
-      if (mounted.current) setIsChecking(false);
-    }
+export type CliSetupLifecycleAction =
+  | { type: "check" }
+  | { type: "ready"; setup: CliSetup }
+  | { type: "run"; operation: CliOperation }
+  | { type: "failed"; error: string }
+  | { type: "completed"; setup: CliSetup };
+
+export function cliSetupLifecycleReducer(state: CliSetupLifecycle, action: CliSetupLifecycleAction): CliSetupLifecycle {
+  switch (action.type) {
+    case "check":
+      return state.status === "checking" || state.status === "running" ? state : { status: "checking" };
+    case "ready":
+      return { status: "ready", setup: action.setup };
+    case "run":
+      return state.status === "ready" ? { status: "running", setup: state.setup, operation: action.operation } : state;
+    case "failed":
+      return {
+        status: "failed",
+        setup: state.status === "running" || state.status === "ready" ? state.setup : undefined,
+        error: action.error,
+      };
+    case "completed":
+      return { status: "completed", setup: action.setup };
   }
+}
+
+const INITIAL_LIFECYCLE: CliSetupLifecycle = { status: "checking" };
+
+export default function Command() {
+  const [lifecycle, dispatch] = useReducer(cliSetupLifecycleReducer, INITIAL_LIFECYCLE);
 
   useEffect(() => {
-    mounted.current = true;
-    void check();
+    if (lifecycle.status !== "checking") return;
+    let active = true;
+    void detectCliSetup()
+      .then((setup) => {
+        if (active) dispatch({ type: "ready", setup });
+      })
+      .catch((error: unknown) => {
+        if (active) dispatch({ type: "failed", error: getErrorMessage(error) });
+      });
     return () => {
-      mounted.current = false;
+      active = false;
     };
-  }, []);
+  }, [lifecycle]);
 
-  async function run(operation: CliOperation) {
-    if (busy.current) return;
-    busy.current = true;
-    setOperation(operation);
-    setCompleted(false);
-    setError(undefined);
-    try {
-      const detected = await runCliInstallation(operation);
-      if (mounted.current) {
-        setSetup(detected);
-        setCompleted(true);
-      }
-    } catch (error) {
-      if (mounted.current) setError(getErrorMessage(error));
-    } finally {
-      busy.current = false;
-      if (mounted.current) setOperation(undefined);
-    }
+  useEffect(() => {
+    if (lifecycle.status !== "running") return;
+    const { operation } = lifecycle;
+    let active = true;
+    void runCliInstallation(operation)
+      .then((setup) => {
+        if (active) dispatch({ type: "completed", setup });
+      })
+      .catch((error: unknown) => {
+        if (active) dispatch({ type: "failed", error: getErrorMessage(error) });
+      });
+    return () => {
+      active = false;
+    };
+  }, [lifecycle]);
+
+  function check() {
+    dispatch({ type: "check" });
   }
+
+  function run(operation: CliOperation) {
+    dispatch({ type: "run", operation });
+  }
+
+  const isChecking = lifecycle.status === "checking";
+  const operation = lifecycle.status === "running" ? lifecycle.operation : undefined;
+  const setup = "setup" in lifecycle ? lifecycle.setup : undefined;
+  const error = lifecycle.status === "failed" ? lifecycle.error : undefined;
+  const completed = lifecycle.status === "completed";
 
   let markdown = setup ? cliSetupMarkdown(setup) : "# AirPods Control Helper\n\nChecking your installation…";
   if (operation) {

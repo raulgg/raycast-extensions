@@ -116,7 +116,15 @@ describe("CLI setup view", () => {
     const installation = deferred<ReturnType<typeof cliSetup>>();
     vi.mocked(runCliInstallation).mockReturnValue(installation.promise);
     await render();
-    await click("Install with Homebrew");
+    const installAction = action("Install with Homebrew");
+    const refreshAction = action("Refresh");
+    expect(installAction).not.toBeNull();
+    expect(refreshAction).not.toBeNull();
+    await act(async () => {
+      installAction?.click();
+      refreshAction?.click();
+      installAction?.click();
+    });
     expect(markdown()).toContain("# Installing helper");
     expect(action("Install with Homebrew")).toBeNull();
     expect(action("Refresh")).toBeNull();
@@ -125,6 +133,18 @@ describe("CLI setup view", () => {
     expect(markdown()).toContain("You can now run your AirPods commands");
     expect(runCliInstallation).toHaveBeenCalledExactlyOnceWith("install");
     expect(launchCommand).not.toHaveBeenCalled();
+  });
+
+  it("ignores a late installation completion after leaving the view", async () => {
+    const installation = deferred<ReturnType<typeof cliSetup>>();
+    vi.mocked(runCliInstallation).mockReturnValue(installation.promise);
+    await render();
+    await click("Install with Homebrew");
+    act(() => root.unmount());
+    unmounted = true;
+
+    await act(async () => installation.resolve(installedCli));
+    expect(runCliInstallation).toHaveBeenCalledExactlyOnceWith("install");
   });
   it.each([
     ["install", "Install with Homebrew", "Copy Install Command", CLI_INSTALL_COMMAND],
