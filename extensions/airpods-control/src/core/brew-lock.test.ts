@@ -28,10 +28,23 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+// Lifetime tests need an immediate observation during the TERM grace period;
+// the user-facing status probe deliberately waits out transient contention.
+async function isLockHeld(): Promise<boolean> {
+  const command = brewLockCommand("/usr/bin/true", []);
+  return new Promise((resolve, reject) => {
+    execFile(command.file, command.args, (error) => {
+      if (!error) resolve(false);
+      else if (error.code === 75) resolve(true);
+      else reject(error);
+    });
+  });
+}
+
 async function waitForLockState(expected: boolean, timeout = 1500): Promise<void> {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
-    if ((await isBrewOperationRunning()) === expected) return;
+    if ((await isLockHeld()) === expected) return;
     await delay(50);
   }
   throw new Error(`Timed out waiting for lock state ${expected}`);
@@ -58,11 +71,17 @@ async function runSupervisor(file: string, args: string[], timeout: number) {
 }
 
 describe.skipIf(process.platform !== "darwin").sequential("macOS installation lock", () => {
+  it("reports idle for concurrent status checks when no installation is running", async () => {
+    const results = await Promise.all(Array.from({ length: 12 }, () => isBrewOperationRunning()));
+    expect(results).toEqual(Array(12).fill(false));
+  });
+
   it("keeps an acquired fd lock until its owner closes the fd", async () => {
     const lockFileDescriptor = openBrewLock();
     try {
       await acquireBrewLock(lockFileDescriptor);
-      expect(await isBrewOperationRunning()).toBe(true);
+      const results = await Promise.all(Array.from({ length: 4 }, () => isBrewOperationRunning()));
+      expect(results).toEqual(Array(4).fill(true));
     } finally {
       closeSync(lockFileDescriptor);
     }
@@ -109,7 +128,7 @@ describe.skipIf(process.platform !== "darwin").sequential("macOS installation lo
     try {
       await waitForFile(ready);
       await delay(Math.max(0, timeout - (Date.now() - startedAt)) + 100);
-      expect(await isBrewOperationRunning()).toBe(true);
+      expect(await isLockHeld()).toBe(true);
       expect(settled).toBe(false);
 
       const result = await operation;
@@ -162,7 +181,7 @@ describe.skipIf(process.platform !== "darwin").sequential("macOS installation lo
       await waitForFile(ready);
       await waitForLockState(true);
       await delay(250);
-      expect(await isBrewOperationRunning()).toBe(true);
+      expect(await isLockHeld()).toBe(true);
       await waitForLockState(false, 4000);
       await delay(1200);
       expect(existsSync(marker)).toBe(false);

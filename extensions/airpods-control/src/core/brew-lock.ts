@@ -103,12 +103,12 @@ function lockFilePath(): string {
   return join(environment.supportPath, LOCK_FILE_NAME);
 }
 
-export function brewLockCommand(file: string, args: string[]) {
+export function brewLockCommand(file: string, args: string[], timeoutSeconds = 0) {
   const lockPath = lockFilePath();
   // Keep one inode across launches. The OS releases the lock when the process exits.
   return {
     file: LOCKF_PATH,
-    args: ["-k", "-s", "-t", "0", lockPath, file, ...args],
+    args: ["-k", "-s", "-t", String(timeoutSeconds), lockPath, file, ...args],
   };
 }
 
@@ -146,7 +146,9 @@ export function brewLockSupervisorCommand(file: string, args: string[]) {
 }
 
 export async function isBrewOperationRunning(): Promise<boolean> {
-  const command = brewLockCommand("/usr/bin/true", []);
+  // Status probes briefly hold the same lock. Allow overlapping probes to
+  // finish before treating contention as an installation in progress.
+  const command = brewLockCommand("/usr/bin/true", [], 1);
   return new Promise((resolve, reject) => {
     execFile(command.file, command.args, { timeout: 5000 }, (error) => {
       if (!error) resolve(false);
