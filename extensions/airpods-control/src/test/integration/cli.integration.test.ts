@@ -1,35 +1,18 @@
-import { chmod, mkdtemp, rm, writeFile } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
 import { getPreferenceValues } from "@raycast/api";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CliError } from "../../cli/errors";
 import { runCli } from "../../cli/transport";
 
-const mockGetPreferenceValues = vi.mocked(getPreferenceValues);
-let tempDirectory: string;
-let fakeCliPath: string;
+import { createFakeCli } from "../fixtures/fake-cli";
 
-async function installFakeCli(body: string): Promise<void> {
-  tempDirectory = await mkdtemp(join(tmpdir(), "airpods-control-cli-test-"));
-  fakeCliPath = join(tempDirectory, "airpods-control");
-  await writeFile(fakeCliPath, `#!/bin/sh\nset -eu\n${body}\n`, "utf8");
-  await chmod(fakeCliPath, 0o755);
-  mockGetPreferenceValues.mockReturnValue({ cliPath: fakeCliPath } as never);
+const mockGetPreferenceValues = vi.mocked(getPreferenceValues);
+async function installFakeCli(body: string) {
+  const helper = await createFakeCli(body);
+  mockGetPreferenceValues.mockReset().mockReturnValue({ cliPath: helper.path } as never);
+  return helper;
 }
 
 describe("CLI transport integration", () => {
-  beforeEach(() => {
-    tempDirectory = "";
-    fakeCliPath = "";
-    mockGetPreferenceValues.mockReset();
-  });
-
-  afterEach(async () => {
-    if (tempDirectory) await rm(tempDirectory, { recursive: true, force: true });
-    vi.restoreAllMocks();
-  });
-
   it("rejects malformed JSON from a real helper process", async () => {
     await installFakeCli("printf '%s' 'not json'");
 

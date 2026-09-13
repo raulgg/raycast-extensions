@@ -12,11 +12,13 @@ export function cliSetup(overrides: Partial<CliSetup> = {}): CliSetup {
   };
 }
 
-export const installedCli = cliSetup({
-  state: "update",
-  cliPath: "/opt/homebrew/bin/airpods-control",
-  brewCliPrefix: "/opt/homebrew/opt/airpods-control",
-});
+export function installedCliSetup(): CliSetup {
+  return cliSetup({
+    state: "update",
+    cliPath: "/opt/homebrew/bin/airpods-control",
+    brewCliPrefix: "/opt/homebrew/opt/airpods-control",
+  });
+}
 
 export function deferred<T>() {
   let resolve!: (value: T) => void;

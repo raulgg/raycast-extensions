@@ -4,7 +4,7 @@ import { isCliInstalled } from "../../cli/discovery";
 import { detectCliSetup } from "../../helper-setup/detection";
 import { runWithCliGuard } from "../../helper-setup/guard";
 import { installCliWithBrew } from "../../homebrew/commands";
-import { cliSetup, installedCli } from "../fixtures/cli-setup";
+import { cliSetup, installedCliSetup } from "../fixtures/cli-setup";
 
 vi.mock("../../homebrew/commands", () => ({ installCliWithBrew: vi.fn() }));
 vi.mock("../../cli/discovery", () => ({ isCliInstalled: vi.fn() }));
@@ -22,7 +22,7 @@ describe("command CLI setup trigger", () => {
     vi.mocked(detectCliSetup)
       .mockResolvedValueOnce(cliSetup())
       .mockResolvedValueOnce(cliSetup())
-      .mockResolvedValue(installedCli);
+      .mockResolvedValue(installedCliSetup());
 
     const perform = vi.fn().mockResolvedValue(undefined);
     await runWithCliGuard(perform);

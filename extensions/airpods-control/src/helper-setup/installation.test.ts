@@ -1,7 +1,7 @@
 import { confirmAlert, launchCommand, showToast, Toast } from "@raycast/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installCliWithBrew, updateCliWithBrew } from "../homebrew/commands";
-import { cliSetup, deferred, installedCli } from "../test/fixtures/cli-setup";
+import { cliSetup, deferred, installedCliSetup } from "../test/fixtures/cli-setup";
 import { detectCliSetup } from "./detection";
 import { promptForCliInstallation, runCliInstallation } from "./installation";
 
@@ -15,7 +15,7 @@ beforeEach(() => {
   vi.mocked(installCliWithBrew)
     .mockReset()
     .mockImplementation(async () => {
-      vi.mocked(detectCliSetup).mockResolvedValue(installedCli);
+      vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
     });
   vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
 });
@@ -72,7 +72,7 @@ describe("CLI installation entry points", () => {
     expect(installCliWithBrew).toHaveBeenCalledOnce();
   });
   it("skips installation if another command installed the CLI while the alert was open", async () => {
-    vi.mocked(detectCliSetup).mockResolvedValueOnce(cliSetup()).mockResolvedValue(installedCli);
+    vi.mocked(detectCliSetup).mockResolvedValueOnce(cliSetup()).mockResolvedValue(installedCliSetup());
     await promptForCliInstallation();
     expect(installCliWithBrew).not.toHaveBeenCalled();
     expect((await progressToast()).message).toContain("Run your AirPods command again");
@@ -89,14 +89,14 @@ describe("CLI installation entry points", () => {
 
 describe("shared installer", () => {
   it("finishes with manual rerun instructions", async () => {
-    expect(await runCliInstallation("install")).toEqual(installedCli);
+    expect(await runCliInstallation("install")).toEqual(installedCliSetup());
     const toast = await progressToast();
     expect(toast.style).toBe(Toast.Style.Success);
     expect(toast.message).toContain("Run your AirPods command again");
     expect(launchCommand).not.toHaveBeenCalled();
   });
   it("upgrades a Homebrew-managed CLI", async () => {
-    vi.mocked(detectCliSetup).mockResolvedValue(installedCli);
+    vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
     await runCliInstallation("update");
     expect(updateCliWithBrew).toHaveBeenCalledOnce();
     expect(installCliWithBrew).not.toHaveBeenCalled();
@@ -115,7 +115,7 @@ describe("shared installer", () => {
     expect(showToast).toHaveBeenCalledOnce();
     expect(toast.show).toHaveBeenCalledTimes(22);
     expect(toast.message).toBe("This can take several minutes. Keep Raycast open until it finishes.");
-    vi.mocked(detectCliSetup).mockResolvedValue(installedCli);
+    vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
     install.resolve();
     await running;
     const count = vi.mocked(toast.show).mock.calls.length;
@@ -134,7 +134,7 @@ describe("shared installer", () => {
     await vi.advanceTimersByTimeAsync(12000);
     expect(toast.style).toBe(Toast.Style.Animated);
     expect(toast.show).toHaveBeenCalledTimes(4);
-    verification.resolve(installedCli);
+    verification.resolve(installedCliSetup());
     await running;
     expect(toast.style).toBe(Toast.Style.Success);
     expect(vi.getTimerCount()).toBe(0);
@@ -149,7 +149,7 @@ describe("shared installer", () => {
     vi.mocked(toast.show).mockReturnValueOnce(refresh.promise);
     await vi.advanceTimersByTimeAsync(9000);
     expect(toast.show).toHaveBeenCalledOnce();
-    vi.mocked(detectCliSetup).mockResolvedValue(installedCli);
+    vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
     install.resolve();
     await vi.advanceTimersByTimeAsync(0);
     expect(toast.style).toBe(Toast.Style.Animated);
@@ -167,7 +167,7 @@ describe("shared installer", () => {
     vi.mocked(toast.show).mockRejectedValueOnce(new Error("toast unavailable"));
     await vi.advanceTimersByTimeAsync(6000);
     expect(toast.show).toHaveBeenCalledTimes(2);
-    vi.mocked(detectCliSetup).mockResolvedValue(installedCli);
+    vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
     install.resolve();
     await running;
     expect(toast.style).toBe(Toast.Style.Success);
@@ -180,7 +180,7 @@ describe("shared installer", () => {
     expect(vi.getTimerCount()).toBe(0);
     await toast.primaryAction.onAction(toast);
     expect(launchCommand).toHaveBeenCalledOnce();
-    await expect(runCliInstallation("install")).resolves.toEqual(installedCli);
+    await expect(runCliInstallation("install")).resolves.toEqual(installedCliSetup());
   });
   it("requires the active CLI to resolve to the Homebrew installation after success", async () => {
     vi.mocked(installCliWithBrew).mockResolvedValue(undefined);
@@ -193,7 +193,7 @@ describe("shared installer", () => {
     const second = runCliInstallation("install");
     await vi.advanceTimersByTimeAsync(0);
     expect(installCliWithBrew).toHaveBeenCalledOnce();
-    vi.mocked(detectCliSetup).mockResolvedValue(installedCli);
+    vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
     install.resolve();
     await Promise.all([first, second]);
   });
