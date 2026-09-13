@@ -1,4 +1,5 @@
-import { CliError, runCli } from "./transport";
+import { CliError } from "./errors";
+import { runCli } from "./transport";
 import type { CliListeningMode, CliPayload } from "./types";
 import type { ConversationAwarenessState, ListeningModes } from "../airpods/types";
 

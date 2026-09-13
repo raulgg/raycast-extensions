@@ -1,6 +1,6 @@
 import { launchCommand, LaunchType } from "@raycast/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isCliInstalled } from "../cli/transport";
+import { isCliInstalled } from "../cli/discovery";
 import { CYCLE_LISTENING_MODE_COMMAND_NAME } from "../commands/names";
 import { promptForCliInstallation } from "../helper-setup/installation";
 import { runSetListeningModeCommand } from "./airpods-control";
@@ -10,7 +10,7 @@ vi.mock("./airpods-control", () => ({
   runSetListeningModeCommand: vi.fn(),
 }));
 
-vi.mock("../cli/transport", () => ({ isCliInstalled: vi.fn() }));
+vi.mock("../cli/discovery", () => ({ isCliInstalled: vi.fn() }));
 vi.mock("../helper-setup/installation", () => ({ promptForCliInstallation: vi.fn() }));
 
 const mockLaunchCommand = vi.mocked(launchCommand);

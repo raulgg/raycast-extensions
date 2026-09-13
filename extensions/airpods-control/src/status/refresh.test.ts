@@ -1,7 +1,7 @@
 import { launchCommand, LaunchType, showToast, Toast, updateCommandMetadata } from "@raycast/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as AirPodsControlCli from "../cli/client";
-import { CliError } from "../cli/transport";
+import { CliError } from "../cli/errors";
 import { CYCLE_LISTENING_MODE_COMMAND_NAME, TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME } from "../commands/names";
 import { refreshAirPodsStatus, resetAirPodsStatusSubtitles, runAirPodsStatusRefresh } from "./refresh";
 

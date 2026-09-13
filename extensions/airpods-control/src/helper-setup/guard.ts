@@ -1,5 +1,5 @@
 import { showFailureToast } from "@raycast/utils";
-import { isCliInstalled } from "../cli/transport";
+import { isCliInstalled } from "../cli/discovery";
 import { createCopyErrorAction, getErrorMessage } from "../feedback/toast-manager";
 import { promptForCliInstallation } from "./installation";
 

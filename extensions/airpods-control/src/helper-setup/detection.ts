@@ -1,6 +1,6 @@
 import { realpathSync } from "fs";
 import { join } from "path";
-import { findCliPath, getConfiguredCliPath } from "../cli/transport";
+import { findCliPath, getConfiguredCliPath } from "../cli/discovery";
 import { findBrewCliPrefix, findBrewPath } from "../homebrew/commands";
 import { isBrewOperationRunning } from "../homebrew/lock";
 import { detectDeveloperTools, type DeveloperToolsStatus } from "./developer-tools";

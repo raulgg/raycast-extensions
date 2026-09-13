@@ -1,6 +1,6 @@
 import { realpathSync } from "fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { findCliPath, getConfiguredCliPath } from "../cli/transport";
+import { findCliPath, getConfiguredCliPath } from "../cli/discovery";
 import { findBrewCliPrefix, findBrewPath } from "../homebrew/commands";
 import { isBrewOperationRunning } from "../homebrew/lock";
 import { detectCliSetup } from "./detection";
@@ -9,7 +9,7 @@ import { detectDeveloperTools } from "./developer-tools";
 vi.mock("../homebrew/lock", () => ({ isBrewOperationRunning: vi.fn(async () => false) }));
 vi.mock("fs", () => ({ realpathSync: vi.fn() }));
 vi.mock("../homebrew/commands", () => ({ findBrewCliPrefix: vi.fn(), findBrewPath: vi.fn() }));
-vi.mock("../cli/transport", () => ({ findCliPath: vi.fn(), getConfiguredCliPath: vi.fn() }));
+vi.mock("../cli/discovery", () => ({ findCliPath: vi.fn(), getConfiguredCliPath: vi.fn() }));
 vi.mock("./developer-tools", () => ({ detectDeveloperTools: vi.fn() }));
 
 beforeEach(() => {

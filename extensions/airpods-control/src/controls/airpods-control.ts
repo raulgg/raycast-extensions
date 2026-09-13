@@ -7,7 +7,7 @@ import {
   listeningModeSubtitle,
 } from "../airpods/presentation";
 import * as AirPodsControlCli from "../cli/client";
-import { CliError } from "../cli/transport";
+import { CliError } from "../cli/errors";
 import { type SubtitleRevision } from "../commands/launch-context";
 import { REFRESH_AIRPODS_STATUS_COMMAND_NAME } from "../commands/names";
 import { ToastManager } from "../feedback/toast-manager";

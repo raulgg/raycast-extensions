@@ -1,13 +1,13 @@
 import { Clipboard, Keyboard, launchCommand, type Toast } from "@raycast/api";
 import { showFailureToast } from "@raycast/utils";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { isCliInstalled } from "../cli/transport";
+import { isCliInstalled } from "../cli/discovery";
 import { runWithCliGuard } from "./guard";
 import { promptForCliInstallation } from "./installation";
 
 vi.mock("./installation", () => ({ promptForCliInstallation: vi.fn() }));
 
-vi.mock("../cli/transport", () => ({
+vi.mock("../cli/discovery", () => ({
   isCliInstalled: vi.fn(),
 }));
 

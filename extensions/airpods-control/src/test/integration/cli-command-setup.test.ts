@@ -1,13 +1,13 @@
 import { confirmAlert, launchCommand, showToast } from "@raycast/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { isCliInstalled } from "../../cli/transport";
+import { isCliInstalled } from "../../cli/discovery";
 import { detectCliSetup } from "../../helper-setup/detection";
 import { runWithCliGuard } from "../../helper-setup/guard";
 import { installCliWithBrew } from "../../homebrew/commands";
 import { cliSetup, installedCli } from "../cli-setup-fixture";
 
 vi.mock("../../homebrew/commands", () => ({ installCliWithBrew: vi.fn() }));
-vi.mock("../../cli/transport", () => ({ isCliInstalled: vi.fn() }));
+vi.mock("../../cli/discovery", () => ({ isCliInstalled: vi.fn() }));
 vi.mock("../../helper-setup/detection", () => ({ detectCliSetup: vi.fn() }));
 
 describe("command CLI setup trigger", () => {

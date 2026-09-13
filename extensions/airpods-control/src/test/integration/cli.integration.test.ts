@@ -3,7 +3,8 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { getPreferenceValues } from "@raycast/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CliError, runCli } from "../../cli/transport";
+import { CliError } from "../../cli/errors";
+import { runCli } from "../../cli/transport";
 
 const mockGetPreferenceValues = vi.mocked(getPreferenceValues);
 let tempDirectory: string;

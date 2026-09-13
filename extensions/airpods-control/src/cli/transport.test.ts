@@ -1,9 +1,10 @@
 import { execFile } from "child_process";
 import { accessSync, statSync } from "fs";
 import { getPreferenceValues } from "@raycast/api";
-import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+import { CliError } from "./errors";
 import { CLI_SEARCH_PATHS } from "./preferences";
-import { CliError, findCliPath, isCliInstalled, runCli } from "./transport";
+import { runCli } from "./transport";
 import type * as Fs from "fs";
 
 vi.mock("child_process", () => ({
@@ -59,62 +60,6 @@ describe("cli", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  describe("findCliPath", () => {
-    it("should return the Homebrew path when the binary is there", () => {
-      mockInstalledAt(CLI_SEARCH_PATHS[0]);
-
-      expect(findCliPath()).toBe(CLI_SEARCH_PATHS[0]);
-    });
-
-    it("should fall back to the next search path", () => {
-      mockInstalledAt(CLI_SEARCH_PATHS[1]);
-
-      expect(findCliPath()).toBe(CLI_SEARCH_PATHS[1]);
-    });
-
-    it("should return null when the binary is nowhere to be found", () => {
-      expect(findCliPath()).toBeNull();
-    });
-
-    it("should use the CLI Path preference when set", () => {
-      mockGetPreferenceValues.mockReturnValue({ cliPath: "/custom/bin/airpods-control" } as never);
-      mockInstalledAt("/custom/bin/airpods-control");
-
-      expect(findCliPath()).toBe("/custom/bin/airpods-control");
-    });
-
-    it("should not fall back to default paths when the CLI Path preference is invalid", () => {
-      mockGetPreferenceValues.mockReturnValue({ cliPath: "/custom/bin/airpods-control" } as never);
-      mockInstalledAt(CLI_SEARCH_PATHS[0]);
-
-      expect(findCliPath()).toBeNull();
-    });
-
-    it("should reject a CLI Path preference that points at a directory", () => {
-      mockGetPreferenceValues.mockReturnValue({ cliPath: "/opt/homebrew/bin" } as never);
-      mockInstalledAt("/opt/homebrew/bin");
-      mockStatSync.mockReturnValue({ isFile: () => false } as never);
-
-      expect(findCliPath()).toBeNull();
-    });
-
-    it("should ignore a whitespace-only CLI Path preference", () => {
-      mockGetPreferenceValues.mockReturnValue({ cliPath: "   " } as never);
-      mockInstalledAt(CLI_SEARCH_PATHS[0]);
-
-      expect(findCliPath()).toBe(CLI_SEARCH_PATHS[0]);
-    });
-  });
-
-  describe("isCliInstalled", () => {
-    it("should mirror findCliPath", () => {
-      expect(isCliInstalled()).toBe(false);
-
-      mockInstalledAt(CLI_SEARCH_PATHS[0]);
-      expect(isCliInstalled()).toBe(true);
-    });
   });
 
   describe("runCli", () => {

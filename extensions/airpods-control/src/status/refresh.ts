@@ -5,7 +5,7 @@ import {
   listeningModeSubtitle,
 } from "../airpods/presentation";
 import * as AirPodsControlCli from "../cli/client";
-import { CliError } from "../cli/transport";
+import { CliError } from "../cli/errors";
 import { type SubtitleRevision } from "../commands/launch-context";
 import { CYCLE_LISTENING_MODE_COMMAND_NAME, TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME } from "../commands/names";
 import { createCopyErrorAction, getErrorMessage } from "../feedback/toast-manager";

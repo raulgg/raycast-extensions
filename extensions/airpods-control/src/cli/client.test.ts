@@ -8,7 +8,8 @@ import {
   setConversationAwareness,
   setListeningMode,
 } from "./client";
-import { CliError, runCli } from "./transport";
+import { CliError } from "./errors";
+import { runCli } from "./transport";
 import type * as CliModule from "./transport";
 
 vi.mock("./transport", async (importOriginal) => {

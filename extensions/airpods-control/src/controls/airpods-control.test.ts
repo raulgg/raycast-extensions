@@ -1,7 +1,7 @@
 import { getPreferenceValues, launchCommand, LaunchType, openCommandPreferences } from "@raycast/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as AirPodsControlCli from "../cli/client";
-import { CliError } from "../cli/transport";
+import { CliError } from "../cli/errors";
 import { ToastManager } from "../feedback/toast-manager";
 import { publishCommandSubtitle, resetCommandSubtitle, withSubtitleOperation } from "../subtitles/coordination";
 import {
