@@ -66,7 +66,7 @@ describe("subtitle coordination composed workflows", () => {
     rmSync(environment.supportPath, { recursive: true, force: true });
   });
 
-  it("publishes the confirmed setter state after an optimistic metadata failure", async () => {
+  it("clears the subtitle when the confirmed metadata write fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     mockUpdateCommandMetadata.mockRejectedValueOnce(new Error("metadata failed"));
 
@@ -76,7 +76,6 @@ describe("subtitle coordination composed workflows", () => {
     expect(mockUpdateCommandMetadata.mock.calls.map(([metadata]) => metadata)).toEqual([
       { subtitle: "Noise Cancellation ◉" },
       { subtitle: null },
-      { subtitle: "Noise Cancellation ◉" },
     ]);
   });
 
@@ -170,14 +169,12 @@ describe("subtitle coordination composed workflows", () => {
 
     const resetPromise = resetCommandSubtitle({ channel: "listening-mode" });
     await Promise.resolve();
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledTimes(1);
-    expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "Noise Cancellation ◉" });
+    expect(mockUpdateCommandMetadata).not.toHaveBeenCalled();
 
     resolveSet("anc");
     await Promise.all([controlPromise, resetPromise]);
 
     expect(mockUpdateCommandMetadata.mock.calls.map(([metadata]) => metadata)).toEqual([
-      { subtitle: "Noise Cancellation ◉" },
       { subtitle: "Noise Cancellation ◉" },
       { subtitle: null },
     ]);

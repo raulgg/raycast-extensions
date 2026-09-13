@@ -171,15 +171,8 @@ export async function runSetListeningModeCommand(
   await toast.setToLoading();
 
   const run = async (revision: SubtitleRevision): Promise<void> => {
-    if (updateCycleSubtitle) {
-      await publishListeningModeSubtitle(modeToActivate, revision);
-    }
-
     try {
       const confirmedMode = await AirPodsControlCli.setListeningMode(modeToActivate);
-      // Set adapters return the requested state when macOS confirms a no-op,
-      // so this publication must remain unconditional to recover from a
-      // failed optimistic update or a reset performed by its error path.
       if (updateCycleSubtitle) {
         await publishListeningModeSubtitle(confirmedMode, revision);
       }
@@ -191,17 +184,6 @@ export async function runSetListeningModeCommand(
   };
 
   await runWithSubtitleOperation("listening-mode", toast, run);
-}
-
-function nextCycleMode(currentMode: ListeningModes, cycleModes: ListeningModes[]): ListeningModes {
-  const currentIndex = CYCLE_MODE_ORDER.indexOf(currentMode);
-  for (let offset = 1; offset <= CYCLE_MODE_ORDER.length; offset += 1) {
-    const candidate = CYCLE_MODE_ORDER[(currentIndex + offset) % CYCLE_MODE_ORDER.length];
-    if (cycleModes.includes(candidate)) {
-      return candidate;
-    }
-  }
-  return cycleModes[0];
 }
 
 function getSelectedCycleModes(): ListeningModes[] {
@@ -237,11 +219,7 @@ export async function runCycleListeningModeCommand(): Promise<void> {
 
   const run = async (revision: SubtitleRevision): Promise<void> => {
     try {
-      const currentMode = await AirPodsControlCli.getListeningMode();
-      const expectedMode = nextCycleMode(currentMode, selectedModes);
-      await publishListeningModeSubtitle(expectedMode, revision);
       const confirmedMode = await AirPodsControlCli.cycleListeningMode(selectedModes);
-      // Reconcile every successful cycle with the CLI's confirmed state.
       await publishListeningModeSubtitle(confirmedMode, revision);
       await toast.setToSuccess({
         titleOverride: listeningModeHud(confirmedMode),
@@ -279,9 +257,7 @@ export async function runToggleConversationAwarenessCommand(): Promise<void> {
     try {
       const currentState = await AirPodsControlCli.getConversationAwareness();
       const nextState: ConversationAwarenessState = currentState === "on" ? "off" : "on";
-      await publishConversationAwarenessSubtitle(nextState, revision);
       const confirmedState = await AirPodsControlCli.setConversationAwareness(nextState);
-      // Reconcile every successful toggle with the CLI's confirmed state.
       await publishConversationAwarenessSubtitle(confirmedState, revision);
       await toast.setToSuccess({ titleOverride: conversationAwarenessHud(confirmedState) });
     } catch (error) {

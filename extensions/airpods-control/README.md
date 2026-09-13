@@ -56,9 +56,9 @@ Status and successful changes reflect macOS provider readback, not a direct ackn
 
 Control commands keep Raycast open and show a confirmation toast. If Raycast is closed when the command finishes, including when launched by a keyboard shortcut with the window closed, the confirmation appears in a HUD instead.
 
-- **Set to Noise Cancellation / Set to Transparency / Set to Adaptive / Set to Off**. Set a specific listening mode. The **Cycle Listening Mode** subtitle anticipates the requested mode and reconciles with macOS readback.
-- **Cycle Listening Mode**. Cycle through modes selected in command preferences; select at least two modes. Its subtitle anticipates the next mode and reconciles with macOS readback.
-- **Toggle Conversation Awareness**. Read the current state and flip it. Its subtitle anticipates the new state and reconciles with macOS readback.
+- **Set to Noise Cancellation / Set to Transparency / Set to Adaptive / Set to Off**. Set a specific listening mode. After macOS confirms the change, the **Cycle Listening Mode** subtitle updates to that mode.
+- **Cycle Listening Mode**. Cycle through modes selected in command preferences; select at least two modes. Its subtitle updates after macOS confirms the new mode.
+- **Toggle Conversation Awareness**. Read the current state and flip it. Its subtitle updates after macOS confirms the new state.
 - **Refresh AirPods Status**. Read both states, show the confirmed values in its combined subtitle, and update the feature subtitles immediately and, when Background Refresh is active, about once a minute. Manual refreshes keep Raycast open and show the states read from macOS. Failed subtitle refresh requests are reported.
 - **Manage AirPods Control Helper**. Install, update, or recover the helper. Automatic updates are offered when the active helper belongs to the detected Homebrew formula. Source and custom installations receive manual update instructions. Unlinked Homebrew installations and invalid CLI paths get specific recovery steps. Run an AirPods command again after an install or update.
 
