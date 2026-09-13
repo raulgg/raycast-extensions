@@ -9,10 +9,11 @@ import {
 } from "@raycast/api";
 import { useEffect, useReducer } from "react";
 import { getErrorMessage } from "./feedback/toast-manager";
-import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL, CLI_SOURCE_INSTALL_COMMAND, HOMEBREW_URL } from "./helper-setup/constants";
+import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL, CLI_SOURCE_INSTALL_COMMAND } from "./helper-setup/constants";
 import { detectCliSetup, type CliSetup } from "./helper-setup/detection";
 import { runCliInstallation, type CliOperation } from "./helper-setup/installation";
 import { CliSetupActions, cliSetupMarkdown } from "./helper-setup/setup-content";
+import { HOMEBREW_URL } from "./homebrew/constants";
 
 export type CliSetupLifecycle =
   | { status: "checking" }

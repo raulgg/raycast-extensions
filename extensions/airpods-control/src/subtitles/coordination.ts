@@ -3,9 +3,9 @@ import { randomUUID } from "crypto";
 import { closeSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "fs";
 import { join } from "path";
 import { environment, updateCommandMetadata } from "@raycast/api";
+import type { SubtitleRevision } from "../commands/launch-context";
 
 export type SubtitleChannel = "listening-mode" | "conversation-awareness" | "status";
-export type SubtitleRevision = string;
 
 export interface CommandSubtitleOptions {
   channel: SubtitleChannel;

@@ -8,7 +8,7 @@ import {
 import { runWithCliGuard } from "./helper-setup/guard";
 import { resetCommandSubtitle } from "./subtitles/coordination";
 import main from "./toggle-conversation-awareness";
-import type { ConversationAwarenessSubtitleRefreshContext } from "./status/refresh";
+import type { ConversationAwarenessSubtitleRefreshContext } from "./commands/launch-context";
 
 vi.mock("./controls/airpods-control", () => ({
   publishConversationAwarenessSubtitle: vi.fn(),

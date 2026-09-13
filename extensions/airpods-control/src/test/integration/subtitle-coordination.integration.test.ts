@@ -4,13 +4,11 @@ import { join } from "path";
 import { environment, launchCommand, LaunchType, updateCommandMetadata } from "@raycast/api";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import * as AirPodsControlCli from "../../cli/client";
+import { type ListeningModeSubtitleRefreshContext } from "../../commands/launch-context";
+import { CYCLE_LISTENING_MODE_COMMAND_NAME, TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME } from "../../commands/names";
 import { runSetListeningModeCommand, runToggleConversationAwarenessCommand } from "../../controls/airpods-control";
 import cycleListeningMode from "../../cycle-listening-mode";
-import {
-  CYCLE_LISTENING_MODE_COMMAND_NAME,
-  TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME,
-} from "../../helper-setup/constants";
-import { refreshAirPodsStatus, type ListeningModeSubtitleRefreshContext } from "../../status/refresh";
+import { refreshAirPodsStatus } from "../../status/refresh";
 import {
   publishCommandSubtitle,
   resetCommandSubtitle,

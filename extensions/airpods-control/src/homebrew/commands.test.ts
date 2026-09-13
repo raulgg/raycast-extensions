@@ -1,8 +1,8 @@
 import { execFile } from "child_process";
 import { accessSync, statSync } from "fs";
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
-import { BREW_SEARCH_PATHS, CLI_BREW_FORMULA } from "../helper-setup/constants";
 import { findBrewCliPrefix, findBrewPath, installCliWithBrew, updateCliWithBrew } from "./commands";
+import { BREW_SEARCH_PATHS, CLI_BREW_FORMULA } from "./constants";
 import { acquireBrewLock } from "./lock";
 import { runProcessWithLifetime, type ProcessLifetimeResult } from "./process-lifetime";
 

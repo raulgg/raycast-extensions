@@ -1,8 +1,9 @@
 import { execFile, type ExecFileOptions } from "child_process";
 import { accessSync, constants, statSync } from "fs";
 import { getPreferenceValues } from "@raycast/api";
-import { CLI_SEARCH_PATHS } from "../helper-setup/constants";
-import type { CliPayload, ExtensionPreferences } from "../airpods/types";
+import { CLI_SEARCH_PATHS } from "./preferences";
+import type { ExtensionPreferences } from "./preferences";
+import type { CliPayload } from "./types";
 
 /**
  * Non-zero writes are verified by the CLI for up to ~1.5s; leave generous headroom

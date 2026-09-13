@@ -6,30 +6,15 @@ import {
 } from "../airpods/presentation";
 import * as AirPodsControlCli from "../cli/client";
 import { CliError } from "../cli/transport";
+import { type SubtitleRevision } from "../commands/launch-context";
+import { CYCLE_LISTENING_MODE_COMMAND_NAME, TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME } from "../commands/names";
 import { createCopyErrorAction, getErrorMessage } from "../feedback/toast-manager";
-import {
-  CYCLE_LISTENING_MODE_COMMAND_NAME,
-  TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME,
-} from "../helper-setup/constants";
-import {
-  publishCommandSubtitle,
-  resetCommandSubtitle,
-  type SubtitleRevision,
-  withSubtitleSnapshotOperation,
-} from "../subtitles/coordination";
+import { publishCommandSubtitle, resetCommandSubtitle, withSubtitleSnapshotOperation } from "../subtitles/coordination";
 import type { AirPodsStatusSnapshot, ConversationAwarenessState, ListeningModes } from "../airpods/types";
-
-export interface ListeningModeSubtitleRefreshContext {
-  operation: "refresh-listening-mode-subtitle";
-  mode: ListeningModes | null;
-  revision?: SubtitleRevision;
-}
-
-export interface ConversationAwarenessSubtitleRefreshContext {
-  operation: "refresh-conversation-awareness-subtitle";
-  state: ConversationAwarenessState | null;
-  revision?: SubtitleRevision;
-}
+import type {
+  ListeningModeSubtitleRefreshContext,
+  ConversationAwarenessSubtitleRefreshContext,
+} from "../commands/launch-context";
 
 interface SubtitleDispatchResult {
   listeningMode: PromiseSettledResult<void>;
@@ -40,45 +25,6 @@ export interface AirPodsStatusRefreshResult {
   listeningMode: PromiseSettledResult<ListeningModes>;
   conversationAwareness: PromiseSettledResult<ConversationAwarenessState>;
   subtitleDispatch: SubtitleDispatchResult;
-}
-
-const LISTENING_MODES: ReadonlySet<string> = new Set(["off", "anc", "transparency", "adaptive"]);
-
-export function listeningModeFromSubtitleRefreshContext(context: unknown): ListeningModes | null | undefined {
-  if (typeof context !== "object" || context === null) return undefined;
-
-  const { operation, mode } = context as Record<string, unknown>;
-  if (operation !== "refresh-listening-mode-subtitle") return undefined;
-  if (mode === null) return null;
-  return typeof mode === "string" && LISTENING_MODES.has(mode) ? (mode as ListeningModes) : undefined;
-}
-
-export function conversationAwarenessFromSubtitleRefreshContext(
-  context: unknown,
-): ConversationAwarenessState | null | undefined {
-  if (typeof context !== "object" || context === null) return undefined;
-
-  const { operation, state } = context as Record<string, unknown>;
-  if (operation !== "refresh-conversation-awareness-subtitle") return undefined;
-  if (state === null) return null;
-  return state === "on" || state === "off" ? state : undefined;
-}
-
-function revisionFromSubtitleRefreshContext(context: unknown, operation: string): SubtitleRevision | undefined {
-  if (typeof context !== "object" || context === null) return undefined;
-
-  const { operation: contextOperation, revision } = context as Record<string, unknown>;
-  return contextOperation === operation && typeof revision === "string" && revision.length > 0 ? revision : undefined;
-}
-
-export function listeningModeRevisionFromSubtitleRefreshContext(context: unknown): SubtitleRevision | undefined {
-  return revisionFromSubtitleRefreshContext(context, "refresh-listening-mode-subtitle");
-}
-
-export function conversationAwarenessRevisionFromSubtitleRefreshContext(
-  context: unknown,
-): SubtitleRevision | undefined {
-  return revisionFromSubtitleRefreshContext(context, "refresh-conversation-awareness-subtitle");
 }
 
 async function dispatchSubtitleRefreshes(

@@ -1,17 +1,17 @@
 import { LaunchType, type LaunchProps } from "@raycast/api";
+import { modeFromLaunchContext, type SetListeningModeLaunchContext } from "./commands/launch-context";
+import {
+  listeningModeFromSubtitleRefreshContext,
+  listeningModeRevisionFromSubtitleRefreshContext,
+  type ListeningModeSubtitleRefreshContext,
+} from "./commands/launch-context";
 import {
   publishListeningModeSubtitle,
   refreshListeningModeSubtitle,
   runCycleListeningModeCommand,
   runSetListeningModeCommand,
 } from "./controls/airpods-control";
-import { modeFromLaunchContext, type SetListeningModeLaunchContext } from "./controls/delegate-listening-mode";
 import { runWithCliGuard } from "./helper-setup/guard";
-import {
-  listeningModeFromSubtitleRefreshContext,
-  listeningModeRevisionFromSubtitleRefreshContext,
-  type ListeningModeSubtitleRefreshContext,
-} from "./status/refresh";
 import { resetCommandSubtitle } from "./subtitles/coordination";
 
 type CycleListeningModeLaunchProps = LaunchProps<{

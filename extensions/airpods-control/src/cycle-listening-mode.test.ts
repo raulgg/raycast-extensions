@@ -9,8 +9,8 @@ import {
 import main from "./cycle-listening-mode";
 import { runWithCliGuard } from "./helper-setup/guard";
 import { resetCommandSubtitle } from "./subtitles/coordination";
-import type { SetListeningModeLaunchContext } from "./controls/delegate-listening-mode";
-import type { ListeningModeSubtitleRefreshContext } from "./status/refresh";
+import type { SetListeningModeLaunchContext } from "./commands/launch-context";
+import type { ListeningModeSubtitleRefreshContext } from "./commands/launch-context";
 
 vi.mock("./controls/airpods-control", () => ({
   publishListeningModeSubtitle: vi.fn(),

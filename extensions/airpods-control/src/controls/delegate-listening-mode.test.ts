@@ -1,10 +1,10 @@
 import { launchCommand, LaunchType } from "@raycast/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isCliInstalled } from "../cli/transport";
-import { CYCLE_LISTENING_MODE_COMMAND_NAME } from "../helper-setup/constants";
+import { CYCLE_LISTENING_MODE_COMMAND_NAME } from "../commands/names";
 import { promptForCliInstallation } from "../helper-setup/installation";
 import { runSetListeningModeCommand } from "./airpods-control";
-import { modeFromLaunchContext, setListeningMode } from "./delegate-listening-mode";
+import { setListeningMode } from "./delegate-listening-mode";
 
 vi.mock("./airpods-control", () => ({
   runSetListeningModeCommand: vi.fn(),
@@ -84,22 +84,6 @@ describe("listening-mode command gateway", () => {
       } finally {
         vi.useRealTimers();
       }
-    },
-  );
-
-  it.each([
-    [{ operation: "set", mode: "off" }, "off"],
-    [{ operation: "set", mode: "anc" }, "anc"],
-    [{ operation: "set", mode: "transparency" }, "transparency"],
-    [{ operation: "set", mode: "adaptive" }, "adaptive"],
-  ] as const)("accepts valid launch context", (context, mode) => {
-    expect(modeFromLaunchContext(context)).toBe(mode);
-  });
-
-  it.each([undefined, null, {}, { operation: "cycle", mode: "anc" }, { operation: "set", mode: "future" }])(
-    "rejects invalid launch context %#",
-    (context) => {
-      expect(modeFromLaunchContext(context)).toBeNull();
     },
   );
 });

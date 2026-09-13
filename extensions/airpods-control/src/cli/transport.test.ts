@@ -2,7 +2,7 @@ import { execFile } from "child_process";
 import { accessSync, statSync } from "fs";
 import { getPreferenceValues } from "@raycast/api";
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
-import { CLI_SEARCH_PATHS } from "../helper-setup/constants";
+import { CLI_SEARCH_PATHS } from "./preferences";
 import { CliError, findCliPath, isCliInstalled, runCli } from "./transport";
 import type * as Fs from "fs";
 

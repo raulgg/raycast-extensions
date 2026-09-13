@@ -2,17 +2,8 @@ import { launchCommand, LaunchType, showToast, Toast, updateCommandMetadata } fr
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as AirPodsControlCli from "../cli/client";
 import { CliError } from "../cli/transport";
-import {
-  CYCLE_LISTENING_MODE_COMMAND_NAME,
-  TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME,
-} from "../helper-setup/constants";
-import {
-  conversationAwarenessFromSubtitleRefreshContext,
-  listeningModeFromSubtitleRefreshContext,
-  refreshAirPodsStatus,
-  resetAirPodsStatusSubtitles,
-  runAirPodsStatusRefresh,
-} from "./refresh";
+import { CYCLE_LISTENING_MODE_COMMAND_NAME, TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME } from "../commands/names";
+import { refreshAirPodsStatus, resetAirPodsStatusSubtitles, runAirPodsStatusRefresh } from "./refresh";
 
 vi.mock("../cli/client", () => ({
   getConversationAwareness: vi.fn(),
@@ -376,39 +367,5 @@ describe("AirPods status refresh", () => {
     expect(toast.message).toContain("Cycle Listening Mode is disabled");
     expect(toast.primaryAction).toEqual(expect.objectContaining({ title: "Copy Error" }));
     expect(toast.show).toHaveBeenCalledOnce();
-  });
-
-  it.each([
-    [{ operation: "refresh-listening-mode-subtitle", mode: "adaptive" }, "adaptive"],
-    [{ operation: "refresh-listening-mode-subtitle", mode: null }, null],
-  ] as const)("parses listening mode refresh context %#", (context, expected) => {
-    expect(listeningModeFromSubtitleRefreshContext(context)).toBe(expected);
-  });
-
-  it.each([
-    [{ operation: "refresh-conversation-awareness-subtitle", state: "off" }, "off"],
-    [{ operation: "refresh-conversation-awareness-subtitle", state: null }, null],
-  ] as const)("parses Conversation Awareness refresh context %#", (context, expected) => {
-    expect(conversationAwarenessFromSubtitleRefreshContext(context)).toBe(expected);
-  });
-
-  it.each([
-    undefined,
-    null,
-    {},
-    { operation: "set", mode: "anc" },
-    { operation: "refresh-listening-mode-subtitle", mode: "future" },
-  ])("rejects invalid listening mode refresh context %#", (context) => {
-    expect(listeningModeFromSubtitleRefreshContext(context)).toBeUndefined();
-  });
-
-  it.each([
-    undefined,
-    null,
-    {},
-    { operation: "toggle", state: "on" },
-    { operation: "refresh-conversation-awareness-subtitle", state: "future" },
-  ])("rejects invalid Conversation Awareness refresh context %#", (context) => {
-    expect(conversationAwarenessFromSubtitleRefreshContext(context)).toBeUndefined();
   });
 });

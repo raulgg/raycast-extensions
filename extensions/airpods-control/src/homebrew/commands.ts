@@ -1,6 +1,6 @@
 import { execFile } from "child_process";
 import { accessSync, closeSync, constants, statSync } from "fs";
-import { BREW_SEARCH_PATHS, CLI_BREW_FORMULA, HOMEBREW_URL } from "../helper-setup/constants";
+import { BREW_SEARCH_PATHS, CLI_BREW_FORMULA, HOMEBREW_URL } from "./constants";
 import { acquireBrewLock, brewLockSupervisorCommand, openBrewLock } from "./lock";
 import { runProcessWithLifetime } from "./process-lifetime";
 

@@ -8,16 +8,18 @@ import {
 } from "../airpods/presentation";
 import * as AirPodsControlCli from "../cli/client";
 import { CliError } from "../cli/transport";
+import { type SubtitleRevision } from "../commands/launch-context";
+import { REFRESH_AIRPODS_STATUS_COMMAND_NAME } from "../commands/names";
 import { ToastManager } from "../feedback/toast-manager";
-import { CYCLE_MODE_ORDER, REFRESH_AIRPODS_STATUS_COMMAND_NAME } from "../helper-setup/constants";
 import {
   publishCommandSubtitle,
   resetCommandSubtitle,
   type SubtitleChannel,
-  type SubtitleRevision,
   withSubtitleOperation,
 } from "../subtitles/coordination";
-import type { ConversationAwarenessState, CycleCommandPreferences, ListeningModes } from "../airpods/types";
+import { CYCLE_MODE_ORDER } from "./preferences";
+import type { CycleCommandPreferences } from "./preferences";
+import type { ConversationAwarenessState, ListeningModes } from "../airpods/types";
 
 const OFF_NOT_APPLIED_HINT =
   "macOS did not confirm Off after the requested change. Off may be disabled in your AirPods noise-control settings; " +

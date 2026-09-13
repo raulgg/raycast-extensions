@@ -1,4 +1,5 @@
 import { Action, Icon, openExtensionPreferences } from "@raycast/api";
+import { HOMEBREW_URL } from "../homebrew/constants";
 import {
   CLI_INSTALL_COMMAND,
   CLI_LINK_COMMAND,
@@ -7,7 +8,6 @@ import {
   DEVELOPER_TOOLS_DOWNLOAD_URL,
   DEVELOPER_TOOLS_INSTALL_COMMAND,
   HOMEBREW_INSTALL_COMMAND,
-  HOMEBREW_URL,
 } from "./constants";
 import type { CliSetup } from "./detection";
 

@@ -11,7 +11,7 @@ import {
   runSetListeningModeCommand,
   runToggleConversationAwarenessCommand,
 } from "./airpods-control";
-import type { CycleCommandPreferences } from "../airpods/types";
+import type { CycleCommandPreferences } from "./preferences";
 
 vi.mock("../cli/client", () => ({
   confirmedConversationAwareness: vi.fn((payload) => payload?.conversationAwareness ?? null),

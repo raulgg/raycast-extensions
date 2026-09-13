@@ -1,22 +1,9 @@
 import { launchCommand, LaunchType } from "@raycast/api";
-import { CYCLE_LISTENING_MODE_COMMAND_NAME } from "../helper-setup/constants";
+import { CYCLE_LISTENING_MODE_COMMAND_NAME } from "../commands/names";
 import { runWithCliGuard } from "../helper-setup/guard";
 import { runSetListeningModeCommand } from "./airpods-control";
 import type { ListeningModes } from "../airpods/types";
-
-export interface SetListeningModeLaunchContext {
-  operation: "set";
-  mode: ListeningModes;
-}
-
-const LISTENING_MODES: ReadonlySet<string> = new Set(["off", "anc", "transparency", "adaptive"]);
-
-export function modeFromLaunchContext(context: unknown): ListeningModes | null {
-  if (typeof context !== "object" || context === null) return null;
-
-  const { operation, mode } = context as Record<string, unknown>;
-  return operation === "set" && typeof mode === "string" && LISTENING_MODES.has(mode) ? (mode as ListeningModes) : null;
-}
+import type { SetListeningModeLaunchContext } from "../commands/launch-context";
 
 export async function setListeningMode(mode: ListeningModes): Promise<void> {
   const context: SetListeningModeLaunchContext = { operation: "set", mode };

@@ -1,15 +1,15 @@
 import { LaunchType, type LaunchProps } from "@raycast/api";
 import {
+  conversationAwarenessFromSubtitleRefreshContext,
+  conversationAwarenessRevisionFromSubtitleRefreshContext,
+  type ConversationAwarenessSubtitleRefreshContext,
+} from "./commands/launch-context";
+import {
   publishConversationAwarenessSubtitle,
   refreshConversationAwarenessSubtitle,
   runToggleConversationAwarenessCommand,
 } from "./controls/airpods-control";
 import { runWithCliGuard } from "./helper-setup/guard";
-import {
-  conversationAwarenessFromSubtitleRefreshContext,
-  conversationAwarenessRevisionFromSubtitleRefreshContext,
-  type ConversationAwarenessSubtitleRefreshContext,
-} from "./status/refresh";
 import { resetCommandSubtitle } from "./subtitles/coordination";
 
 type ToggleConversationAwarenessLaunchProps = LaunchProps<{
