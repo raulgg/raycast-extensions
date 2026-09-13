@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import manifest from "../../package.json";
 
-const commands = manifest.commands as Array<{ name: string; interval?: string }>;
+const commands = manifest.commands as Array<{ name: string; interval?: string; subtitle?: string }>;
 
 describe("background command manifest", () => {
   it("exposes the seven no-view controls and the CLI update view", () => {
@@ -23,7 +23,10 @@ describe("background command manifest", () => {
     });
   });
   it("refreshes AirPods status approximately once a minute", () => {
-    expect(commands.find(({ name }) => name === "refresh-airpods-status")?.interval).toBe("1m");
+    expect(commands.find(({ name }) => name === "refresh-airpods-status")).toMatchObject({
+      interval: "1m",
+      subtitle: "AirPods",
+    });
   });
 
   it.each(["cycle-listening-mode", "toggle-conversation-awareness"])(

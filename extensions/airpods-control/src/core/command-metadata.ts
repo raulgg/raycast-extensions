@@ -5,7 +5,7 @@ import { join } from "path";
 import { environment, updateCommandMetadata } from "@raycast/api";
 
 /** The command whose subtitle is being coordinated. */
-export type SubtitleChannel = "listening-mode" | "conversation-awareness";
+export type SubtitleChannel = "listening-mode" | "conversation-awareness" | "status";
 export type SubtitleRevision = string;
 
 export interface CommandSubtitleOptions {
@@ -16,19 +16,23 @@ export interface CommandSubtitleOptions {
 interface RevisionState {
   listeningMode: SubtitleRevision | null;
   conversationAwareness: SubtitleRevision | null;
+  status: SubtitleRevision | null;
 }
 
 const INITIAL_REVISION_STATE: RevisionState = {
   listeningMode: null,
   conversationAwareness: null,
+  status: null,
 };
 
 const LOCKF_PATH = "/usr/bin/lockf";
 const LOCK_TIMEOUT_SECONDS = "10";
 const METADATA_LOCK_NAME = "subtitle-metadata.lock";
+const GLOBAL_OPERATION_LOCK_NAME = "subtitle-operation.lock";
 const OPERATION_LOCK_NAMES: Record<SubtitleChannel, string> = {
   "listening-mode": "subtitle-listening-mode-operation.lock",
   "conversation-awareness": "subtitle-conversation-awareness-operation.lock",
+  status: "subtitle-status-operation.lock",
 };
 const REVISION_STATE_NAME = "subtitle-metadata.json";
 
@@ -77,7 +81,9 @@ async function withFileLock<T>(name: string, operation: () => Promise<T>): Promi
 }
 
 function revisionForChannel(state: RevisionState, channel: SubtitleChannel): SubtitleRevision | null {
-  return channel === "listening-mode" ? state.listeningMode : state.conversationAwareness;
+  if (channel === "listening-mode") return state.listeningMode;
+  if (channel === "conversation-awareness") return state.conversationAwareness;
+  return state.status;
 }
 
 function setRevisionForChannel(
@@ -85,9 +91,9 @@ function setRevisionForChannel(
   channel: SubtitleChannel,
   revision: SubtitleRevision,
 ): RevisionState {
-  return channel === "listening-mode"
-    ? { ...state, listeningMode: revision }
-    : { ...state, conversationAwareness: revision };
+  if (channel === "listening-mode") return { ...state, listeningMode: revision, status: revision };
+  if (channel === "conversation-awareness") return { ...state, conversationAwareness: revision, status: revision };
+  return { ...state, status: revision };
 }
 
 function readRevisionState(): RevisionState {
@@ -105,6 +111,8 @@ function readRevisionState(): RevisionState {
         typeof parsed.conversationAwareness === "string" && parsed.conversationAwareness.length > 0
           ? parsed.conversationAwareness
           : INITIAL_REVISION_STATE.conversationAwareness,
+      status:
+        typeof parsed.status === "string" && parsed.status.length > 0 ? parsed.status : INITIAL_REVISION_STATE.status,
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT" || error instanceof SyntaxError) {
@@ -139,9 +147,25 @@ async function reserveSubtitleRevisionUnderMetadataLock(channel: SubtitleChannel
   });
 }
 
+async function reserveSnapshotRevisionUnderMetadataLock(): Promise<SubtitleRevision> {
+  return withFileLock(METADATA_LOCK_NAME, async () => {
+    const revision = randomUUID();
+    writeRevisionState({
+      listeningMode: revision,
+      conversationAwareness: revision,
+      status: revision,
+    });
+    return revision;
+  });
+}
+
+async function withSubtitleOperationLock<T>(channel: SubtitleChannel, operation: () => Promise<T>): Promise<T> {
+  return withFileLock(GLOBAL_OPERATION_LOCK_NAME, () => withFileLock(OPERATION_LOCK_NAMES[channel], operation));
+}
+
 /** Reserve a durable revision for a delayed, read-free subtitle reset. */
 export async function reserveSubtitleRevisionForReset(channel: SubtitleChannel): Promise<SubtitleRevision> {
-  return withFileLock(OPERATION_LOCK_NAMES[channel], () => reserveSubtitleRevisionUnderMetadataLock(channel));
+  return withSubtitleOperationLock(channel, () => reserveSubtitleRevisionUnderMetadataLock(channel));
 }
 
 /**
@@ -152,8 +176,21 @@ export async function withSubtitleOperation<T>(
   channel: SubtitleChannel,
   operation: (revision: SubtitleRevision) => Promise<T>,
 ): Promise<T> {
-  return withFileLock(OPERATION_LOCK_NAMES[channel], async () => {
+  return withSubtitleOperationLock(channel, async () => {
     const revision = await reserveSubtitleRevisionUnderMetadataLock(channel);
+    return operation(revision);
+  });
+}
+
+/**
+ * Serialize a refresh that reads multiple AirPods features as one snapshot.
+ * The same revision is reserved for every subtitle derived from that snapshot.
+ */
+export async function withSubtitleSnapshotOperation<T>(
+  operation: (revision: SubtitleRevision) => Promise<T>,
+): Promise<T> {
+  return withFileLock(GLOBAL_OPERATION_LOCK_NAME, async () => {
+    const revision = await reserveSnapshotRevisionUnderMetadataLock();
     return operation(revision);
   });
 }

@@ -103,6 +103,36 @@ describe("subtitle coordination composed workflows", () => {
     );
   });
 
+  it("serializes status snapshots so a later refresh cannot publish before an older one finishes", async () => {
+    let releaseFirstRead!: (mode: ListeningModes) => void;
+    let readCount = 0;
+    vi.mocked(AirPodsControlCli.getListeningMode).mockImplementation(() => {
+      if (readCount++ === 0) {
+        return new Promise<ListeningModes>((resolve) => {
+          releaseFirstRead = resolve;
+        });
+      }
+      return Promise.resolve("anc");
+    });
+
+    const firstRefresh = refreshAirPodsStatus();
+    await vi.waitFor(() => expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce());
+
+    const secondRefresh = refreshAirPodsStatus();
+    await Promise.resolve();
+    expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
+
+    releaseFirstRead("transparency");
+    await firstRefresh;
+    await vi.waitFor(() => expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledTimes(2));
+    await secondRefresh;
+
+    expect(mockUpdateCommandMetadata.mock.calls.map(([metadata]) => metadata.subtitle)).toEqual([
+      "Transparency · Conversation Awareness Off",
+      "Noise Cancellation · Conversation Awareness Off",
+    ]);
+  });
+
   it("serializes a standalone reset behind an in-flight control operation", async () => {
     let resolveSet!: (mode: ListeningModes) => void;
     const setResult = new Promise<ListeningModes>((resolve) => {

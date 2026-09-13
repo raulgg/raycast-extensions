@@ -4,6 +4,11 @@ export type CliListeningMode = "off" | "transparency" | "adaptive" | "noise-canc
 
 export type ConversationAwarenessState = "on" | "off";
 
+export interface AirPodsStatusSnapshot {
+  listeningMode: ListeningModes | null;
+  conversationAwareness: ConversationAwarenessState | null;
+}
+
 export type CliResult = "ok" | "error" | "no-op" | "interrupted";
 
 export interface CliResourcePayload {

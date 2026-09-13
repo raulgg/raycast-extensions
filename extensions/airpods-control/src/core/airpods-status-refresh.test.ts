@@ -1,4 +1,4 @@
-import { launchCommand, LaunchType, showToast, Toast } from "@raycast/api";
+import { launchCommand, LaunchType, showToast, Toast, updateCommandMetadata } from "@raycast/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as AirPodsControlCli from "./airpods-control-cli";
 import {
@@ -18,6 +18,7 @@ vi.mock("./airpods-control-cli", () => ({
 
 const mockLaunchCommand = vi.mocked(launchCommand);
 const mockShowToast = vi.mocked(showToast);
+const mockUpdateCommandMetadata = vi.mocked(updateCommandMetadata);
 
 function makeToast(): Toast {
   return {
@@ -58,6 +59,16 @@ describe("AirPods status refresh", () => {
     });
     expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
     expect(AirPodsControlCli.getConversationAwareness).toHaveBeenCalledOnce();
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({
+      subtitle: "Noise Cancellation · Conversation Awareness On",
+    });
+    const listeningRevision = mockLaunchCommand.mock.calls.find(
+      ([options]) => options.name === CYCLE_LISTENING_MODE_COMMAND_NAME,
+    )?.[0].context?.revision;
+    const conversationRevision = mockLaunchCommand.mock.calls.find(
+      ([options]) => options.name === TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME,
+    )?.[0].context?.revision;
+    expect(listeningRevision).toBe(conversationRevision);
     expect(mockLaunchCommand).toHaveBeenCalledWith({
       name: CYCLE_LISTENING_MODE_COMMAND_NAME,
       type: LaunchType.Background,
@@ -130,6 +141,33 @@ describe("AirPods status refresh", () => {
         context: expect.objectContaining({ operation: "refresh-conversation-awareness-subtitle", state: null }),
       }),
     );
+  });
+
+  it("publishes a partial status subtitle from the confirmed portion of a snapshot", async () => {
+    vi.mocked(AirPodsControlCli.getConversationAwareness).mockRejectedValue(new CliError("unsupported"));
+
+    await refreshAirPodsStatus();
+
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation" });
+  });
+
+  it("restores the manifest status subtitle for a confirmed unavailable device", async () => {
+    const error = new CliError("no-device");
+    vi.mocked(AirPodsControlCli.getListeningMode).mockRejectedValue(error);
+    vi.mocked(AirPodsControlCli.getConversationAwareness).mockRejectedValue(error);
+
+    await refreshAirPodsStatus();
+
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: null });
+  });
+
+  it("preserves the last status subtitle on a transient total read failure", async () => {
+    vi.mocked(AirPodsControlCli.getListeningMode).mockRejectedValue(new Error("timeout"));
+    vi.mocked(AirPodsControlCli.getConversationAwareness).mockRejectedValue(new Error("timeout"));
+
+    await refreshAirPodsStatus();
+
+    expect(mockUpdateCommandMetadata).not.toHaveBeenCalled();
   });
 
   it("dispatches neutral subtitles without querying the CLI during setup fallback", async () => {

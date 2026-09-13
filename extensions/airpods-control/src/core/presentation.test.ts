@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   conversationAwarenessHud,
   conversationAwarenessSubtitle,
+  formatAirPodsStatusSubtitle,
   listeningModeHud,
   listeningModeSubtitle,
 } from "./presentation";
@@ -23,5 +24,17 @@ describe("state presentation", () => {
   ] as const)("formats Conversation Awareness %s", (state, subtitle, hud) => {
     expect(conversationAwarenessSubtitle(state)).toBe(subtitle);
     expect(conversationAwarenessHud(state)).toBe(hud);
+  });
+
+  it.each([
+    [{ listeningMode: "anc", conversationAwareness: "on" }, "Noise Cancellation · Conversation Awareness On"],
+    [{ listeningMode: "transparency", conversationAwareness: "off" }, "Transparency · Conversation Awareness Off"],
+    [{ listeningMode: "adaptive", conversationAwareness: null }, "Adaptive"],
+    [{ listeningMode: null, conversationAwareness: "on" }, "Conversation Awareness On"],
+    [{ listeningMode: null, conversationAwareness: "off" }, "Conversation Awareness Off"],
+    [{ listeningMode: "off", conversationAwareness: null }, "Off"],
+    [{ listeningMode: null, conversationAwareness: null }, null],
+  ] as const)("formats a combined status subtitle %#", (status, expected) => {
+    expect(formatAirPodsStatusSubtitle(status)).toBe(expected);
   });
 });

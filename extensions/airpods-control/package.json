@@ -139,7 +139,8 @@
     {
       "name": "refresh-airpods-status",
       "title": "Refresh AirPods Status",
-      "description": "Refresh the Listening Mode and Conversation Awareness subtitles now and about once a minute while Background Refresh is active. If deactivated, the last confirmed values remain visible until another refresh or control command.",
+      "subtitle": "AirPods",
+      "description": "Refresh the combined status, Listening Mode, and Conversation Awareness subtitles now and about once a minute while Background Refresh is active. If deactivated, the last confirmed values remain visible until another refresh or control command.",
       "mode": "no-view",
       "interval": "1m",
       "keywords": [

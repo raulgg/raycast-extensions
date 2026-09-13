@@ -59,12 +59,12 @@ Control commands keep Raycast open and show a confirmation toast. If Raycast is 
 - **Set to Noise Cancellation / Set to Transparency / Set to Adaptive / Set to Off**. Set a specific listening mode. The **Cycle Listening Mode** subtitle anticipates the requested mode and reconciles with macOS readback.
 - **Cycle Listening Mode**. Cycle through modes selected in command preferences; select at least two modes. Its subtitle anticipates the next mode and reconciles with macOS readback.
 - **Toggle Conversation Awareness**. Read the current state and flip it. Its subtitle anticipates the new state and reconciles with macOS readback.
-- **Refresh AirPods Status**. Read both states and request subtitle updates immediately and, when Background Refresh is active, about once a minute. Manual refreshes keep Raycast open and show the states read from macOS. Failed subtitle refresh requests are reported.
+- **Refresh AirPods Status**. Read both states, show the confirmed values in its combined subtitle, and update the feature subtitles immediately and, when Background Refresh is active, about once a minute. Manual refreshes keep Raycast open and show the states read from macOS. Failed subtitle refresh requests are reported.
 - **Manage AirPods Control Helper**. Install, update, or recover the helper. Automatic updates are offered when the active helper belongs to the detected Homebrew formula. Source and custom installations receive manual update instructions. Unlinked Homebrew installations and invalid CLI paths get specific recovery steps. Run an AirPods command again after an install or update.
 
 ## Status Refresh
 
-The listening-mode, Conversation Awareness, and status-refresh commands always run against the real CLI. Run **Refresh AirPods Status** once to activate its shared Background Refresh schedule. Raycast schedules it approximately rather than at an exact time and lets you deactivate it from the command's Action Panel or preferences.
+The listening-mode, Conversation Awareness, and status-refresh commands always run against the real CLI. The **Refresh AirPods Status** subtitle combines the confirmed listening mode and Conversation Awareness state, showing whichever values are available from the latest snapshot. Run it once to activate its shared Background Refresh schedule. Raycast schedules it approximately rather than at an exact time and lets you deactivate it from the command's Action Panel or preferences.
 
 Dynamic status subtitles fall back to **AirPods** when a change or background read fails without a recognized state and the subtitle update succeeds. If an update cannot run, the previous subtitle can remain visible. Background reads are silent and never change an AirPods setting. If you deactivate Background Refresh, the last confirmed subtitles remain visible until another refresh or control command updates them.
 

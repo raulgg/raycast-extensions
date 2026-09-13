@@ -1,15 +1,16 @@
 import { launchCommand, LaunchType, showToast, Toast } from "@raycast/api";
 import * as AirPodsControlCli from "./airpods-control-cli";
+import { CliError } from "./cli";
 import {
-  reserveSubtitleRevisionForReset,
-  type SubtitleChannel,
+  publishCommandSubtitle,
+  resetCommandSubtitle,
   type SubtitleRevision,
-  withSubtitleOperation,
+  withSubtitleSnapshotOperation,
 } from "./command-metadata";
 import { CYCLE_LISTENING_MODE_COMMAND_NAME, TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME } from "./consts";
-import { conversationAwarenessSubtitle, listeningModeSubtitle } from "./presentation";
+import { conversationAwarenessSubtitle, formatAirPodsStatusSubtitle, listeningModeSubtitle } from "./presentation";
 import { createCopyErrorAction, getErrorMessage } from "./toast-manager";
-import type { ConversationAwarenessState, ListeningModes } from "./types";
+import type { AirPodsStatusSnapshot, ConversationAwarenessState, ListeningModes } from "./types";
 
 export interface ListeningModeSubtitleRefreshContext {
   operation: "refresh-listening-mode-subtitle";
@@ -73,39 +74,6 @@ export function conversationAwarenessRevisionFromSubtitleRefreshContext(
   return revisionFromSubtitleRefreshContext(context, "refresh-conversation-awareness-subtitle");
 }
 
-interface StatusReadResult<State> {
-  result: PromiseSettledResult<State>;
-  revision?: SubtitleRevision;
-}
-
-async function readStatus<State>(
-  channel: SubtitleChannel,
-  readState: () => Promise<State>,
-): Promise<StatusReadResult<State>> {
-  try {
-    return await withSubtitleOperation(channel, async (revision) => {
-      try {
-        return { result: { status: "fulfilled", value: await readState() }, revision } as StatusReadResult<State>;
-      } catch (reason) {
-        return { result: { status: "rejected", reason }, revision } as StatusReadResult<State>;
-      }
-    });
-  } catch (reason) {
-    // A failed coordination lock is reported like a failed read. The caller
-    // will dispatch a guarded neutral context and retain the existing UX.
-    return { result: { status: "rejected", reason } };
-  }
-}
-
-async function tryReserveSubtitleRevision(channel: SubtitleChannel): Promise<SubtitleRevision | undefined> {
-  try {
-    return await reserveSubtitleRevisionForReset(channel);
-  } catch (error) {
-    console.error(`Failed to reserve ${channel} subtitle revision`, error);
-    return undefined;
-  }
-}
-
 async function dispatchSubtitleRefreshes(
   mode: ListeningModes | null,
   state: ConversationAwarenessState | null,
@@ -151,29 +119,93 @@ function logSubtitleDispatchFailures(result: SubtitleDispatchResult): void {
 }
 
 export async function resetAirPodsStatusSubtitles(): Promise<void> {
-  const [listeningRevision, conversationRevision] = await Promise.all([
-    tryReserveSubtitleRevision("listening-mode"),
-    tryReserveSubtitleRevision("conversation-awareness"),
-  ]);
-  logSubtitleDispatchFailures(await dispatchSubtitleRefreshes(null, null, listeningRevision, conversationRevision));
+  try {
+    await withSubtitleSnapshotOperation(async (revision) => {
+      await resetCommandSubtitle({ channel: "status", revision });
+      logSubtitleDispatchFailures(await dispatchSubtitleRefreshes(null, null, revision, revision));
+    });
+  } catch (error) {
+    console.error("Failed to coordinate AirPods status subtitle reset", error);
+  }
+}
+
+function statusSnapshot(result: {
+  listeningMode: PromiseSettledResult<ListeningModes>;
+  conversationAwareness: PromiseSettledResult<ConversationAwarenessState>;
+}): AirPodsStatusSnapshot {
+  return {
+    listeningMode: result.listeningMode.status === "fulfilled" ? result.listeningMode.value : null,
+    conversationAwareness:
+      result.conversationAwareness.status === "fulfilled" ? result.conversationAwareness.value : null,
+  };
+}
+
+function shouldResetStatusSubtitle(result: {
+  listeningMode: PromiseSettledResult<ListeningModes>;
+  conversationAwareness: PromiseSettledResult<ConversationAwarenessState>;
+}): boolean {
+  if (result.listeningMode.status !== "rejected" || result.conversationAwareness.status !== "rejected") return false;
+
+  // Keep the last known-good combined subtitle for transient or malformed
+  // reads. A known unavailable device is the one case where the manifest
+  // fallback should replace it.
+  return [result.listeningMode.reason, result.conversationAwareness.reason].some(
+    (reason) => reason instanceof CliError && (reason.code === "no-device" || reason.code === "unavailable"),
+  );
+}
+
+async function publishStatusSubtitle(
+  result: {
+    listeningMode: PromiseSettledResult<ListeningModes>;
+    conversationAwareness: PromiseSettledResult<ConversationAwarenessState>;
+  },
+  revision: SubtitleRevision,
+): Promise<void> {
+  const subtitle = formatAirPodsStatusSubtitle(statusSnapshot(result));
+  if (subtitle) {
+    await publishCommandSubtitle(subtitle, { channel: "status", revision });
+  } else if (shouldResetStatusSubtitle(result)) {
+    await resetCommandSubtitle({ channel: "status", revision });
+  }
+}
+
+function rejectedStatusReadResult(reason: unknown): {
+  listeningMode: PromiseRejectedResult;
+  conversationAwareness: PromiseRejectedResult;
+} {
+  return {
+    listeningMode: { status: "rejected", reason },
+    conversationAwareness: { status: "rejected", reason },
+  };
 }
 
 export async function refreshAirPodsStatus(): Promise<AirPodsStatusRefreshResult> {
-  const [listeningModeRead, conversationAwarenessRead] = await Promise.all([
-    readStatus("listening-mode", AirPodsControlCli.getListeningMode),
-    readStatus("conversation-awareness", AirPodsControlCli.getConversationAwareness),
-  ]);
-  const listeningMode = listeningModeRead.result;
-  const conversationAwareness = conversationAwarenessRead.result;
-  const result = { listeningMode, conversationAwareness };
+  try {
+    return await withSubtitleSnapshotOperation(async (revision) => {
+      const [listeningMode, conversationAwareness] = await Promise.allSettled([
+        AirPodsControlCli.getListeningMode(),
+        AirPodsControlCli.getConversationAwareness(),
+      ]);
+      const result = { listeningMode, conversationAwareness };
 
-  const subtitleDispatch = await dispatchSubtitleRefreshes(
-    listeningMode.status === "fulfilled" ? listeningMode.value : null,
-    conversationAwareness.status === "fulfilled" ? conversationAwareness.value : null,
-    listeningModeRead.revision,
-    conversationAwarenessRead.revision,
-  );
-  return { ...result, subtitleDispatch };
+      await publishStatusSubtitle(result, revision);
+
+      const subtitleDispatch = await dispatchSubtitleRefreshes(
+        listeningMode.status === "fulfilled" ? listeningMode.value : null,
+        conversationAwareness.status === "fulfilled" ? conversationAwareness.value : null,
+        revision,
+        revision,
+      );
+      return { ...result, subtitleDispatch };
+    });
+  } catch (reason) {
+    // A failed coordination lock is reported like a failed read. The caller
+    // dispatches a neutral context without a revision, retaining the existing
+    // fallback behavior of the individual subtitle commands.
+    const result = rejectedStatusReadResult(reason);
+    const subtitleDispatch = await dispatchSubtitleRefreshes(null, null);
+    return { ...result, subtitleDispatch };
+  }
 }
 
 function fulfilledStatusMessage(result: AirPodsStatusRefreshResult): string {
