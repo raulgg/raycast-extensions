@@ -18,9 +18,10 @@ function props(launchType: LaunchType = LaunchType.UserInitiated): LaunchProps {
 }
 
 test("uses the interactive CLI guard and shows feedback for a manual refresh", async () => {
-  // Given the input supplied by this case
+  // Given
+  const launch = props();
   // When
-  await main(props());
+  await main(launch);
   // Then
   expect(runWithCliGuard).toHaveBeenCalledWith(expect.any(Function), {
     onUnavailable: resetAirPodsStatusSubtitles,
@@ -29,9 +30,10 @@ test("uses the interactive CLI guard and shows feedback for a manual refresh", a
 });
 
 test("runs silently in the background without opening setup", async () => {
-  // Given the input supplied by this case
+  // Given
+  const launch = props(LaunchType.Background);
   // When
-  await main(props(LaunchType.Background));
+  await main(launch);
   // Then
   expect(runAirPodsStatusRefresh).toHaveBeenCalledWith({ showFeedback: false });
   expect(runWithCliGuard).not.toHaveBeenCalled();

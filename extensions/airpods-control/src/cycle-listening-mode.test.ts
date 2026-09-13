@@ -38,9 +38,10 @@ function props(
 }
 
 test("preserves the current subtitle while starting a normal cycle", async () => {
-  // Given the input supplied by this case
+  // Given
+  const launch = props();
   // When
-  await main(props());
+  await main(launch);
   // Then
   expect(refreshListeningModeSubtitle).not.toHaveBeenCalled();
   expect(resetCommandSubtitle).not.toHaveBeenCalled();
@@ -53,9 +54,10 @@ test("preserves the current subtitle while starting a normal cycle", async () =>
 });
 
 test("falls back to a read-only refresh for a background launch without refresh context", async () => {
-  // Given the input supplied by this case
+  // Given
+  const launch = props({ operation: "set", mode: "transparency" }, LaunchType.Background);
   // When
-  await main(props({ operation: "set", mode: "transparency" }, LaunchType.Background));
+  await main(launch);
   // Then
   expect(refreshListeningModeSubtitle).toHaveBeenCalledOnce();
   expect(publishListeningModeSubtitle).not.toHaveBeenCalled();
@@ -65,14 +67,13 @@ test("falls back to a read-only refresh for a background launch without refresh 
 });
 
 test("publishes coordinator state during a background launch without reading or cycling", async () => {
-  // Given the input supplied by this case
-  // When
-  await main(
-    props(
-      { operation: "refresh-listening-mode-subtitle", mode: "anc", revision: "read-revision" },
-      LaunchType.Background,
-    ),
+  // Given
+  const launch = props(
+    { operation: "refresh-listening-mode-subtitle", mode: "anc", revision: "read-revision" },
+    LaunchType.Background,
   );
+  // When
+  await main(launch);
   // Then
   expect(publishListeningModeSubtitle).toHaveBeenCalledWith("anc", "read-revision");
   expect(refreshListeningModeSubtitle).not.toHaveBeenCalled();
@@ -82,14 +83,13 @@ test("publishes coordinator state during a background launch without reading or 
 });
 
 test("resets the coordinator-owned subtitle during a background launch", async () => {
-  // Given the input supplied by this case
-  // When
-  await main(
-    props(
-      { operation: "refresh-listening-mode-subtitle", mode: null, revision: "read-revision" },
-      LaunchType.Background,
-    ),
+  // Given
+  const launch = props(
+    { operation: "refresh-listening-mode-subtitle", mode: null, revision: "read-revision" },
+    LaunchType.Background,
   );
+  // When
+  await main(launch);
   // Then
   expect(publishListeningModeSubtitle).toHaveBeenCalledWith(null, "read-revision");
   expect(runCycleListeningModeCommand).not.toHaveBeenCalled();
@@ -97,9 +97,10 @@ test("resets the coordinator-owned subtitle during a background launch", async (
 });
 
 test("performs a single delegated set without cycling", async () => {
-  // Given the input supplied by this case
+  // Given
+  const launch = props({ operation: "set", mode: "transparency" });
   // When
-  await main(props({ operation: "set", mode: "transparency" }));
+  await main(launch);
   // Then
   expect(resetCommandSubtitle).not.toHaveBeenCalled();
   expect(runSetListeningModeCommand).toHaveBeenCalledWith("transparency", { updateCycleSubtitle: true });
@@ -119,11 +120,10 @@ test("rejects invalid programmatic context without changing a mode", async () =>
 });
 
 test("never treats subtitle-refresh context as a user-initiated set", async () => {
-  // Given the input supplied by this case
+  // Given
+  const launch = props({ operation: "refresh-listening-mode-subtitle", mode: "adaptive", revision: "read-revision" });
   // When
-  const result = main(
-    props({ operation: "refresh-listening-mode-subtitle", mode: "adaptive", revision: "read-revision" }),
-  );
+  const result = main(launch);
   // Then
   await expect(result).rejects.toThrow("invalid launch context");
   expect(resetCommandSubtitle).toHaveBeenCalledWith({ channel: "listening-mode" });

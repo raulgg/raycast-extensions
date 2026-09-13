@@ -33,9 +33,9 @@ function makeMockToast(overrides: Partial<Toast> = {}) {
 }
 
 test("shows progress without closing the Raycast window", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   const manager = new ToastManager(titles);
+  // When
   await manager.setToLoading();
   // Then
   expect(mockShowToast).toHaveBeenCalledWith({
@@ -47,9 +47,9 @@ test("shows progress without closing the Raycast window", async () => {
 });
 
 test("supports loading title overrides and suffixes", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   const manager = new ToastManager(titles);
+  // When
   await manager.setToLoading({ titleOverride: "Custom loading title", titleSuffix: "Device 1" });
   // Then
   expect(mockShowToast).toHaveBeenCalledWith({
@@ -58,43 +58,36 @@ test("supports loading title overrides and suffixes", async () => {
   });
 });
 
-test("resets and reuses an existing toast", async () => {
+test("clears failure details and reuses the toast when an operation is retried", async () => {
   // Given
-  const mockToast = makeMockToast({
-    style: Toast.Style.Failure,
-    title: "Previous title",
-    message: "Previous error",
-    primaryAction: { title: "Previous action", onAction: vi.fn() },
-    secondaryAction: { title: "Secondary action", onAction: vi.fn() },
-  });
-  mockShowToast.mockResolvedValueOnce(mockToast as unknown as Toast);
-  // When
+  const toast = makeMockToast();
+  mockShowToast.mockResolvedValueOnce(toast as unknown as Toast);
   const manager = new ToastManager(titles);
-  await manager.setToLoading();
-  vi.clearAllMocks();
-  await manager.setToLoading();
-  // Then
-  expect(mockShowToast).not.toHaveBeenCalled();
-  expect(mockToast.style).toBe(Toast.Style.Animated);
-  expect(mockToast.title).toBe(titles.loading);
-  expect(mockToast.message).toBeUndefined();
-  expect(mockToast.primaryAction).toBeUndefined();
-  expect(mockToast.secondaryAction).toBeUndefined();
-  expect(mockToast.show).toHaveBeenCalled();
-});
-
-test("returns the manager for chaining", async () => {
-  // Given the input supplied by this case
+  const recovery = { title: "Retry", onAction: vi.fn() };
   // When
-  const manager = new ToastManager(titles);
+  await manager.setToLoading();
+  await manager.setToFailure({ error: new Error("Connection failed"), action: recovery });
   // Then
+  expect(toast.style).toBe(Toast.Style.Failure);
+  expect(toast.message).toBe("Connection failed");
+  expect(toast.primaryAction).toBe(recovery);
+  expect(toast.secondaryAction).toBeDefined();
+  // When
   await expect(manager.setToLoading()).resolves.toBe(manager);
+  // Then
+  expect(mockShowToast).toHaveBeenCalledOnce();
+  expect(toast.style).toBe(Toast.Style.Animated);
+  expect(toast.title).toBe(titles.loading);
+  expect(toast.message).toBeUndefined();
+  expect(toast.primaryAction).toBeUndefined();
+  expect(toast.secondaryAction).toBeUndefined();
+  expect(toast.show).toHaveBeenCalled();
 });
 
 test("shows success without closing Raycast when no progress toast exists", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   const manager = new ToastManager(titles);
+  // When
   await manager.setToSuccess();
   // Then
   expect(mockShowToast).toHaveBeenCalledWith({ style: Toast.Style.Success, title: titles.success });
@@ -103,9 +96,9 @@ test("shows success without closing Raycast when no progress toast exists", asyn
 });
 
 test("supports success title overrides and suffixes", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   const manager = new ToastManager(titles);
+  // When
   await manager.setToSuccess({ titleOverride: "Custom success title", titleSuffix: "Device 1" });
   // Then
   expect(mockShowToast).toHaveBeenCalledWith({
@@ -122,7 +115,7 @@ test("replaces progress through showToast to allow the HUD fallback", async () =
   const manager = new ToastManager(titles);
   await manager.setToLoading();
   vi.clearAllMocks();
-  await manager.setToSuccess();
+  await expect(manager.setToSuccess()).resolves.toBe(manager);
   // Then
   expect(mockToast.hide).toHaveBeenCalled();
   expect(mockShowToast).toHaveBeenCalledWith({ style: Toast.Style.Success, title: titles.success });
@@ -131,18 +124,10 @@ test("replaces progress through showToast to allow the HUD fallback", async () =
   expect(mockCloseMainWindow).not.toHaveBeenCalled();
 });
 
-test("returns the manager for chaining", async () => {
-  // Given the input supplied by this case
-  // When
-  const manager = new ToastManager(titles);
-  // Then
-  await expect(manager.setToSuccess()).resolves.toBe(manager);
-});
-
 test("shows a copyable fallback message when no error is provided", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   const manager = new ToastManager(titles);
+  // When
   await manager.setToFailure();
   // Then
   expect(mockShowToast).toHaveBeenCalledWith({
@@ -157,9 +142,9 @@ test("shows a copyable fallback message when no error is provided", async () => 
 });
 
 test("displays and copies the exact error message", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   const manager = new ToastManager(titles);
+  // When
   const error = new Error("Connection failed");
   await manager.setToFailure({ error });
   // Then
@@ -174,9 +159,9 @@ test("displays and copies the exact error message", async () => {
 });
 
 test("uses a provided failure action and keeps copy error as the secondary action", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   const manager = new ToastManager(titles);
+  // When
   const action = { title: "Open Command Preferences", onAction: vi.fn() };
   await manager.setToFailure({ error: new Error("Invalid cycle preferences"), action });
   // Then
@@ -219,7 +204,9 @@ test("updates the progress toast in place and keeps it visible", async () => {
   const manager = new ToastManager(titles);
   await manager.setToLoading();
   vi.clearAllMocks();
-  await manager.setToFailure({ titleOverride: "AirPods not connected", error: new Error("Connect them") });
+  await expect(
+    manager.setToFailure({ titleOverride: "AirPods not connected", error: new Error("Connect them") }),
+  ).resolves.toBe(manager);
   // Then
   expect(mockShowToast).not.toHaveBeenCalled();
   expect(mockToast.style).toBe(Toast.Style.Failure);
@@ -234,9 +221,9 @@ test("updates the progress toast in place and keeps it visible", async () => {
 });
 
 test("uses a non-empty thrown string as the error message", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   const manager = new ToastManager(titles);
+  // When
   await manager.setToFailure({ error: "  CLI failed  " });
   // Then
   expect(mockShowToast).toHaveBeenCalledWith(
@@ -247,9 +234,9 @@ test("uses a non-empty thrown string as the error message", async () => {
 });
 
 test("supports a failure title suffix", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   const manager = new ToastManager(titles);
+  // When
   await manager.setToFailure({ titleSuffix: "Device 1", error: new Error("Failed") });
   // Then
   expect(mockShowToast).toHaveBeenCalledWith(
@@ -259,44 +246,22 @@ test("supports a failure title suffix", async () => {
   );
 });
 
-test("returns the manager for chaining", async () => {
-  // Given the input supplied by this case
-  // When
-  const manager = new ToastManager(titles);
-  // Then
-  await expect(manager.setToFailure()).resolves.toBe(manager);
-});
-
-test("hides an existing toast", async () => {
+test("hides an existing toast and creates a fresh toast for the next operation", async () => {
   // Given
-  const mockToast = makeMockToast();
-  mockShowToast.mockResolvedValueOnce(mockToast as unknown as Toast);
-  // When
+  const toast = makeMockToast();
+  mockShowToast.mockResolvedValueOnce(toast as unknown as Toast);
   const manager = new ToastManager(titles);
+  // When
+  await manager.hide();
+  // Then
+  expect(mockShowToast).not.toHaveBeenCalled();
+  // When
   await manager.setToLoading();
   await manager.hide();
   // Then
-  expect(mockToast.hide).toHaveBeenCalled();
-});
-
-test("does nothing when no toast exists", async () => {
-  // Given the input supplied by this case
+  expect(toast.hide).toHaveBeenCalledOnce();
   // When
-  const manager = new ToastManager(titles);
-  // Then
-  await expect(manager.hide()).resolves.not.toThrow();
-});
-
-test("creates a new toast after hiding the previous one", async () => {
-  // Given
-  const mockToast = makeMockToast();
-  mockShowToast.mockResolvedValueOnce(mockToast as unknown as Toast);
-  // When
-  const manager = new ToastManager(titles);
-  await manager.setToLoading();
-  await manager.hide();
-  vi.clearAllMocks();
   await manager.setToLoading();
   // Then
-  expect(mockShowToast).toHaveBeenCalled();
+  expect(mockShowToast).toHaveBeenCalledTimes(2);
 });

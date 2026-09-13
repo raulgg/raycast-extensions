@@ -19,17 +19,8 @@ import toggleConversationAwareness from "../../toggle-conversation-awareness";
 import { createSupportDirectory } from "../fixtures/support-directory";
 import type { ListeningModes } from "../../airpods/types";
 
-vi.mock("../../cli/client", () => ({
-  confirmedConversationAwareness: vi.fn((payload) => payload?.conversationAwareness ?? null),
-  confirmedListeningMode: vi.fn((payload) => {
-    const modes: Record<string, ListeningModes> = {
-      off: "off",
-      transparency: "transparency",
-      adaptive: "adaptive",
-      "noise-cancellation": "anc",
-    };
-    return payload?.listeningMode ? (modes[payload.listeningMode] ?? null) : null;
-  }),
+vi.mock("../../cli/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof AirPodsControlCli>()),
   cycleListeningMode: vi.fn(),
   getConversationAwareness: vi.fn(),
   getListeningMode: vi.fn(),

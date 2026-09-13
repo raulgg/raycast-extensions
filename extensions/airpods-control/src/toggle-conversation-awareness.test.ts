@@ -36,10 +36,11 @@ function props(
   return { launchType, arguments: undefined, launchContext } as unknown as Props;
 }
 
-test("preserves current status and restores AirPods only when the CLI is unavailable", async () => {
-  // Given the input supplied by this case
+test("routes a foreground toggle through the CLI guard without resetting current status", async () => {
+  // Given
+  const launch = props();
   // When
-  await main(props());
+  await main(launch);
   // Then
   expect(refreshConversationAwarenessSubtitle).not.toHaveBeenCalled();
   expect(resetCommandSubtitle).not.toHaveBeenCalled();
@@ -50,9 +51,10 @@ test("preserves current status and restores AirPods only when the CLI is unavail
 });
 
 test("only refreshes the subtitle during a background launch", async () => {
-  // Given the input supplied by this case
+  // Given
+  const launch = props(LaunchType.Background);
   // When
-  await main(props(LaunchType.Background));
+  await main(launch);
   // Then
   expect(refreshConversationAwarenessSubtitle).toHaveBeenCalledOnce();
   expect(publishConversationAwarenessSubtitle).not.toHaveBeenCalled();
@@ -61,15 +63,14 @@ test("only refreshes the subtitle during a background launch", async () => {
 });
 
 test("publishes coordinator state during a background launch without reading or toggling", async () => {
-  // Given the input supplied by this case
+  // Given
+  const launch = props(LaunchType.Background, {
+    operation: "refresh-conversation-awareness-subtitle",
+    state: "on",
+    revision: "read-revision",
+  });
   // When
-  await main(
-    props(LaunchType.Background, {
-      operation: "refresh-conversation-awareness-subtitle",
-      state: "on",
-      revision: "read-revision",
-    }),
-  );
+  await main(launch);
   // Then
   expect(publishConversationAwarenessSubtitle).toHaveBeenCalledWith("on", "read-revision");
   expect(refreshConversationAwarenessSubtitle).not.toHaveBeenCalled();
@@ -78,30 +79,28 @@ test("publishes coordinator state during a background launch without reading or 
 });
 
 test("resets the coordinator-owned subtitle during a background launch", async () => {
-  // Given the input supplied by this case
+  // Given
+  const launch = props(LaunchType.Background, {
+    operation: "refresh-conversation-awareness-subtitle",
+    state: null,
+    revision: "read-revision",
+  });
   // When
-  await main(
-    props(LaunchType.Background, {
-      operation: "refresh-conversation-awareness-subtitle",
-      state: null,
-      revision: "read-revision",
-    }),
-  );
+  await main(launch);
   // Then
   expect(publishConversationAwarenessSubtitle).toHaveBeenCalledWith(null, "read-revision");
   expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
 });
 
 test("rejects user-initiated refresh context without toggling", async () => {
-  // Given the input supplied by this case
+  // Given
+  const launch = props(LaunchType.UserInitiated, {
+    operation: "refresh-conversation-awareness-subtitle",
+    state: "off",
+    revision: "read-revision",
+  });
   // When
-  const result = main(
-    props(LaunchType.UserInitiated, {
-      operation: "refresh-conversation-awareness-subtitle",
-      state: "off",
-      revision: "read-revision",
-    }),
-  );
+  const result = main(launch);
   // Then
   await expect(result).rejects.toThrow("invalid launch context");
   expect(resetCommandSubtitle).toHaveBeenCalledWith({ channel: "conversation-awareness" });

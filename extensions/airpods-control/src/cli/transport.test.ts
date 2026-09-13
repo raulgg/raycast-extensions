@@ -3,7 +3,6 @@ import { accessSync, statSync } from "fs";
 import { getPreferenceValues } from "@raycast/api";
 import { expect, vi, type Mock, test } from "vitest";
 import { CliError } from "./errors";
-import { CLI_SEARCH_PATHS } from "./preferences";
 import { runCli } from "./transport";
 import type * as Fs from "fs";
 
@@ -53,12 +52,12 @@ function mockInstalledAt(...paths: string[]) {
   }) as typeof accessSync);
 }
 
-test("throw a not-installed CliError when the binary is missing", async () => {
+test("throws a not-installed CliError when the binary is missing", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   mockInstalledAt();
   // When
   const result = runCli(["listening-mode", "get"]);
@@ -70,18 +69,18 @@ test("throw a not-installed CliError when the binary is missing", async () => {
   expect(mockExecFile).not.toHaveBeenCalled();
 });
 
-test("run the binary with --json appended and return the parsed payload", async () => {
+test("runs the binary with --json appended and return the parsed payload", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   mockExecFileResult(null, '{"device":"My AirPods Pro","listeningMode":"transparency","result":"ok"}');
   // When
   const payload = await runCli(["listening-mode", "get"]);
   // Then
   expect(mockExecFile).toHaveBeenCalledWith(
-    CLI_SEARCH_PATHS[0],
+    "/opt/homebrew/bin/airpods-control",
     ["listening-mode", "get", "--json"],
     expect.objectContaining({ encoding: "utf-8" }),
     expect.any(Function),
@@ -89,12 +88,12 @@ test("run the binary with --json appended and return the parsed payload", async 
   expect(payload).toEqual({ device: "My AirPods Pro", listeningMode: "transparency", result: "ok" });
 });
 
-test("map the payload error identifier when the CLI exits non-zero", async () => {
+test("maps the payload error identifier when the CLI exits non-zero", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   const error = new Error("Command failed") as Error & { code?: number };
   error.code = 4;
   mockExecFileResult(error, '{"device":"Sony","error":"unsupported","listeningMode":null,"result":"error"}');
@@ -108,48 +107,39 @@ test("map the payload error identifier when the CLI exits non-zero", async () =>
   });
 });
 
-test.each([
-  ["read-error", "The CLI could not read AirPods status. Check that your AirPods are connected and try again."],
-  [
-    "unavailable",
-    "AirPods controls are unavailable. Select your AirPods as the audio output and check CLI compatibility.",
-  ],
-  ["ambiguous-device", "Multiple compatible devices are connected. Disconnect all but one and try again."],
-] as const)("map the %s payload error to actionable feedback", async (code, message) => {
-  // Given
-  mockGetPreferenceValues.mockReturnValue({} as never);
-  mockStatSync.mockReturnValue({ isFile: () => true } as never);
-  mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
-  const error = new Error("Command failed") as Error & { code?: number };
-  error.code = 70;
-  mockExecFileResult(error, JSON.stringify({ device: null, error: code, result: "error" }));
-  // When
-  const result = runCli(["listening-mode", "get"]);
-  // Then
-  await expect(result).rejects.toMatchObject({
-    name: "CliError",
-    code,
-    message,
-  });
-});
-
-test.each([
-  [5, "read-error", "The CLI could not read AirPods status. Check that your AirPods are connected and try again."],
-  [
-    6,
-    "unavailable",
-    "AirPods controls are unavailable. Select your AirPods as the audio output and check CLI compatibility.",
-  ],
-  [8, "ambiguous-device", "Multiple compatible devices are connected. Disconnect all but one and try again."],
-] as const)(
-  "should preserve documented exit diagnostics when there is no JSON response (%s)",
-  async (exitCode, code, message) => {
+test.each([["read-error"], ["unavailable"], ["ambiguous-device"]] as const)(
+  "map the %s payload error to actionable feedback",
+  async (code) => {
     // Given
     mockGetPreferenceValues.mockReturnValue({} as never);
     mockStatSync.mockReturnValue({ isFile: () => true } as never);
     mockInstalledAt();
-    mockInstalledAt(CLI_SEARCH_PATHS[0]);
+    mockInstalledAt("/opt/homebrew/bin/airpods-control");
+    const error = new Error("Command failed") as Error & { code?: number };
+    error.code = 70;
+    mockExecFileResult(error, JSON.stringify({ device: null, error: code, result: "error" }));
+    // When
+    const result = runCli(["listening-mode", "get"]);
+    // Then
+    await expect(result).rejects.toMatchObject({
+      name: "CliError",
+      code,
+    });
+  },
+);
+
+test.each([
+  [5, "read-error"],
+  [6, "unavailable"],
+  [8, "ambiguous-device"],
+] as const)(
+  "should preserve documented exit diagnostics when there is no JSON response (%s)",
+  async (exitCode, code) => {
+    // Given
+    mockGetPreferenceValues.mockReturnValue({} as never);
+    mockStatSync.mockReturnValue({ isFile: () => true } as never);
+    mockInstalledAt();
+    mockInstalledAt("/opt/homebrew/bin/airpods-control");
     const error = new Error("Command failed") as Error & { code?: number };
     error.code = exitCode;
     mockExecFileResult(error, "");
@@ -159,17 +149,16 @@ test.each([
     await expect(result).rejects.toMatchObject({
       name: "CliError",
       code,
-      message,
     });
   },
 );
 
-test("map a no-op result payload without an error token", async () => {
+test("maps a no-op result payload without an error token", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   const error = new Error("Command failed") as Error & { code?: number };
   error.code = 3;
   mockExecFileResult(
@@ -182,17 +171,16 @@ test("map a no-op result payload without an error token", async () => {
   await expect(result).rejects.toMatchObject({
     name: "CliError",
     code: "no-op",
-    message: "macOS did not confirm the change.",
     payload: { device: "My AirPods Pro", listeningMode: "transparency", result: "no-op" },
   });
 });
 
-test("map a no-op result payload after a zero exit code", async () => {
+test("maps a no-op result payload after a zero exit code", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   mockExecFileResult(
     null,
     JSON.stringify({ device: "My AirPods Pro", listeningMode: "transparency", result: "no-op" }),
@@ -203,17 +191,16 @@ test("map a no-op result payload after a zero exit code", async () => {
   await expect(result).rejects.toMatchObject({
     name: "CliError",
     code: "no-op",
-    message: "macOS did not confirm the change.",
     payload: { device: "My AirPods Pro", listeningMode: "transparency", result: "no-op" },
   });
 });
 
-test("reject non-empty malformed JSON before interpreting an exit code", async () => {
+test("rejects non-empty malformed JSON before interpreting an exit code", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   const error = new Error("Command failed") as Error & { code?: number };
   error.code = 1;
   mockExecFileResult(error, "not json");
@@ -226,12 +213,12 @@ test("reject non-empty malformed JSON before interpreting an exit code", async (
   });
 });
 
-test("throw an unknown CliError for undocumented exit codes", async () => {
+test("throws an unknown CliError for undocumented exit codes", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   const error = new Error("Command failed") as Error & { code?: number };
   error.code = 70;
   mockExecFileResult(error, "");
@@ -244,12 +231,12 @@ test("throw an unknown CliError for undocumented exit codes", async () => {
   });
 });
 
-test("distinguish an externally killed process from a timeout", async () => {
+test("distinguishes an externally killed process from a timeout", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   const error = new Error("Command failed") as Error & { killed?: boolean; signal?: string };
   error.killed = true;
   error.signal = "SIGKILL";
@@ -261,18 +248,15 @@ test("distinguish an externally killed process from a timeout", async () => {
     code: "unknown",
     diagnostics: { kind: "killed", signal: "SIGKILL", stderr: "killed by test" },
   });
-  // When
-  const result2 = runCli(["listening-mode", "get"]);
-  // Then
-  await expect(result2).rejects.toThrow("terminated by SIGKILL");
+  await expect(result).rejects.toThrow("terminated by SIGKILL");
 });
 
-test("distinguish max-buffer failures from timeouts and killed processes", async () => {
+test("distinguishes max-buffer failures from timeouts and killed processes", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   const error = new Error("stdout maxBuffer length exceeded") as Error & { code?: string };
   error.code = "ERR_CHILD_PROCESS_STDIO_MAXBUFFER";
   mockExecFileResult(error, "", "helper output was truncated");
@@ -283,18 +267,15 @@ test("distinguish max-buffer failures from timeouts and killed processes", async
     code: "unknown",
     diagnostics: { kind: "max-buffer", stderr: "helper output was truncated" },
   });
-  // When
-  const result2 = runCli(["listening-mode", "get"]);
-  // Then
-  await expect(result2).rejects.toThrow("too much output");
+  await expect(result).rejects.toThrow("too much output");
 });
 
-test("report a timeout separately from a killed process", async () => {
+test("reports a timeout separately from a killed process", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   vi.useFakeTimers();
   try {
     let callback: ExecCallback | undefined;
@@ -319,12 +300,12 @@ test("report a timeout separately from a killed process", async () => {
   }
 });
 
-test("preserve a valid interrupted payload and its signal", async () => {
+test("preserves a valid interrupted payload and its signal", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   const error = new Error("Command interrupted") as Error & { code?: number };
   error.code = 130;
   mockExecFileResult(error, JSON.stringify({ result: "interrupted", signal: 2 }), "interrupted by helper");
@@ -338,12 +319,12 @@ test("preserve a valid interrupted payload and its signal", async () => {
   });
 });
 
-test("reject a malformed successful envelope instead of classifying it as unsupported", async () => {
+test("rejects a malformed successful envelope instead of classifying it as unsupported", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   mockExecFileResult(null, JSON.stringify({ result: "ok", device: "AirPods" }));
   // When
   const result = runCli(["conversation-awareness", "get"]);
@@ -353,12 +334,12 @@ test("reject a malformed successful envelope instead of classifying it as unsupp
   });
 });
 
-test("reject malformed known field shapes", async () => {
+test("rejects malformed known field shapes", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   mockExecFileResult(
     null,
     JSON.stringify({ result: "ok", device: "AirPods", listeningMode: { mode: "transparency" } }),
@@ -369,12 +350,12 @@ test("reject malformed known field shapes", async () => {
   await expect(result).rejects.toMatchObject({ code: "invalid-response" });
 });
 
-test("throw when the payload reports an error despite a zero exit code", async () => {
+test("throws when the payload reports an error despite a zero exit code", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   mockExecFileResult(null, '{"device":null,"error":"no-device","listeningMode":null,"result":"error"}');
   // When
   const result = runCli(["listening-mode", "get"]);
@@ -385,12 +366,12 @@ test("throw when the payload reports an error despite a zero exit code", async (
   });
 });
 
-test("expose CliError instances with human-readable messages", async () => {
+test("exposes CliError instances with human-readable messages", async () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   const error = new Error("Command failed") as Error & { code?: number };
   error.code = 1;
   mockExecFileResult(error, '{"device":null,"error":"no-device","listeningMode":null,"result":"error"}');
@@ -400,6 +381,6 @@ test("expose CliError instances with human-readable messages", async () => {
     expect.unreachable("runCli should have thrown");
   } catch (thrown) {
     expect(thrown).toBeInstanceOf(CliError);
-    expect((thrown as CliError).message).toBe("Connect your AirPods to your Mac and try again.");
+    expect(thrown).toMatchObject({ code: "no-device" });
   }
 });

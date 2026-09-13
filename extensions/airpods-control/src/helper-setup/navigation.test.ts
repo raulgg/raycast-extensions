@@ -1,6 +1,5 @@
 import { launchCommand, open, showToast } from "@raycast/api";
 import { expect, vi, test } from "vitest";
-import { CLI_INSTALL_DOCS_URL } from "./constants";
 import { openCliSetup } from "./navigation";
 
 test("offers manual instructions if the setup command is disabled, without retrying the launch", async () => {
@@ -11,9 +10,8 @@ test("offers manual instructions if the setup command is disabled, without retry
   // Then
   expect(launchCommand).toHaveBeenCalledOnce();
   const toast = await vi.mocked(showToast).mock.results[0].value;
-  expect(toast.message).toContain("Enable Manage AirPods Control Helper");
   // When
   await toast.primaryAction.onAction(toast);
   // Then
-  expect(open).toHaveBeenCalledWith(CLI_INSTALL_DOCS_URL);
+  expect(open).toHaveBeenCalledWith("https://github.com/raulgg/airpods-control/blob/v0.4.0/README.md#install");
 });

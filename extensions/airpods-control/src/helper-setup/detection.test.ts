@@ -30,22 +30,6 @@ test("offers installation when Homebrew and tools are ready", async () => {
   expect(result).toBe("install");
 });
 
-test("routes missing Homebrew to setup", async () => {
-  // Given
-  vi.mocked(findCliPath).mockReturnValue(null);
-  vi.mocked(getConfiguredCliPath).mockReturnValue(null);
-  vi.mocked(findBrewPath).mockReturnValue("/opt/homebrew/bin/brew");
-  vi.mocked(findBrewCliPrefix).mockResolvedValue(null);
-  vi.mocked(detectDeveloperTools).mockResolvedValue("ready");
-  vi.mocked(realpathSync).mockImplementation((path) => String(path));
-  vi.mocked(findBrewPath).mockReturnValue(null);
-  // When
-  const result = (await detectCliSetup()).state;
-  // Then
-  expect(result).toBe("needs-homebrew");
-  expect(findBrewCliPrefix).not.toHaveBeenCalled();
-});
-
 test.each(["missing", "unavailable"] as const)("reports %s developer tools before trying brew", async (status) => {
   // Given
   vi.mocked(findCliPath).mockReturnValue(null);
@@ -156,66 +140,25 @@ test("surfaces broken Homebrew instead of treating it as a missing formula", asy
   await expect(result).rejects.toThrow("permissions");
 });
 
-test("shows developer-tool recovery when Homebrew and xcode-select are both missing", async () => {
-  // Given
-  vi.mocked(findCliPath).mockReturnValue(null);
-  vi.mocked(getConfiguredCliPath).mockReturnValue(null);
-  vi.mocked(findBrewPath).mockReturnValue("/opt/homebrew/bin/brew");
-  vi.mocked(findBrewCliPrefix).mockResolvedValue(null);
-  vi.mocked(detectDeveloperTools).mockResolvedValue("ready");
-  vi.mocked(realpathSync).mockImplementation((path) => String(path));
-  vi.mocked(findBrewPath).mockReturnValue(null);
-  vi.mocked(detectDeveloperTools).mockResolvedValue("unavailable");
-  // When
-  const result = detectCliSetup();
-  // Then
-  await expect(result).resolves.toMatchObject({
-    state: "needs-developer-tools",
-    brewPath: null,
-    developerTools: "unavailable",
-  });
-  expect(findBrewCliPrefix).not.toHaveBeenCalled();
-});
-
-test("shows developer-tool recovery when Homebrew is installed but xcode-select is missing", async () => {
-  // Given
-  vi.mocked(findCliPath).mockReturnValue(null);
-  vi.mocked(getConfiguredCliPath).mockReturnValue(null);
-  vi.mocked(findBrewPath).mockReturnValue("/opt/homebrew/bin/brew");
-  vi.mocked(findBrewCliPrefix).mockResolvedValue(null);
-  vi.mocked(detectDeveloperTools).mockResolvedValue("ready");
-  vi.mocked(realpathSync).mockImplementation((path) => String(path));
-  vi.mocked(findBrewPath).mockReturnValue("/opt/homebrew/bin/brew");
-  vi.mocked(detectDeveloperTools).mockResolvedValue("unavailable");
-  // When
-  const result = detectCliSetup();
-  // Then
-  await expect(result).resolves.toMatchObject({
-    state: "needs-developer-tools",
+test.each([
+  { name: "missing Homebrew and xcode-select", brewPath: null, tools: "unavailable", state: "needs-developer-tools" },
+  {
+    name: "Homebrew with missing xcode-select",
     brewPath: "/opt/homebrew/bin/brew",
-    developerTools: "unavailable",
-  });
-  expect(findBrewCliPrefix).not.toHaveBeenCalled();
-});
-
-test("shows Homebrew recovery when xcode-select is ready but Homebrew is missing", async () => {
+    tools: "unavailable",
+    state: "needs-developer-tools",
+  },
+  { name: "ready tools without Homebrew", brewPath: null, tools: "ready", state: "needs-homebrew" },
+] as const)("prioritizes prerequisites for $name", async ({ brewPath, tools, state }) => {
   // Given
   vi.mocked(findCliPath).mockReturnValue(null);
   vi.mocked(getConfiguredCliPath).mockReturnValue(null);
-  vi.mocked(findBrewPath).mockReturnValue("/opt/homebrew/bin/brew");
-  vi.mocked(findBrewCliPrefix).mockResolvedValue(null);
-  vi.mocked(detectDeveloperTools).mockResolvedValue("ready");
-  vi.mocked(realpathSync).mockImplementation((path) => String(path));
-  vi.mocked(findBrewPath).mockReturnValue(null);
-  vi.mocked(detectDeveloperTools).mockResolvedValue("ready");
+  vi.mocked(findBrewPath).mockReturnValue(brewPath);
+  vi.mocked(detectDeveloperTools).mockResolvedValue(tools);
   // When
-  const result = detectCliSetup();
+  const setup = await detectCliSetup();
   // Then
-  await expect(result).resolves.toMatchObject({
-    state: "needs-homebrew",
-    brewPath: null,
-    developerTools: "ready",
-  });
+  expect(setup).toMatchObject({ state, brewPath, developerTools: tools });
   expect(findBrewCliPrefix).not.toHaveBeenCalled();
 });
 

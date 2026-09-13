@@ -5,29 +5,24 @@ import { publishCommandSubtitle, resetCommandSubtitle } from "./coordination";
 
 const mockUpdateCommandMetadata = vi.mocked(updateCommandMetadata);
 
-const options = { channel: "listening-mode" as const };
-
-test("restores the manifest subtitle", async () => {
+test("publishes a dynamic subtitle and then restores the manifest subtitle", async () => {
   // Given
   createSupportDirectory();
-  // When
-  await resetCommandSubtitle(options);
-  // Then
-  expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: null });
-});
-
-test("publishes a dynamic subtitle", async () => {
-  // Given
-  createSupportDirectory();
+  const options = { channel: "listening-mode" as const };
   // When
   await publishCommandSubtitle("◑ Adaptive", options);
   // Then
-  expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "◑ Adaptive" });
+  expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "◑ Adaptive" });
+  // When
+  await resetCommandSubtitle(options);
+  // Then
+  expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: null });
 });
 
 test("restores the manifest subtitle when publication fails", async () => {
   // Given
   createSupportDirectory();
+  const options = { channel: "listening-mode" as const };
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   mockUpdateCommandMetadata.mockRejectedValueOnce(new Error("metadata failed"));
   // When
@@ -40,6 +35,7 @@ test("restores the manifest subtitle when publication fails", async () => {
 test("does not surface reset failures", async () => {
   // Given
   createSupportDirectory();
+  const options = { channel: "listening-mode" as const };
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   mockUpdateCommandMetadata.mockRejectedValueOnce(new Error("metadata failed"));
   // When

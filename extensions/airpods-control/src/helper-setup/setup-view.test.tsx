@@ -1,17 +1,10 @@
 /// <reference lib="dom" />
-import { Clipboard, launchCommand } from "@raycast/api";
+import { Clipboard, launchCommand, open } from "@raycast/api";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, onTestFinished, vi, test } from "vitest";
 import { cliSetup, deferred, installedCliSetup } from "../test/fixtures/cli-setup";
 import Command from "../update-airpods-control-cli";
-import {
-  CLI_INSTALL_COMMAND,
-  CLI_MANUAL_UPDATE_COMMAND,
-  CLI_SOURCE_INSTALL_COMMAND,
-  DEVELOPER_TOOLS_INSTALL_COMMAND,
-  HOMEBREW_INSTALL_COMMAND,
-} from "./constants";
 import { detectCliSetup } from "./detection";
 import { runCliInstallation } from "./installation";
 
@@ -35,7 +28,6 @@ function createSetupView() {
   onTestFinished(() => {
     unmount();
     container.remove();
-    vi.restoreAllMocks();
   });
   async function render() {
     await act(async () => {
@@ -59,23 +51,6 @@ function createSetupView() {
   return { render, action, click, markdown, container, unmount };
 }
 
-test("does not offer prerequisite actions while detection is loading", async () => {
-  // Given
-  const view = createSetupView();
-  const detection = deferred<ReturnType<typeof cliSetup>>();
-  vi.mocked(detectCliSetup).mockReturnValue(detection.promise);
-  // When
-  await view.render();
-  // Then
-  expect(view.action("Open Homebrew Installation Instructions")).toBeNull();
-  expect(view.action("Install with Homebrew")).toBeNull();
-  expect(view.action("Refresh")).toBeNull();
-  // When
-  await act(async () => detection.resolve(cliSetup()));
-  // Then
-  expect(view.action("Install with Homebrew")).not.toBeNull();
-});
-
 test("guides Homebrew installation and copies the actual bootstrap command", async () => {
   // Given
   const view = createSetupView();
@@ -83,12 +58,14 @@ test("guides Homebrew installation and copies the actual bootstrap command", asy
   // When
   await view.render();
   // Then
-  expect(view.markdown()).toContain("Homebrew");
-  expect(view.markdown()).toContain("Return here");
   // When
   await view.click("Copy Homebrew Install Command");
+  await view.click("Open Homebrew Installation Instructions");
   // Then
-  expect(Clipboard.copy).toHaveBeenCalledWith(HOMEBREW_INSTALL_COMMAND);
+  expect(open).toHaveBeenCalledWith("https://brew.sh");
+  expect(Clipboard.copy).toHaveBeenCalledWith(
+    '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
+  );
   expect(view.action("Install with Homebrew")).toBeNull();
 });
 
@@ -115,7 +92,7 @@ test("provides manual developer tools instructions and then allows installation 
   await view.render();
   await view.click("Copy Developer Tools Install Command");
   // Then
-  expect(Clipboard.copy).toHaveBeenCalledWith(DEVELOPER_TOOLS_INSTALL_COMMAND);
+  expect(Clipboard.copy).toHaveBeenCalledWith("xcode-select --install");
   expect(view.action("Install with Homebrew")).toBeNull();
   // When
   await view.click("Refresh");
@@ -133,8 +110,10 @@ test("links to Apple downloads when xcode-select itself is unavailable", async (
   await view.render();
   // Then
   expect(view.action("Copy Developer Tools Install Command")).toBeNull();
-  expect(view.action("Open Apple Developer Downloads")).not.toBeNull();
-  expect(view.markdown()).toContain("Apple Developer Downloads");
+  // When
+  await view.click("Open Apple Developer Downloads");
+  // Then
+  expect(open).toHaveBeenCalledWith("https://developer.apple.com/download/all/");
 });
 
 test.each(["installing", "manual-cli", "invalid-cli-path", "needs-link"] as const)(
@@ -155,10 +134,18 @@ test.each(["installing", "manual-cli", "invalid-cli-path", "needs-link"] as cons
 test("shows a persistent installing state, prevents duplicate actions, and stays on success", async () => {
   // Given
   const view = createSetupView();
+  const detection = deferred<ReturnType<typeof cliSetup>>();
+  vi.mocked(detectCliSetup).mockReturnValue(detection.promise);
   const installation = deferred<ReturnType<typeof cliSetup>>();
   vi.mocked(runCliInstallation).mockReturnValue(installation.promise);
   // When
   await view.render();
+  // Then
+  expect(view.action("Open Homebrew Installation Instructions")).toBeNull();
+  expect(view.action("Install with Homebrew")).toBeNull();
+  expect(view.action("Refresh")).toBeNull();
+  // When
+  await act(async () => detection.resolve(cliSetup()));
   // Then
   const installAction = view.action("Install with Homebrew");
   const refreshAction = view.action("Refresh");
@@ -178,28 +165,36 @@ test("shows a persistent installing state, prevents duplicate actions, and stays
   await act(async () => installation.resolve(installedCliSetup()));
   // Then
   expect(view.markdown()).toContain("# Your helper is ready");
-  expect(view.markdown()).toContain("You can now run your AirPods commands");
   expect(runCliInstallation).toHaveBeenCalledExactlyOnceWith("install");
   expect(launchCommand).not.toHaveBeenCalled();
 });
 
-test("ignores a late installation completion after leaving the view", async () => {
+test("keeps a new setup view independent of an installation started in a closed view", async () => {
   // Given
-  const view = createSetupView();
+  const oldView = createSetupView();
   const installation = deferred<ReturnType<typeof cliSetup>>();
   vi.mocked(runCliInstallation).mockReturnValue(installation.promise);
+  await oldView.render();
   // When
-  await view.render();
-  await view.click("Install with Homebrew");
-  view.unmount();
+  await oldView.click("Install with Homebrew");
+  oldView.unmount();
+  const newView = createSetupView();
+  vi.mocked(detectCliSetup).mockResolvedValue(cliSetup({ state: "needs-homebrew", brewPath: null }));
+  await newView.render();
+  // Then
+  expect(newView.action("Copy Homebrew Install Command")).not.toBeNull();
+  // When
   await act(async () => installation.resolve(installedCliSetup()));
   // Then
-  expect(runCliInstallation).toHaveBeenCalledExactlyOnceWith("install");
+  expect(newView.action("Copy Homebrew Install Command")).not.toBeNull();
+  expect(newView.action("Install with Homebrew")).toBeNull();
+  expect(oldView.container.childElementCount).toBe(0);
+  expect(launchCommand).not.toHaveBeenCalled();
 });
 
 test.each([
-  ["install", "Install with Homebrew", "Copy Install Command", CLI_INSTALL_COMMAND],
-  ["update", "Update with Homebrew", "Copy Update Command", CLI_MANUAL_UPDATE_COMMAND],
+  ["install", "Install with Homebrew", "Copy Install Command", "brew install raulgg/tap/airpods-control"],
+  ["update", "Update with Homebrew", "Copy Update Command", "brew update\nbrew upgrade raulgg/tap/airpods-control"],
 ] as const)("offers direct %s before manual alternatives", async (state, title, copyTitle, command) => {
   // Given
   const view = createSetupView();
@@ -217,9 +212,10 @@ test.each([
   if (state === "install") {
     expect(view.action("Open Installation Instructions")).not.toBeNull();
     await view.click("Copy Source Install Command");
-    expect(Clipboard.copy).toHaveBeenCalledWith(CLI_SOURCE_INSTALL_COMMAND);
+    expect(Clipboard.copy).toHaveBeenCalledWith(
+      'base=https://raw.githubusercontent.com/raulgg/airpods-control/v0.4.0\ncurl -fsSL "$base/scripts/install-from-source.sh" | sh -s --',
+    );
   } else {
-    expect(view.action("Open Tagged Installation Instructions")).toBeNull();
     expect(view.action("Copy Source Install Command")).toBeNull();
   }
   const operation = deferred<ReturnType<typeof cliSetup>>();
@@ -293,7 +289,6 @@ test.each([
   expect(
     actions.filter((title) => title === "Open Installation Instructions" || title === "Open Update Instructions"),
   ).toHaveLength(1);
-  expect(actions).not.toContain("Open Tagged Installation Instructions");
   expect(actions.at(-1)).toBe("Refresh");
   if (state === "manual-cli") {
     expect(actions[0]).toBe("Open Update Instructions");

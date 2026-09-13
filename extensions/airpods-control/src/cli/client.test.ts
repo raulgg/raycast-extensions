@@ -164,26 +164,26 @@ test("rejects unknown Conversation Awareness state", async () => {
   await expect(result).rejects.toMatchObject({ code: "invalid-response" });
 });
 
-test("extracts confirmed state only from known payload values", () => {
-  // Given the input supplied by this case
+test.each([
+  { name: "confirmed transparency", listeningMode: "transparency", expected: "transparency" },
+  { name: "unrecognized mode", listeningMode: "future-mode", expected: null },
+])("extracts a listening-mode result for $name", ({ listeningMode, expected }) => {
+  // Given
+  const payload = { result: "error" as const, device: "AirPods", listeningMode };
   // When
-  const result = confirmedListeningMode({ result: "error", device: "AirPods", listeningMode: "transparency" });
+  const state = confirmedListeningMode(payload);
   // Then
-  expect(result).toBe("transparency");
+  expect(state).toBe(expected);
+});
+
+test.each([
+  { name: "confirmed off", conversationAwareness: "off", expected: "off" },
+  { name: "unrecognized state", conversationAwareness: "automatic", expected: null },
+])("extracts a Conversation Awareness result for $name", ({ conversationAwareness, expected }) => {
+  // Given
+  const payload = { result: "error" as const, device: "AirPods", conversationAwareness };
   // When
-  const result2 = confirmedListeningMode({ result: "error", device: "AirPods", listeningMode: "future-mode" });
+  const state = confirmedConversationAwareness(payload);
   // Then
-  expect(result2).toBeNull();
-  // When
-  const result3 = confirmedConversationAwareness({ result: "error", device: "AirPods", conversationAwareness: "off" });
-  // Then
-  expect(result3).toBe("off");
-  // When
-  const result4 = confirmedConversationAwareness({
-    result: "error",
-    device: "AirPods",
-    conversationAwareness: "automatic",
-  });
-  // Then
-  expect(result4).toBeNull();
+  expect(state).toBe(expected);
 });

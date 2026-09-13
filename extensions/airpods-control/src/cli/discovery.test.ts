@@ -2,7 +2,6 @@ import { accessSync, statSync } from "fs";
 import { getPreferenceValues } from "@raycast/api";
 import { expect, vi, test } from "vitest";
 import { findCliPath, isCliInstalled } from "./discovery";
-import { CLI_SEARCH_PATHS } from "./preferences";
 import type * as Fs from "fs";
 
 vi.mock("fs", async (importOriginal) => {
@@ -29,31 +28,31 @@ function mockInstalledAt(...paths: string[]) {
   }) as typeof accessSync);
 }
 
-test("return the Homebrew path when the binary is there", () => {
+test("returns the Homebrew path when the binary is there", () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control", "/usr/local/bin/airpods-control");
   // When
   const result = findCliPath();
   // Then
-  expect(result).toBe(CLI_SEARCH_PATHS[0]);
+  expect(result).toBe("/opt/homebrew/bin/airpods-control");
 });
 
-test("fall back to the next search path", () => {
+test("falls back to the next search path", () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
-  mockInstalledAt(CLI_SEARCH_PATHS[1]);
+  mockInstalledAt("/usr/local/bin/airpods-control");
   // When
   const result = findCliPath();
   // Then
-  expect(result).toBe(CLI_SEARCH_PATHS[1]);
+  expect(result).toBe("/usr/local/bin/airpods-control");
 });
 
-test("return null when the binary is nowhere to be found", () => {
+test("returns null when the binary is nowhere to be found", () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
@@ -64,7 +63,7 @@ test("return null when the binary is nowhere to be found", () => {
   expect(result).toBeNull();
 });
 
-test("use the CLI Path preference when set", () => {
+test("uses the CLI Path preference when set", () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
@@ -77,20 +76,20 @@ test("use the CLI Path preference when set", () => {
   expect(result).toBe("/custom/bin/airpods-control");
 });
 
-test("not fall back to default paths when the CLI Path preference is invalid", () => {
+test("does not fall back to default paths when the CLI Path preference is invalid", () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
   mockGetPreferenceValues.mockReturnValue({ cliPath: "/custom/bin/airpods-control" } as never);
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   // When
   const result = findCliPath();
   // Then
   expect(result).toBeNull();
 });
 
-test("reject a CLI Path preference that points at a directory", () => {
+test("rejects a CLI Path preference that points at a directory", () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
@@ -104,20 +103,20 @@ test("reject a CLI Path preference that points at a directory", () => {
   expect(result).toBeNull();
 });
 
-test("ignore a whitespace-only CLI Path preference", () => {
+test("ignores a whitespace-only CLI Path preference", () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
   mockInstalledAt();
   mockGetPreferenceValues.mockReturnValue({ cliPath: "   " } as never);
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   // When
   const result = findCliPath();
   // Then
-  expect(result).toBe(CLI_SEARCH_PATHS[0]);
+  expect(result).toBe("/opt/homebrew/bin/airpods-control");
 });
 
-test("mirror findCliPath", () => {
+test("mirrors findCliPath", () => {
   // Given
   mockGetPreferenceValues.mockReturnValue({} as never);
   mockStatSync.mockReturnValue({ isFile: () => true } as never);
@@ -126,7 +125,7 @@ test("mirror findCliPath", () => {
   const result = isCliInstalled();
   // Then
   expect(result).toBe(false);
-  mockInstalledAt(CLI_SEARCH_PATHS[0]);
+  mockInstalledAt("/opt/homebrew/bin/airpods-control");
   // When
   const result2 = isCliInstalled();
   // Then

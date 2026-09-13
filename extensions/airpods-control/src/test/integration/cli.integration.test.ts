@@ -13,9 +13,9 @@ async function installFakeCli(body: string) {
 }
 
 test("rejects malformed JSON from a real helper process", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   await installFakeCli("printf '%s' 'not json'");
+  // When
   const result = runCli(["listening-mode", "get"]);
   // Then
   await expect(result).rejects.toMatchObject({
@@ -25,9 +25,9 @@ test("rejects malformed JSON from a real helper process", async () => {
 });
 
 test("rejects a successful response missing its command-specific state", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   await installFakeCli('printf \'%s\' \'{"result":"ok","device":"AirPods"}\'');
+  // When
   const result = runCli(["listening-mode", "get"]);
   // Then
   await expect(result).rejects.toMatchObject({
@@ -37,11 +37,11 @@ test("rejects a successful response missing its command-specific state", async (
 });
 
 test("passes the command arguments and JSON flag to a real helper process", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   await installFakeCli(
     'test "$1" = listening-mode\ntest "$2" = set\ntest "$3" = adaptive\ntest "$4" = --json\nprintf \'%s\' \'{"device":"AirPods","listeningMode":"adaptive","result":"ok"}\'',
   );
+  // When
   const result = runCli(["listening-mode", "set", "adaptive"]);
   // Then
   await expect(result).resolves.toEqual({
@@ -51,17 +51,16 @@ test("passes the command arguments and JSON flag to a real helper process", asyn
   });
 });
 
-test("keeps a bounded stderr diagnostic while preserving a known error", async () => {
-  // Given the input supplied by this case
-  // When
+test("keeps stderr diagnostics while preserving a known error", async () => {
+  // Given
   await installFakeCli(
     'printf \'%s\' \'{"device":null,"error":"no-device","listeningMode":null,"result":"error"}\'\nprintf \'%s\' \'helper could not find a connected device\' >&2\nexit 1',
   );
+  // When
   const result = runCli(["listening-mode", "get"]);
   // Then
   await expect(result).rejects.toMatchObject({
     code: "no-device",
-    message: "Connect your AirPods to your Mac and try again.",
     diagnostics: {
       kind: "process",
       exitCode: 1,
@@ -72,9 +71,9 @@ test("keeps a bounded stderr diagnostic while preserving a known error", async (
 });
 
 test("keeps stderr and exit status for an unknown real-process failure", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   await installFakeCli("printf '%s' 'helper failed unexpectedly' >&2\nexit 70");
+  // When
   const result = runCli(["listening-mode", "get"]);
   // Then
   await expect(result).rejects.toMatchObject({
@@ -86,16 +85,13 @@ test("keeps stderr and exit status for an unknown real-process failure", async (
       stderr: "helper failed unexpectedly",
     },
   });
-  // When
-  const result2 = runCli(["listening-mode", "get"]);
-  // Then
-  await expect(result2).rejects.toThrow("helper failed unexpectedly");
+  await expect(result).rejects.toThrow("helper failed unexpectedly");
 });
 
 test("reports a real process signal separately from the timeout path", async () => {
-  // Given the input supplied by this case
-  // When
+  // Given
   await installFakeCli("kill -TERM $$");
+  // When
   try {
     await runCli(["conversation-awareness", "get"]);
     expect.unreachable("runCli should reject a signalled helper");

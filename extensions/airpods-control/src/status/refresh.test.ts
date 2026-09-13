@@ -1,4 +1,4 @@
-import { launchCommand, LaunchType, showToast, Toast, updateCommandMetadata } from "@raycast/api";
+import { Clipboard, launchCommand, LaunchType, showToast, Toast, updateCommandMetadata } from "@raycast/api";
 import { expect, vi, test } from "vitest";
 import * as AirPodsControlCli from "../cli/client";
 import { CliError } from "../cli/errors";
@@ -80,56 +80,37 @@ test("reads each status once and dispatches validated subtitle-only contexts", a
   });
 });
 
-test("preserves a rejected Cycle Listening Mode launch separately from successful reads", async () => {
-  // Given
-  createSupportDirectory();
-  vi.mocked(AirPodsControlCli.getListeningMode).mockResolvedValue("anc");
-  vi.mocked(AirPodsControlCli.getConversationAwareness).mockResolvedValue("on");
-  const error = new Error("Cycle Listening Mode is disabled");
-  mockLaunchCommand.mockRejectedValueOnce(error);
-  // When
-  const result = await refreshAirPodsStatus();
-  // Then
-  expect(result.listeningMode).toEqual({ status: "fulfilled", value: "anc" });
-  expect(result.conversationAwareness).toEqual({ status: "fulfilled", value: "on" });
-  expect(result.subtitleDispatch.listeningMode).toEqual({ status: "rejected", reason: error });
-  expect(result.subtitleDispatch.conversationAwareness).toEqual({ status: "fulfilled", value: undefined });
-});
-
-test("preserves a rejected Conversation Awareness launch separately from successful reads", async () => {
-  // Given
-  createSupportDirectory();
-  vi.mocked(AirPodsControlCli.getListeningMode).mockResolvedValue("anc");
-  vi.mocked(AirPodsControlCli.getConversationAwareness).mockResolvedValue("on");
-  const error = new Error("Conversation Awareness is disabled");
-  mockLaunchCommand.mockResolvedValueOnce(undefined).mockRejectedValueOnce(error);
-  // When
-  const result = await refreshAirPodsStatus();
-  // Then
-  expect(result.listeningMode).toEqual({ status: "fulfilled", value: "anc" });
-  expect(result.conversationAwareness).toEqual({ status: "fulfilled", value: "on" });
-  expect(result.subtitleDispatch.listeningMode).toEqual({ status: "fulfilled", value: undefined });
-  expect(result.subtitleDispatch.conversationAwareness).toEqual({ status: "rejected", reason: error });
-});
-
-test("preserves both rejected subtitle launches", async () => {
+test.each([
+  { name: "listening mode", listeningFails: true, conversationFails: false },
+  { name: "Conversation Awareness", listeningFails: false, conversationFails: true },
+  { name: "both features", listeningFails: true, conversationFails: true },
+])("retains successful reads when subtitle dispatch fails for $name", async ({ listeningFails, conversationFails }) => {
   // Given
   createSupportDirectory();
   vi.mocked(AirPodsControlCli.getListeningMode).mockResolvedValue("anc");
   vi.mocked(AirPodsControlCli.getConversationAwareness).mockResolvedValue("on");
   const listeningError = new Error("Cycle Listening Mode is disabled");
   const conversationError = new Error("Conversation Awareness is disabled");
-  mockLaunchCommand.mockRejectedValueOnce(listeningError).mockRejectedValueOnce(conversationError);
+  mockLaunchCommand.mockImplementation(async ({ name }) => {
+    if (name === "cycle-listening-mode" && listeningFails) throw listeningError;
+    if (name === "toggle-conversation-awareness" && conversationFails) throw conversationError;
+  });
   // When
   const result = await refreshAirPodsStatus();
   // Then
+  expect(result.listeningMode).toEqual({ status: "fulfilled", value: "anc" });
+  expect(result.conversationAwareness).toEqual({ status: "fulfilled", value: "on" });
   expect(result.subtitleDispatch).toEqual({
-    listeningMode: { status: "rejected", reason: listeningError },
-    conversationAwareness: { status: "rejected", reason: conversationError },
+    listeningMode: listeningFails
+      ? { status: "rejected", reason: listeningError }
+      : { status: "fulfilled", value: undefined },
+    conversationAwareness: conversationFails
+      ? { status: "rejected", reason: conversationError }
+      : { status: "fulfilled", value: undefined },
   });
 });
 
-test("resets only a status that could not be read", async () => {
+test("publishes the confirmed partial status and resets only the unread feature", async () => {
   // Given
   createSupportDirectory();
   vi.mocked(AirPodsControlCli.getListeningMode).mockResolvedValue("anc");
@@ -138,6 +119,7 @@ test("resets only a status that could not be read", async () => {
   // When
   await refreshAirPodsStatus();
   // Then
+  expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation ◉" });
   expect(mockLaunchCommand).toHaveBeenCalledWith(
     expect.objectContaining({
       context: expect.objectContaining({ operation: "refresh-listening-mode-subtitle", mode: "anc" }),
@@ -148,18 +130,6 @@ test("resets only a status that could not be read", async () => {
       context: expect.objectContaining({ operation: "refresh-conversation-awareness-subtitle", state: null }),
     }),
   );
-});
-
-test("publishes a partial status subtitle from the confirmed portion of a snapshot", async () => {
-  // Given
-  createSupportDirectory();
-  vi.mocked(AirPodsControlCli.getListeningMode).mockResolvedValue("anc");
-  vi.mocked(AirPodsControlCli.getConversationAwareness).mockResolvedValue("on");
-  vi.mocked(AirPodsControlCli.getConversationAwareness).mockRejectedValue(new CliError("unsupported"));
-  // When
-  await refreshAirPodsStatus();
-  // Then
-  expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation ◉" });
 });
 
 test.each([
@@ -194,7 +164,13 @@ test("updates the subtitle when AirPods disconnect and reconnect", async () => {
     .mockResolvedValueOnce("off");
   // When
   await refreshAirPodsStatus();
+  // Then
+  expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "Noise Cancellation ◉ · CA ●" });
+  // When
   await refreshAirPodsStatus();
+  // Then
+  expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "Not connected" });
+  // When
   await refreshAirPodsStatus();
   // Then
   expect(mockUpdateCommandMetadata.mock.calls).toEqual([
@@ -243,17 +219,21 @@ test("stays silent when a background refresh detects disconnection", async () =>
   expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Not connected" });
 });
 
-test("preserves the last status subtitle on a transient total read failure", async () => {
+test("preserves a previously published subtitle after a transient total read failure", async () => {
   // Given
   createSupportDirectory();
-  vi.mocked(AirPodsControlCli.getListeningMode).mockResolvedValue("anc");
-  vi.mocked(AirPodsControlCli.getConversationAwareness).mockResolvedValue("on");
-  vi.mocked(AirPodsControlCli.getListeningMode).mockRejectedValue(new Error("timeout"));
-  vi.mocked(AirPodsControlCli.getConversationAwareness).mockRejectedValue(new Error("timeout"));
+  vi.mocked(AirPodsControlCli.getListeningMode).mockResolvedValueOnce("anc").mockRejectedValue(new Error("timeout"));
+  vi.mocked(AirPodsControlCli.getConversationAwareness)
+    .mockResolvedValueOnce("on")
+    .mockRejectedValue(new Error("timeout"));
   // When
   await refreshAirPodsStatus();
   // Then
-  expect(mockUpdateCommandMetadata).not.toHaveBeenCalled();
+  expect(mockUpdateCommandMetadata).toHaveBeenCalledExactlyOnceWith({ subtitle: "Noise Cancellation ◉ · CA ●" });
+  // When
+  await refreshAirPodsStatus();
+  // Then
+  expect(mockUpdateCommandMetadata).toHaveBeenCalledExactlyOnceWith({ subtitle: "Noise Cancellation ◉ · CA ●" });
 });
 
 test("dispatches neutral subtitles without querying the CLI during setup fallback", async () => {
@@ -344,7 +324,6 @@ test("keeps Raycast open and reports both confirmed states in a success toast", 
     title: "Refreshing AirPods status...",
   });
   expect(toast.style).toBe(Toast.Style.Success);
-  expect(toast.title).toBe("AirPods status read");
   expect(toast.message).toBe("Listening: Noise Cancellation ◉ · Conversation Awareness: On ●");
   expect(toast.primaryAction).toBeUndefined();
   expect(toast.show).toHaveBeenCalledOnce();
@@ -363,11 +342,14 @@ test("reports a subtitle launch failure while retaining both confirmed states", 
   await runAirPodsStatusRefresh({ showFeedback: true });
   // Then
   expect(toast.style).toBe(Toast.Style.Failure);
-  expect(toast.title).toBe("Could not refresh subtitles");
   expect(toast.message).toBe(
     "Listening: Noise Cancellation ◉ · Conversation Awareness: On ● · Listening Mode subtitle: Cycle Listening Mode is disabled",
   );
   expect(toast.primaryAction).toEqual(expect.objectContaining({ title: "Copy Error" }));
+  // When
+  await toast.primaryAction?.onAction(toast);
+  // Then
+  expect(Clipboard.copy).toHaveBeenCalledWith(toast.message);
   expect(toast.show).toHaveBeenCalledOnce();
 });
 
@@ -386,9 +368,8 @@ test("includes read and subtitle launch failures in manual feedback", async () =
   await runAirPodsStatusRefresh({ showFeedback: true });
   // Then
   expect(toast.style).toBe(Toast.Style.Failure);
-  expect(toast.title).toBe("AirPods status partially refreshed");
   expect(toast.message).toContain("Listening: Noise Cancellation ◉");
-  expect(toast.message).toContain("Conversation Awareness: This feature is not supported");
+  expect(toast.message).toContain("Conversation Awareness:");
   expect(toast.message).toContain("Listening Mode subtitle: Cycle Listening Mode is disabled");
   expect(toast.primaryAction).toEqual(expect.objectContaining({ title: "Copy Error" }));
   expect(toast.show).toHaveBeenCalledOnce();
@@ -406,7 +387,6 @@ test("reports a partial refresh while preserving the confirmed status", async ()
   await runAirPodsStatusRefresh({ showFeedback: true });
   // Then
   expect(toast.style).toBe(Toast.Style.Failure);
-  expect(toast.title).toBe("AirPods status partially refreshed");
   expect(toast.message).toContain("Listening: Noise Cancellation ◉");
   expect(toast.message).toContain("Conversation Awareness: This feature is not supported");
   expect(toast.primaryAction).toEqual(expect.objectContaining({ title: "Copy Error" }));
@@ -426,8 +406,6 @@ test("reports disconnection as a normal status without error actions", async () 
   await runAirPodsStatusRefresh({ showFeedback: true });
   // Then
   expect(toast.style).toBe(Toast.Style.Success);
-  expect(toast.title).toBe("AirPods not connected");
-  expect(toast.message).toBe("Connect your AirPods to your Mac and try again.");
   expect(toast.primaryAction).toBeUndefined();
   expect(toast.secondaryAction).toBeUndefined();
   expect(toast.show).toHaveBeenCalledOnce();

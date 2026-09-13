@@ -19,14 +19,16 @@ const mockLaunchCommand = vi.mocked(launchCommand);
 
 const mockShowFailureToast = vi.mocked(showFailureToast);
 
-test("run the action when the CLI is installed", async () => {
+test("runs the action when the CLI is installed", async () => {
   // Given
   mockIsCliInstalled.mockReturnValue(true);
+  const onUnavailable = vi.fn();
   const perform = vi.fn().mockResolvedValue(undefined);
   // When
-  await runWithCliGuard(perform);
+  await runWithCliGuard(perform, { onUnavailable });
   // Then
-  expect(perform).toHaveBeenCalled();
+  expect(perform).toHaveBeenCalledOnce();
+  expect(onUnavailable).not.toHaveBeenCalled();
   expect(mockLaunchCommand).not.toHaveBeenCalled();
 });
 
@@ -52,18 +54,7 @@ test("offers setup without running the action, even if installation succeeds", a
   expect(perform).toHaveBeenCalledOnce();
 });
 
-test("not run unavailable cleanup when the CLI is installed", async () => {
-  // Given
-  mockIsCliInstalled.mockReturnValue(true);
-  const perform = vi.fn().mockResolvedValue(undefined);
-  const onUnavailable = vi.fn().mockResolvedValue(undefined);
-  // When
-  await runWithCliGuard(perform, { onUnavailable });
-  // Then
-  expect(onUnavailable).not.toHaveBeenCalled();
-});
-
-test("show a copyable failure toast when the action rejects unexpectedly", async () => {
+test("shows a copyable failure toast when the action rejects unexpectedly", async () => {
   // Given
   mockIsCliInstalled.mockReturnValue(true);
   const error = new Error("boom");
