@@ -3,20 +3,20 @@ import { Clipboard, launchCommand } from "@raycast/api";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cliSetup, deferred, installedCli } from "../test/cli-setup-fixture";
+import Command from "../update-airpods-control-cli";
 import {
   CLI_INSTALL_COMMAND,
   CLI_MANUAL_UPDATE_COMMAND,
   CLI_SOURCE_INSTALL_COMMAND,
   DEVELOPER_TOOLS_INSTALL_COMMAND,
   HOMEBREW_INSTALL_COMMAND,
-} from "./helper-setup/constants";
-import { detectCliSetup } from "./helper-setup/detection";
-import { runCliInstallation } from "./helper-setup/installation";
-import { cliSetup, deferred, installedCli } from "./test/cli-setup-fixture";
-import Command from "./update-airpods-control-cli";
+} from "./constants";
+import { detectCliSetup } from "./detection";
+import { runCliInstallation } from "./installation";
 
-vi.mock("./helper-setup/detection", () => ({ detectCliSetup: vi.fn() }));
-vi.mock("./helper-setup/installation", () => ({ runCliInstallation: vi.fn() }));
+vi.mock("./detection", () => ({ detectCliSetup: vi.fn() }));
+vi.mock("./installation", () => ({ runCliInstallation: vi.fn() }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("CLI setup view", () => {
