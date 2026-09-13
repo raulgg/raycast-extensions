@@ -1,6 +1,7 @@
 import { confirmAlert, launchCommand, showToast, Toast } from "@raycast/api";
 import { expect, vi, test } from "vitest";
 import { installCliWithBrew, updateCliWithBrew } from "../homebrew/commands";
+import { expectConsoleError } from "../test/console";
 import { cliSetup, installedCliSetup } from "../test/fixtures/cli-setup";
 import { deferred } from "../test/fixtures/deferred";
 import { detectCliSetup } from "./detection";
@@ -82,17 +83,22 @@ test("waits for explicit approval and allows cancellation", async () => {
     vi.mocked(confirmAlert).mockReturnValue(approval.promise);
     // When
     const running = promptForCliInstallation();
-    await vi.advanceTimersByTimeAsync(0);
-    // Then
-    expect(installCliWithBrew).not.toHaveBeenCalled();
-    // When
-    approval.resolve(false);
-    await running;
-    // Then
-    expect(showToast).not.toHaveBeenCalled();
-    expect(confirmAlert).toHaveBeenCalledWith(
-      expect.objectContaining({ primaryAction: { title: "Install with Homebrew" } }),
-    );
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      // Then
+      expect(installCliWithBrew).not.toHaveBeenCalled();
+      // When
+      approval.resolve(false);
+      await running;
+      // Then
+      expect(showToast).not.toHaveBeenCalled();
+      expect(confirmAlert).toHaveBeenCalledWith(
+        expect.objectContaining({ primaryAction: { title: "Install with Homebrew" } }),
+      );
+    } finally {
+      approval.resolve(false);
+      await Promise.allSettled([running]);
+    }
   } finally {
     vi.useRealTimers();
   }
@@ -115,14 +121,19 @@ test("shares concurrent prompts and installs only once", async () => {
     // When
     const first = promptForCliInstallation();
     const second = promptForCliInstallation();
-    await vi.advanceTimersByTimeAsync(0);
-    // Then
-    expect(confirmAlert).toHaveBeenCalledOnce();
-    // When
-    approval.resolve(true);
-    await Promise.all([first, second]);
-    // Then
-    expect(installCliWithBrew).toHaveBeenCalledOnce();
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      // Then
+      expect(confirmAlert).toHaveBeenCalledOnce();
+      // When
+      approval.resolve(true);
+      await Promise.all([first, second]);
+      // Then
+      expect(installCliWithBrew).toHaveBeenCalledOnce();
+    } finally {
+      approval.resolve(false);
+      await Promise.allSettled([first, second]);
+    }
   } finally {
     vi.useRealTimers();
   }
@@ -264,24 +275,29 @@ test("re-shows the same toast beyond a minute and stops after success", async ()
     vi.mocked(installCliWithBrew).mockReturnValue(install.promise);
     // When
     const running = runCliInstallation("install");
-    const toast = await progressToast();
-    await vi.advanceTimersByTimeAsync(66000);
-    // Then
-    expect(showToast).toHaveBeenCalledOnce();
-    expect(toast.show).toHaveBeenCalled();
+    try {
+      const toast = await progressToast();
+      await vi.advanceTimersByTimeAsync(66000);
+      // Then
+      expect(showToast).toHaveBeenCalledOnce();
+      expect(toast.show).toHaveBeenCalled();
 
-    vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
-    // When
-    install.resolve();
-    await running;
-    // Then
-    const count = vi.mocked(toast.show).mock.calls.length;
-    // When
-    await vi.advanceTimersByTimeAsync(60000);
-    // Then
-    expect(toast.show).toHaveBeenCalledTimes(count);
-    expect(toast.style).toBe(Toast.Style.Success);
-    expect(vi.getTimerCount()).toBe(0);
+      vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      // When
+      install.resolve();
+      await running;
+      // Then
+      const count = vi.mocked(toast.show).mock.calls.length;
+      // When
+      await vi.advanceTimersByTimeAsync(60000);
+      // Then
+      expect(toast.show).toHaveBeenCalledTimes(count);
+      expect(toast.style).toBe(Toast.Style.Success);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      install.resolve();
+      await Promise.allSettled([running]);
+    }
   } finally {
     vi.useRealTimers();
   }
@@ -305,17 +321,22 @@ test("keeps refreshing while verifying the completed Homebrew installation", asy
     });
     // When
     const running = runCliInstallation("install");
-    const toast = await progressToast();
-    await vi.advanceTimersByTimeAsync(12000);
-    // Then
-    expect(toast.style).toBe(Toast.Style.Animated);
-    expect(toast.show).toHaveBeenCalled();
-    // When
-    verification.resolve(installedCliSetup());
-    await running;
-    // Then
-    expect(toast.style).toBe(Toast.Style.Success);
-    expect(vi.getTimerCount()).toBe(0);
+    try {
+      const toast = await progressToast();
+      await vi.advanceTimersByTimeAsync(12000);
+      // Then
+      expect(toast.style).toBe(Toast.Style.Animated);
+      expect(toast.show).toHaveBeenCalled();
+      // When
+      verification.resolve(installedCliSetup());
+      await running;
+      // Then
+      expect(toast.style).toBe(Toast.Style.Success);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      verification.resolve(installedCliSetup());
+      await Promise.allSettled([running]);
+    }
   } finally {
     vi.useRealTimers();
   }
@@ -338,23 +359,29 @@ test("waits for an in-flight refresh before publishing the final result", async 
     vi.mocked(installCliWithBrew).mockReturnValue(install.promise);
     // When
     const running = runCliInstallation("install");
-    const toast = await progressToast();
-    vi.mocked(toast.show).mockReturnValueOnce(refresh.promise);
-    await vi.advanceTimersByTimeAsync(9000);
-    // Then
-    expect(toast.show).toHaveBeenCalledOnce();
-    vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
-    // When
-    install.resolve();
-    await vi.advanceTimersByTimeAsync(0);
-    // Then
-    expect(toast.style).toBe(Toast.Style.Animated);
-    // When
-    refresh.resolve();
-    await running;
-    // Then
-    expect(toast.style).toBe(Toast.Style.Success);
-    expect(vi.getTimerCount()).toBe(0);
+    try {
+      const toast = await progressToast();
+      vi.mocked(toast.show).mockReturnValueOnce(refresh.promise);
+      await vi.advanceTimersByTimeAsync(9000);
+      // Then
+      expect(toast.show).toHaveBeenCalledOnce();
+      vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      // When
+      install.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      // Then
+      expect(toast.style).toBe(Toast.Style.Animated);
+      // When
+      refresh.resolve();
+      await running;
+      // Then
+      expect(toast.style).toBe(Toast.Style.Success);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      install.resolve();
+      refresh.resolve();
+      await Promise.allSettled([running]);
+    }
   } finally {
     vi.useRealTimers();
   }
@@ -372,22 +399,28 @@ test("does not abort brew when a progress refresh fails", async () => {
         vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
       });
     vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const refreshError = new Error("toast unavailable");
+    expectConsoleError("Could not refresh installation progress", refreshError);
     const install = deferred<void>();
     vi.mocked(installCliWithBrew).mockReturnValue(install.promise);
     // When
     const running = runCliInstallation("install");
-    const toast = await progressToast();
-    vi.mocked(toast.show).mockRejectedValueOnce(new Error("toast unavailable"));
-    await vi.advanceTimersByTimeAsync(6000);
-    // Then
-    expect(toast.show).toHaveBeenCalledTimes(2);
-    vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
-    // When
-    install.resolve();
-    await running;
-    // Then
-    expect(toast.style).toBe(Toast.Style.Success);
+    try {
+      const toast = await progressToast();
+      vi.mocked(toast.show).mockRejectedValueOnce(refreshError);
+      await vi.advanceTimersByTimeAsync(6000);
+      // Then
+      expect(toast.show).toHaveBeenCalledTimes(2);
+      vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      // When
+      install.resolve();
+      await running;
+      // Then
+      expect(toast.style).toBe(Toast.Style.Success);
+    } finally {
+      install.resolve();
+      await Promise.allSettled([running]);
+    }
   } finally {
     vi.useRealTimers();
   }
@@ -465,13 +498,18 @@ test("shares an in-flight operation across callers", async () => {
     // When
     const first = runCliInstallation("install");
     const second = runCliInstallation("install");
-    await vi.advanceTimersByTimeAsync(0);
-    // Then
-    expect(installCliWithBrew).toHaveBeenCalledOnce();
-    vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
-    // When
-    install.resolve();
-    await Promise.all([first, second]);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      // Then
+      expect(installCliWithBrew).toHaveBeenCalledOnce();
+      vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      // When
+      install.resolve();
+      await Promise.all([first, second]);
+    } finally {
+      install.resolve();
+      await Promise.allSettled([first, second]);
+    }
   } finally {
     vi.useRealTimers();
   }

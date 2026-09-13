@@ -4,6 +4,7 @@ import * as AirPodsControlCli from "../../cli/client";
 import { CliError } from "../../cli/errors";
 import { CYCLE_LISTENING_MODE_COMMAND_NAME, TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME } from "../../commands/names";
 import { refreshAirPodsStatus, resetAirPodsStatusSubtitles, runAirPodsStatusRefresh } from "../../status/refresh";
+import { expectConsoleError } from "../console";
 import { createSupportDirectory } from "../fixtures/support-directory";
 
 vi.mock("../../cli/client", () => ({
@@ -284,7 +285,8 @@ test.skipIf(process.platform !== "darwin")("logs rejected subtitle launches duri
   vi.mocked(AirPodsControlCli.getListeningMode).mockResolvedValue("anc");
   vi.mocked(AirPodsControlCli.getConversationAwareness).mockResolvedValue("on");
   const error = new Error("Cycle Listening Mode is disabled");
-  const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const consoleError = vi.mocked(console.error);
+  expectConsoleError("Failed to dispatch Cycle Listening Mode subtitle refresh", error);
   mockLaunchCommand.mockRejectedValueOnce(error);
   // When
   await resetAirPodsStatusSubtitles();
@@ -313,7 +315,9 @@ test.skipIf(process.platform !== "darwin")(
     vi.mocked(AirPodsControlCli.getConversationAwareness).mockResolvedValue("on");
     const listeningError = new Error("Cycle Listening Mode is disabled");
     const conversationError = new Error("Conversation Awareness is disabled");
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const consoleError = vi.mocked(console.error);
+    expectConsoleError("Failed to dispatch Cycle Listening Mode subtitle refresh", listeningError);
+    expectConsoleError("Failed to dispatch Toggle Conversation Awareness subtitle refresh", conversationError);
     mockLaunchCommand.mockRejectedValueOnce(listeningError).mockRejectedValueOnce(conversationError);
     // When
     await runAirPodsStatusRefresh({ showFeedback: false });

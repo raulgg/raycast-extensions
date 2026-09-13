@@ -106,4 +106,60 @@ export default defineConfig([
     files: ["src/cli/{client,errors,protocol,preferences,types}.ts"],
     rules: { "no-restricted-imports": restrictedImports("cli", true) },
   },
+  {
+    files: ["src/**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "vitest",
+              importNames: [
+                "describe",
+                "suite",
+                "it",
+                "spyOn",
+                "beforeEach",
+                "afterEach",
+                "beforeAll",
+                "afterAll",
+                "aroundEach",
+                "aroundAll",
+              ],
+              message: "Use top-level test with explicit Given/When/Then and local resource cleanup. See TESTING.md.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ImportDeclaration[source.value='vitest'] > ImportNamespaceSpecifier",
+          message: "Import test and helpers explicitly so testing conventions remain enforceable.",
+        },
+        {
+          selector:
+            "CallExpression[callee.name=/^(describe|suite|it|beforeEach|afterEach|beforeAll|afterAll|aroundEach|aroundAll)$/]",
+          message: "Use top-level test with explicit Given/When/Then and local resource cleanup. See TESTING.md.",
+        },
+        {
+          selector: "MemberExpression[object.name='test'][property.name='concurrent']",
+          message: "Keep tests sequential in a file. Console expectations are module-scoped. See TESTING.md.",
+        },
+        {
+          selector: "CallExpression[callee.property.name='spyOn']:has(Identifier[name='console'])",
+          message: "Declare expected logs through src/test/console.ts instead of replacing console spies.",
+        },
+        {
+          selector: "CallExpression[callee.name='spyOn']:has(Identifier[name='console'])",
+          message: "Declare expected logs through src/test/console.ts instead of replacing console spies.",
+        },
+        {
+          selector: "AssignmentExpression[left.object.name='console'][left.property.name=/^(error|warn)$/]",
+          message: "Declare expected logs through src/test/console.ts instead of replacing console spies.",
+        },
+      ],
+    },
+  },
 ]);

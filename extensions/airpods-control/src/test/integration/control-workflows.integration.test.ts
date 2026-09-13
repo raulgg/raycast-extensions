@@ -7,6 +7,7 @@ import { runCycleListeningModeCommand, runSetListeningModeCommand } from "../../
 import { ToastManager } from "../../feedback/toast-manager";
 import { publishCommandSubtitle, resetCommandSubtitle, withSubtitleOperation } from "../../subtitles/coordination";
 import { refreshConversationAwarenessSubtitle, refreshListeningModeSubtitle } from "../../subtitles/feature-subtitles";
+import { expectConsoleError } from "../console";
 import type { CycleCommandPreferences } from "../../controls/preferences";
 
 vi.mock("../../cli/client", async (importOriginal) => ({
@@ -131,8 +132,9 @@ test("preserves control success when the status command is disabled", async () =
   vi.mocked(AirPodsControlCli.cycleListeningMode).mockResolvedValue("transparency");
   vi.mocked(AirPodsControlCli.getConversationAwareness).mockResolvedValue("off");
   vi.mocked(AirPodsControlCli.setConversationAwareness).mockResolvedValue("on");
-  vi.spyOn(console, "error").mockImplementation(() => undefined);
-  vi.mocked(launchCommand).mockRejectedValueOnce(new Error("command disabled"));
+  const error = new Error("command disabled");
+  expectConsoleError("Failed to launch AirPods status refresh after control action", error);
+  vi.mocked(launchCommand).mockRejectedValueOnce(error);
   // When
   const result = runSetListeningModeCommand("adaptive", { updateCycleSubtitle: true });
   // Then

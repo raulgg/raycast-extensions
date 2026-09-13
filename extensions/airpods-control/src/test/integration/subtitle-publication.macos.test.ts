@@ -1,6 +1,7 @@
 import { updateCommandMetadata } from "@raycast/api";
 import { expect, vi, test } from "vitest";
 import { publishCommandSubtitle, resetCommandSubtitle } from "../../subtitles/coordination";
+import { expectConsoleError } from "../console";
 import { createSupportDirectory } from "../fixtures/support-directory";
 
 const mockUpdateCommandMetadata = vi.mocked(updateCommandMetadata);
@@ -28,8 +29,9 @@ test.skipIf(process.platform !== "darwin")("restores the manifest subtitle when 
   // Given
   createSupportDirectory();
   const options = { channel: "listening-mode" as const };
-  vi.spyOn(console, "error").mockImplementation(() => undefined);
-  mockUpdateCommandMetadata.mockRejectedValueOnce(new Error("metadata failed"));
+  const error = new Error("metadata failed");
+  expectConsoleError("Failed to update the command subtitle", error);
+  mockUpdateCommandMetadata.mockRejectedValueOnce(error);
   // When
   await publishCommandSubtitle("◑ Adaptive", options);
   // Then
@@ -41,8 +43,9 @@ test.skipIf(process.platform !== "darwin")("does not surface reset failures", as
   // Given
   createSupportDirectory();
   const options = { channel: "listening-mode" as const };
-  vi.spyOn(console, "error").mockImplementation(() => undefined);
-  mockUpdateCommandMetadata.mockRejectedValueOnce(new Error("metadata failed"));
+  const error = new Error("metadata failed");
+  expectConsoleError("Failed to restore the command subtitle", error);
+  mockUpdateCommandMetadata.mockRejectedValueOnce(error);
   // When
   const result = resetCommandSubtitle(options);
   // Then

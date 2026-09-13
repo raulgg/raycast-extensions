@@ -3,6 +3,7 @@ import { expect, vi, test } from "vitest";
 import { isCliInstalled } from "../cli/discovery";
 import { CYCLE_LISTENING_MODE_COMMAND_NAME } from "../commands/names";
 import { promptForCliInstallation } from "../helper-setup/installation";
+import { expectConsoleWarning } from "../test/console";
 import { setListeningMode } from "./delegate-listening-mode";
 import { runSetListeningModeCommand } from "./listening-mode";
 
@@ -38,8 +39,9 @@ test("uses the guarded CLI workflow when Cycle cannot be launched", async () => 
   mockLaunchCommand.mockReset().mockResolvedValue(undefined);
   vi.mocked(isCliInstalled).mockReturnValue(true);
   vi.mocked(promptForCliInstallation).mockReset().mockResolvedValue(undefined);
-  vi.spyOn(console, "warn").mockImplementation(() => undefined);
-  mockLaunchCommand.mockRejectedValue(new Error("disabled"));
+  const error = new Error("disabled");
+  expectConsoleWarning("Could not delegate to Cycle Listening Mode; using the CLI fallback", error);
+  mockLaunchCommand.mockRejectedValue(error);
   // When
   await setListeningMode("anc");
   // Then

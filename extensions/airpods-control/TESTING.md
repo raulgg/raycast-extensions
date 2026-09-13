@@ -2,13 +2,14 @@
 
 Follow the [testing principles](https://github.com/kentcdodds/kody/blob/main/docs/contributing/testing-principles.md) and the local conventions below.
 
-- Use top-level `test` and descriptive `test.each` rows. Avoid `describe` and suite setup/cleanup hooks.
+- Use top-level `test` and descriptive `test.each` rows. Avoid `describe`, suite setup/cleanup hooks, and `test.concurrent`. ESLint rejects those patterns in `*.test.*` files. Files that share module mocks or the console guard must stay sequential.
 - Mark each test with `// Given`, `// When`, and `// Then`. Given creates fixtures, When performs the action, and Then checks its observable outcome. Repeat When/Then when continuing the same workflow.
 - Keep related assertions together. Preserve meaningful intermediate states, recovery, and retries on the same objects.
 - Supply scenario behavior explicitly in each test or an imported factory. Factories return fresh objects and useful handles; never share mutable scenario state.
 - Register resource cleanup immediately. Use test-local `try/finally` or an explicitly called resource factory with `onTestFinished`. Await pending work before restoring timers or removing files. Do not run tests using shared module mocks concurrently.
 - Assert independent expected values at the caller boundary. Keep runtime validation, output formatting, supplied diagnostic data, and live forbidden-side-effect assertions. Avoid instructional-copy pins, deleted-name absence checks, and expectations computed with the production helper.
 - Use local fakes for Raycast and external tools. Do not run Homebrew installation, contact the public internet, or change AirPods settings in automated tests.
+- Declare expected `console.error` and `console.warn` arguments with `expectConsoleError` and `expectConsoleWarning` from `src/test/console.ts`. Call the helper once per log. Unexpected error and warning logs fail the test. Do not spy on `console` in test files.
 - Test runner infrastructure may use lifecycle hooks for mock/log verification and cleanup. It must not hide scenario setup.
 
 `npm test` runs all four projects. `npm run test:unit` runs unit and component tests; `npm run test:integration` runs composed/process and macOS integration tests.

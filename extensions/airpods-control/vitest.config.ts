@@ -6,6 +6,7 @@ export default defineConfig({
     clearMocks: true,
     mockReset: true,
     restoreMocks: true,
+    setupFiles: ["./src/test/console.ts"],
     projects: [
       {
         extends: true,

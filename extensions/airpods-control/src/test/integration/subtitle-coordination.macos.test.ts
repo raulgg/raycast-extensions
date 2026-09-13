@@ -16,6 +16,7 @@ import {
   reserveSubtitleRevisionForReset,
 } from "../../subtitles/coordination";
 import toggleConversationAwareness from "../../toggle-conversation-awareness";
+import { expectConsoleError } from "../console";
 import { deferred } from "../fixtures/deferred";
 import { createSupportDirectory } from "../fixtures/support-directory";
 import type { ListeningModes } from "../../airpods/types";
@@ -62,8 +63,9 @@ test.skipIf(process.platform !== "darwin")("clears the subtitle when the confirm
   vi.mocked(AirPodsControlCli.setListeningMode).mockResolvedValue("anc");
   vi.mocked(AirPodsControlCli.getConversationAwareness).mockResolvedValue("off");
   vi.mocked(AirPodsControlCli.setConversationAwareness).mockResolvedValue("on");
-  vi.spyOn(console, "error").mockImplementation(() => undefined);
-  mockUpdateCommandMetadata.mockRejectedValueOnce(new Error("metadata failed"));
+  const error = new Error("metadata failed");
+  expectConsoleError("Failed to update the command subtitle", error);
+  mockUpdateCommandMetadata.mockRejectedValueOnce(error);
   // When
   await runSetListeningModeCommand("anc", { updateCycleSubtitle: true });
   // Then
