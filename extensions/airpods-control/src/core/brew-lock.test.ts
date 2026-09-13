@@ -70,7 +70,7 @@ async function runSupervisor(file: string, args: string[], timeout: number) {
   }
 }
 
-describe.skipIf(process.platform !== "darwin").sequential("macOS installation lock", () => {
+describe.skipIf(process.platform !== "darwin")("macOS installation lock", { concurrent: false }, () => {
   it("reports idle for concurrent status checks when no installation is running", async () => {
     const results = await Promise.all(Array.from({ length: 12 }, () => isBrewOperationRunning()));
     expect(results).toEqual(Array(12).fill(false));
