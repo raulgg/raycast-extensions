@@ -76,3 +76,9 @@ Dynamic status subtitles fall back to **AirPods** when a change or background re
 - Adaptive and Conversation Awareness require model support. Enable **Set Adaptive** in Raycast preferences if you want that command; it is disabled by default.
 - Off can be unavailable because of your device's noise-control settings. Enable it in the AirPods settings if supported, or leave it out of your cycle selection. The **Disable Noise Control** command is disabled by default.
 - If commands fail after a macOS update, check the CLI compatibility matrix and upgrade the CLI. A successful installation alone does not establish hardware compatibility.
+
+## Developer verification
+
+Run `npm test`, `npm run type-check`, `npm run lint`, `npm run build`, and `npm run test:coverage` to verify CLI envelope and state validation, bounded process diagnostics, subtitle freshness ordering, setup lifecycle transitions, real temporary-helper transport cases, and fixed listening-mode entrypoint dispatch. Coverage includes runtime TypeScript and TSX while excluding tests, types, configuration, and mocks.
+
+The transport tests use real child processes and temporary files, but do not invoke AirPods commands or validate Homebrew, private macOS APIs, installed helper runtime behavior, or hardware.
