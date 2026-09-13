@@ -23,7 +23,8 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
-      exclude: ["node_modules/", "src/test/", "**/*.d.ts", "**/*.config.*", "**/mock*"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["node_modules/", "src/test/", "**/*.test.{ts,tsx}", "**/*.d.ts", "**/*.config.*", "**/mock*"],
     },
   },
   resolve: {
