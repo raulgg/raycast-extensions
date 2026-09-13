@@ -2,26 +2,34 @@ import { execFile } from "child_process";
 import { accessSync, statSync } from "fs";
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 import { findBrewCliPrefix, findBrewPath, installCliWithBrew, updateCliWithBrew } from "./brew";
+import { acquireBrewLock } from "./brew-lock";
 import { BREW_SEARCH_PATHS, CLI_BREW_FORMULA } from "./consts";
+import { runProcessWithLifetime, type ProcessLifetimeResult } from "./process-lifetime";
 
 vi.mock("./brew-lock", () => ({
-  brewLockCommand: (file: string, args: string[]) => ({
-    file: "/usr/bin/lockf",
-    args: ["-k", "-s", "-t", "0", "/test/cli-install.lock", file, ...args],
+  acquireBrewLock: vi.fn().mockResolvedValue(undefined),
+  brewLockSupervisorCommand: (file: string, args: string[]) => ({
+    file: "/bin/bash",
+    args: ["-c", "supervisor", "airpods-control-brew-supervisor", file, ...args],
   }),
+  openBrewLock: vi.fn(() => 42),
 }));
+vi.mock("./process-lifetime", () => ({ runProcessWithLifetime: vi.fn() }));
 vi.mock("child_process", () => ({
   execFile: vi.fn(),
 }));
 
 vi.mock("fs", () => ({
   accessSync: vi.fn(),
+  closeSync: vi.fn(),
   statSync: vi.fn(() => ({ isFile: () => true })),
   constants: { X_OK: 1 },
 }));
 
 const mockExecFile = execFile as unknown as Mock;
 const mockAccessSync = vi.mocked(accessSync);
+const mockAcquireBrewLock = vi.mocked(acquireBrewLock);
+const mockRunProcessWithLifetime = vi.mocked(runProcessWithLifetime);
 
 type ExecCallback = (error: (Error & { killed?: boolean }) | null, stdout: string, stderr: string) => void;
 
@@ -39,10 +47,24 @@ function mockBrewAt(...paths: string[]) {
   }) as typeof accessSync);
 }
 
+function mockProcessResult(overrides: Partial<ProcessLifetimeResult> = {}) {
+  mockRunProcessWithLifetime.mockResolvedValue({
+    stdout: "",
+    stderr: "",
+    exitCode: 0,
+    signal: null,
+    timedOut: false,
+    outputLimitExceeded: false,
+    ...overrides,
+  });
+}
+
 describe("brew", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockBrewAt();
+    mockAcquireBrewLock.mockResolvedValue(undefined);
+    mockProcessResult();
   });
 
   afterEach(() => {
@@ -75,51 +97,45 @@ describe("brew", () => {
 
     it("should run brew install with the CLI formula", async () => {
       mockBrewAt(BREW_SEARCH_PATHS[0]);
-      mockExecFileResult(null);
 
       await installCliWithBrew();
 
-      expect(mockExecFile).toHaveBeenCalledWith(
-        "/usr/bin/lockf",
-        ["-k", "-s", "-t", "0", "/test/cli-install.lock", BREW_SEARCH_PATHS[0], "install", CLI_BREW_FORMULA],
+      expect(mockRunProcessWithLifetime).toHaveBeenCalledWith(
+        "/bin/bash",
+        ["-c", "supervisor", "airpods-control-brew-supervisor", BREW_SEARCH_PATHS[0], "install", CLI_BREW_FORMULA],
         expect.anything(),
-        expect.any(Function),
       );
     });
 
     it("should run brew upgrade with the CLI formula", async () => {
       mockBrewAt(BREW_SEARCH_PATHS[0]);
-      mockExecFileResult(null);
 
       await updateCliWithBrew();
 
-      expect(mockExecFile).toHaveBeenCalledWith(
-        "/usr/bin/lockf",
-        ["-k", "-s", "-t", "0", "/test/cli-install.lock", BREW_SEARCH_PATHS[0], "upgrade", CLI_BREW_FORMULA],
+      expect(mockRunProcessWithLifetime).toHaveBeenCalledWith(
+        "/bin/bash",
+        ["-c", "supervisor", "airpods-control-brew-supervisor", BREW_SEARCH_PATHS[0], "upgrade", CLI_BREW_FORMULA],
         expect.anything(),
-        expect.any(Function),
       );
     });
 
     it("preserves multiline Homebrew recovery instructions", async () => {
       mockBrewAt(BREW_SEARCH_PATHS[0]);
-      mockExecFileResult(new Error("Command failed"), "==> Fetching raulgg/tap\nError: some formula problem\n");
+      mockProcessResult({ exitCode: 1, stderr: "==> Fetching raulgg/tap\nError: some formula problem\n" });
 
       await expect(installCliWithBrew()).rejects.toThrow("==> Fetching raulgg/tap\nError: some formula problem");
     });
 
     it("should reject with the exec error message when stderr is empty", async () => {
       mockBrewAt(BREW_SEARCH_PATHS[0]);
-      mockExecFileResult(new Error("Command failed"), "");
+      mockProcessResult({ exitCode: 1 });
 
-      await expect(installCliWithBrew()).rejects.toThrow("Command failed");
+      await expect(installCliWithBrew()).rejects.toThrow("Homebrew install failed");
     });
 
     it("should reject with a timeout message when brew is killed", async () => {
       mockBrewAt(BREW_SEARCH_PATHS[0]);
-      const error = new Error("killed") as Error & { killed?: boolean };
-      error.killed = true;
-      mockExecFileResult(error);
+      mockProcessResult({ timedOut: true, exitCode: 137 });
 
       await expect(installCliWithBrew()).rejects.toThrow("timed out");
     });
@@ -145,8 +161,16 @@ it("looks up the prefix of the installed formula from the correct tap", async ()
   expect(await findBrewCliPrefix(BREW_SEARCH_PATHS[0])).toBe("/opt/homebrew/opt/airpods-control");
 });
 
-it("explains lock contention without running a second installer", async () => {
+it("preserves Homebrew errors when brew exits with the lock status", async () => {
   mockBrewAt(BREW_SEARCH_PATHS[0]);
-  mockExecFileResult(Object.assign(new Error("locked"), { code: 75 }));
+  mockProcessResult({ exitCode: 75, stderr: "Homebrew reported a lock conflict" });
+  await expect(installCliWithBrew()).rejects.toThrow("Homebrew reported a lock conflict");
+});
+
+it("explains lock contention before starting the installer", async () => {
+  mockBrewAt(BREW_SEARCH_PATHS[0]);
+  mockAcquireBrewLock.mockRejectedValue(Object.assign(new Error("lock busy"), { code: 75 }));
+
   await expect(installCliWithBrew()).rejects.toThrow("already running");
+  expect(mockRunProcessWithLifetime).not.toHaveBeenCalled();
 });

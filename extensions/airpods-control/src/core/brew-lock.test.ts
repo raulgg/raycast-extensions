@@ -1,9 +1,17 @@
 import { execFile, spawn } from "child_process";
 import { once } from "events";
-import { rmSync } from "fs";
+import { closeSync, existsSync, rmSync } from "fs";
+import { join } from "path";
 import { environment } from "@raycast/api";
 import { afterAll, describe, expect, it, vi } from "vitest";
-import { brewLockCommand, isBrewOperationRunning } from "./brew-lock";
+import {
+  acquireBrewLock,
+  brewLockCommand,
+  brewLockSupervisorCommand,
+  isBrewOperationRunning,
+  openBrewLock,
+} from "./brew-lock";
+import { runProcessWithLifetime } from "./process-lifetime";
 
 vi.mock("@raycast/api", async () => {
   const { mkdtempSync } = await import("fs");
@@ -14,7 +22,53 @@ vi.mock("@raycast/api", async () => {
 
 afterAll(() => rmSync(environment.supportPath, { recursive: true, force: true }));
 
-describe.skipIf(process.platform !== "darwin")("macOS installation lock", () => {
+const lockPath = join(environment.supportPath, "cli-install.lock");
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitForLockState(expected: boolean, timeout = 1500): Promise<void> {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if ((await isBrewOperationRunning()) === expected) return;
+    await delay(50);
+  }
+  throw new Error(`Timed out waiting for lock state ${expected}`);
+}
+
+async function waitForFile(path: string, timeout = 2500): Promise<void> {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if (existsSync(path)) return;
+    await delay(25);
+  }
+  throw new Error(`Timed out waiting for file ${path}`);
+}
+
+async function runSupervisor(file: string, args: string[], timeout: number) {
+  const lockFileDescriptor = openBrewLock();
+  try {
+    await acquireBrewLock(lockFileDescriptor);
+    const command = brewLockSupervisorCommand(file, args);
+    return await runProcessWithLifetime(command.file, command.args, { timeout, lockFileDescriptor });
+  } finally {
+    closeSync(lockFileDescriptor);
+  }
+}
+
+describe.skipIf(process.platform !== "darwin").sequential("macOS installation lock", () => {
+  it("keeps an acquired fd lock until its owner closes the fd", async () => {
+    const lockFileDescriptor = openBrewLock();
+    try {
+      await acquireBrewLock(lockFileDescriptor);
+      expect(await isBrewOperationRunning()).toBe(true);
+    } finally {
+      closeSync(lockFileDescriptor);
+    }
+    expect(await isBrewOperationRunning()).toBe(false);
+  });
+
   it("blocks other processes and releases automatically after the owner exits", async () => {
     const command = brewLockCommand(process.execPath, ["-e", 'process.stdout.write("ready"); process.stdin.resume();']);
     const owner = spawn(command.file, command.args);
@@ -35,4 +89,86 @@ describe.skipIf(process.platform !== "darwin")("macOS installation lock", () => 
     expect(await isBrewOperationRunning()).toBe(false);
     expect(await isBrewOperationRunning()).toBe(false);
   });
+
+  it("keeps the lock during timeout escalation and kills a TERM-ignoring process group", async () => {
+    const ready = join(environment.supportPath, "timeout-ready");
+    const marker = join(environment.supportPath, "timeout-marker");
+    rmSync(ready, { force: true });
+    rmSync(marker, { force: true });
+    const workerScript =
+      'trap ":" TERM; /usr/bin/touch "$1"; ( /bin/sleep 5; /usr/bin/touch "$2" ) & while :; do /bin/sleep 1; done';
+    const timeout = 3000;
+    const startedAt = Date.now();
+    let settled = false;
+    const operation = runSupervisor("/bin/bash", ["-c", workerScript, "marker-worker", ready, marker], timeout).finally(
+      () => {
+        settled = true;
+      },
+    );
+
+    try {
+      await waitForFile(ready);
+      await delay(Math.max(0, timeout - (Date.now() - startedAt)) + 100);
+      expect(await isBrewOperationRunning()).toBe(true);
+      expect(settled).toBe(false);
+
+      const result = await operation;
+      expect(result.timedOut).toBe(true);
+      expect(result.exitCode).not.toBe(0);
+      expect(await isBrewOperationRunning()).toBe(false);
+      await delay(1200);
+      expect(existsSync(marker)).toBe(false);
+    } finally {
+      rmSync(ready, { force: true });
+      rmSync(marker, { force: true });
+    }
+  }, 12000);
+
+  it("releases the lock only after an ordinary supervisor completion", async () => {
+    const operation = runSupervisor("/bin/bash", ["-c", "/bin/sleep .15; printf ready"], 2000);
+    await waitForLockState(true);
+
+    const result = await operation;
+    expect(result).toMatchObject({ exitCode: 0, signal: null, timedOut: false });
+    expect(result.stdout).toBe("ready");
+    expect(await isBrewOperationRunning()).toBe(false);
+  });
+
+  it("keeps ownership after the originating process is killed", async () => {
+    const marker = join(environment.supportPath, "parent-death-marker");
+    const ready = join(environment.supportPath, "parent-death-ready");
+    rmSync(marker, { force: true });
+    rmSync(ready, { force: true });
+    const command = brewLockSupervisorCommand("/bin/bash", [
+      "-c",
+      'trap ":" TERM; /usr/bin/touch "$1"; ( /bin/sleep 5; /usr/bin/touch "$2" ) & printf READY; while :; do /bin/sleep 1; done',
+      "marker-worker",
+      ready,
+      marker,
+    ]);
+    const launcherSource = [
+      'const { spawn } = require("child_process");',
+      'const { openSync } = require("fs");',
+      `const lockFileDescriptor = openSync(${JSON.stringify(lockPath)}, "a+");`,
+      `const lock = spawn("/usr/bin/lockf", ["-s", "-t", "0", "3"], { stdio: ["ignore", "ignore", "ignore", lockFileDescriptor] });`,
+      `lock.on("close", (code) => { if (code !== 0) process.exit(2); const supervisor = spawn(${JSON.stringify(command.file)}, ${JSON.stringify(command.args)}, { detached: true, stdio: ["pipe", "pipe", "ignore", lockFileDescriptor] }); supervisor.stdout.on("data", (chunk) => { if (chunk.toString().includes("READY")) process.kill(process.pid, "SIGKILL"); }); setTimeout(() => process.kill(process.pid, "SIGKILL"), 3000); });`,
+    ].join("\n");
+    const launcher = spawn(process.execPath, ["-e", launcherSource], { stdio: "ignore" });
+
+    try {
+      const [exitCode, signal] = (await once(launcher, "close")) as [number | null, NodeJS.Signals | null];
+      expect(exitCode).toBeNull();
+      expect(signal).toBe("SIGKILL");
+      await waitForFile(ready);
+      await waitForLockState(true);
+      await delay(250);
+      expect(await isBrewOperationRunning()).toBe(true);
+      await waitForLockState(false, 4000);
+      await delay(1200);
+      expect(existsSync(marker)).toBe(false);
+    } finally {
+      rmSync(ready, { force: true });
+      rmSync(marker, { force: true });
+    }
+  }, 12000);
 });

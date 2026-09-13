@@ -1,7 +1,8 @@
 import { execFile } from "child_process";
-import { accessSync, constants, statSync } from "fs";
-import { brewLockCommand } from "./brew-lock";
+import { accessSync, closeSync, constants, statSync } from "fs";
+import { acquireBrewLock, brewLockSupervisorCommand, openBrewLock } from "./brew-lock";
 import { BREW_SEARCH_PATHS, CLI_BREW_FORMULA, HOMEBREW_URL } from "./consts";
+import { runProcessWithLifetime } from "./process-lifetime";
 
 // The tap builds from source. Include time for downloads and compilation.
 const BREW_INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
@@ -41,21 +42,58 @@ function requireBrew(): string {
 }
 
 function runBrewCommand(brewPath: string, args: string[], timeout = 15000, exclusive = false): Promise<string> {
-  const command = exclusive ? brewLockCommand(brewPath, args) : { file: brewPath, args };
+  if (exclusive) return runExclusiveBrewCommand(brewPath, args, timeout);
+  return runBrewQuery(brewPath, args, timeout);
+}
+
+async function runExclusiveBrewCommand(brewPath: string, args: string[], timeout: number): Promise<string> {
+  const lockFileDescriptor = openBrewLock();
+  try {
+    try {
+      await acquireBrewLock(lockFileDescriptor);
+    } catch (error) {
+      if ((error as { code?: number | string }).code === 75) {
+        throw new Error(
+          "A helper installation or update is already running. Wait for it to finish, then choose the Refresh action.",
+        );
+      }
+      throw error;
+    }
+    const command = brewLockSupervisorCommand(brewPath, args);
+    const result = await runProcessWithLifetime(command.file, command.args, {
+      timeout,
+      maxBuffer: 10 * 1024 * 1024,
+      env: { ...process.env, PATH: BREW_PATH_ENV },
+      lockFileDescriptor,
+    });
+    if (result.timedOut) {
+      throw new Error(`Homebrew ${args[0]} timed out. Check Homebrew in Terminal, then choose the Refresh action.`);
+    }
+    if (result.outputLimitExceeded) {
+      throw new Error(
+        `Homebrew ${args[0]} produced too much output. Check Homebrew in Terminal, then choose the Refresh action.`,
+      );
+    }
+    if (result.exitCode === 0) return result.stdout;
+    const failure = result.stderr.trim();
+    if (failure) throw new Error(failure);
+    throw new Error(
+      result.signal ? `Homebrew ${args[0]} terminated by ${result.signal}.` : `Homebrew ${args[0]} failed.`,
+    );
+  } finally {
+    closeSync(lockFileDescriptor);
+  }
+}
+
+function runBrewQuery(brewPath: string, args: string[], timeout: number): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
-      command.file,
-      command.args,
+      brewPath,
+      args,
       { timeout, maxBuffer: 10 * 1024 * 1024, encoding: "utf8", env: { ...process.env, PATH: BREW_PATH_ENV } },
       (error, stdout, stderr) => {
         if (!error) {
           resolve(stdout);
-        } else if (exclusive && error.code === 75) {
-          reject(
-            new Error(
-              "A helper installation or update is already running. Wait for it to finish, then choose the Refresh action.",
-            ),
-          );
         } else if (error.killed) {
           reject(
             new Error(`Homebrew ${args[0]} timed out. Check Homebrew in Terminal, then choose the Refresh action.`),
