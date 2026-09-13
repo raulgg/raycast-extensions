@@ -1,12 +1,12 @@
 import raycastConfig from "@raycast/eslint-config";
 import { defineConfig } from "eslint/config";
-import importPlugin from "eslint-plugin-import";
+import importX from "eslint-plugin-import-x";
 
 export default defineConfig([
   ...raycastConfig,
   {
     plugins: {
-      import: importPlugin,
+      "import-x": importX,
     },
     rules: {
       "@typescript-eslint/consistent-type-imports": [
@@ -16,7 +16,7 @@ export default defineConfig([
           fixStyle: "inline-type-imports",
         },
       ],
-      "import/order": [
+      "import-x/order": [
         "error",
         {
           groups: ["builtin", "external", "internal", "parent", "sibling", "index", "type"],
