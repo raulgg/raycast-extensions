@@ -1,6 +1,6 @@
 import { LaunchType, type LaunchProps } from "@raycast/api";
-import { resetAirPodsStatusSubtitles, runAirPodsStatusRefresh } from "./core/airpods-status-refresh";
-import { runWithCliGuard } from "./core/cli-guard";
+import { runWithCliGuard } from "./helper-setup/guard";
+import { resetAirPodsStatusSubtitles, runAirPodsStatusRefresh } from "./status/refresh";
 
 export default async function main({ launchType }: LaunchProps) {
   if (launchType === LaunchType.Background) {

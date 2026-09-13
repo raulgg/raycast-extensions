@@ -3,14 +3,14 @@ import {
   publishConversationAwarenessSubtitle,
   refreshConversationAwarenessSubtitle,
   runToggleConversationAwarenessCommand,
-} from "./core/airpods-control";
+} from "./controls/airpods-control";
+import { runWithCliGuard } from "./helper-setup/guard";
 import {
   conversationAwarenessFromSubtitleRefreshContext,
   conversationAwarenessRevisionFromSubtitleRefreshContext,
   type ConversationAwarenessSubtitleRefreshContext,
-} from "./core/airpods-status-refresh";
-import { runWithCliGuard } from "./core/cli-guard";
-import { resetCommandSubtitle } from "./core/command-metadata";
+} from "./status/refresh";
+import { resetCommandSubtitle } from "./subtitles/coordination";
 
 type ToggleConversationAwarenessLaunchProps = LaunchProps<{
   launchContext?: ConversationAwarenessSubtitleRefreshContext;

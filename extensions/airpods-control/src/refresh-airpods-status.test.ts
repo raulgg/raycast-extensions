@@ -1,15 +1,15 @@
 import { LaunchType, type LaunchProps } from "@raycast/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resetAirPodsStatusSubtitles, runAirPodsStatusRefresh } from "./core/airpods-status-refresh";
-import { runWithCliGuard } from "./core/cli-guard";
+import { runWithCliGuard } from "./helper-setup/guard";
 import main from "./refresh-airpods-status";
+import { resetAirPodsStatusSubtitles, runAirPodsStatusRefresh } from "./status/refresh";
 
-vi.mock("./core/airpods-status-refresh", () => ({
+vi.mock("./status/refresh", () => ({
   resetAirPodsStatusSubtitles: vi.fn(),
   runAirPodsStatusRefresh: vi.fn(),
 }));
 
-vi.mock("./core/cli-guard", () => ({
+vi.mock("./helper-setup/guard", () => ({
   runWithCliGuard: vi.fn(async (perform: () => Promise<void>) => perform()),
 }));
 

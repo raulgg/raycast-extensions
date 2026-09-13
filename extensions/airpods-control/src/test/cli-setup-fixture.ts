@@ -1,4 +1,4 @@
-import type { CliSetup } from "../core/cli-setup";
+import type { CliSetup } from "../helper-setup/detection";
 
 export function cliSetup(overrides: Partial<CliSetup> = {}): CliSetup {
   return {

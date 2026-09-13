@@ -8,11 +8,11 @@ import {
   openExtensionPreferences,
 } from "@raycast/api";
 import { useEffect, useReducer } from "react";
-import { CliSetupActions, cliSetupMarkdown } from "./components/cli-setup-content";
-import { runCliInstallation, type CliOperation } from "./core/cli-installation";
-import { detectCliSetup, type CliSetup } from "./core/cli-setup";
-import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL, CLI_SOURCE_INSTALL_COMMAND, HOMEBREW_URL } from "./core/consts";
-import { getErrorMessage } from "./core/toast-manager";
+import { getErrorMessage } from "./feedback/toast-manager";
+import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL, CLI_SOURCE_INSTALL_COMMAND, HOMEBREW_URL } from "./helper-setup/constants";
+import { detectCliSetup, type CliSetup } from "./helper-setup/detection";
+import { runCliInstallation, type CliOperation } from "./helper-setup/installation";
+import { CliSetupActions, cliSetupMarkdown } from "./helper-setup/setup-content";
 
 export type CliSetupLifecycle =
   | { status: "checking" }

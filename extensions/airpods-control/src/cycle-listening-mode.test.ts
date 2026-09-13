@@ -5,25 +5,25 @@ import {
   refreshListeningModeSubtitle,
   runCycleListeningModeCommand,
   runSetListeningModeCommand,
-} from "./core/airpods-control";
-import { runWithCliGuard } from "./core/cli-guard";
-import { resetCommandSubtitle } from "./core/command-metadata";
+} from "./controls/airpods-control";
 import main from "./cycle-listening-mode";
-import type { ListeningModeSubtitleRefreshContext } from "./core/airpods-status-refresh";
-import type { SetListeningModeLaunchContext } from "./core/listening-mode-command";
+import { runWithCliGuard } from "./helper-setup/guard";
+import { resetCommandSubtitle } from "./subtitles/coordination";
+import type { SetListeningModeLaunchContext } from "./controls/delegate-listening-mode";
+import type { ListeningModeSubtitleRefreshContext } from "./status/refresh";
 
-vi.mock("./core/airpods-control", () => ({
+vi.mock("./controls/airpods-control", () => ({
   publishListeningModeSubtitle: vi.fn(),
   refreshListeningModeSubtitle: vi.fn(),
   runCycleListeningModeCommand: vi.fn(),
   runSetListeningModeCommand: vi.fn(),
 }));
 
-vi.mock("./core/cli-guard", () => ({
+vi.mock("./helper-setup/guard", () => ({
   runWithCliGuard: vi.fn(async (perform: () => Promise<void>) => perform()),
 }));
 
-vi.mock("./core/command-metadata", () => ({
+vi.mock("./subtitles/coordination", () => ({
   resetCommandSubtitle: vi.fn(),
 }));
 

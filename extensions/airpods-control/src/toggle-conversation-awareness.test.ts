@@ -4,23 +4,23 @@ import {
   publishConversationAwarenessSubtitle,
   refreshConversationAwarenessSubtitle,
   runToggleConversationAwarenessCommand,
-} from "./core/airpods-control";
-import { runWithCliGuard } from "./core/cli-guard";
-import { resetCommandSubtitle } from "./core/command-metadata";
+} from "./controls/airpods-control";
+import { runWithCliGuard } from "./helper-setup/guard";
+import { resetCommandSubtitle } from "./subtitles/coordination";
 import main from "./toggle-conversation-awareness";
-import type { ConversationAwarenessSubtitleRefreshContext } from "./core/airpods-status-refresh";
+import type { ConversationAwarenessSubtitleRefreshContext } from "./status/refresh";
 
-vi.mock("./core/airpods-control", () => ({
+vi.mock("./controls/airpods-control", () => ({
   publishConversationAwarenessSubtitle: vi.fn(),
   refreshConversationAwarenessSubtitle: vi.fn(),
   runToggleConversationAwarenessCommand: vi.fn(),
 }));
 
-vi.mock("./core/cli-guard", () => ({
+vi.mock("./helper-setup/guard", () => ({
   runWithCliGuard: vi.fn(async (perform: () => Promise<void>) => perform()),
 }));
 
-vi.mock("./core/command-metadata", () => ({
+vi.mock("./subtitles/coordination", () => ({
   resetCommandSubtitle: vi.fn(),
 }));
 

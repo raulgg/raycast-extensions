@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setListeningMode } from "./core/listening-mode-command";
+import { setListeningMode } from "./controls/delegate-listening-mode";
 import setAdaptive from "./set-adaptive";
 import setNoiseCancellation from "./set-noise-cancellation";
 import setOff from "./set-off";
 import setTransparency from "./set-transparency";
 
-vi.mock("./core/listening-mode-command", () => ({ setListeningMode: vi.fn() }));
+vi.mock("./controls/delegate-listening-mode", () => ({ setListeningMode: vi.fn() }));
 
 const mockSetListeningMode = vi.mocked(setListeningMode);
 

@@ -1,4 +1,4 @@
-import { setListeningMode } from "./core/listening-mode-command";
+import { setListeningMode } from "./controls/delegate-listening-mode";
 
 export default async function main() {
   await setListeningMode("transparency");

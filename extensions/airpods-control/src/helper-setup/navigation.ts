@@ -1,0 +1,17 @@
+import { launchCommand, LaunchType, open, showToast, Toast } from "@raycast/api";
+import { createCopyErrorAction, getErrorMessage } from "../feedback/toast-manager";
+import { CLI_INSTALL_DOCS_URL, CLI_SETUP_COMMAND_NAME } from "./constants";
+
+export async function openCliSetup(): Promise<void> {
+  try {
+    await launchCommand({ name: CLI_SETUP_COMMAND_NAME, type: LaunchType.UserInitiated });
+  } catch (error) {
+    await showToast({
+      style: Toast.Style.Failure,
+      title: "Could not open CLI setup",
+      message: "Enable Manage AirPods Control Helper in Raycast preferences, or follow the installation instructions.",
+      primaryAction: { title: "Open Installation Instructions", onAction: () => open(CLI_INSTALL_DOCS_URL) },
+      secondaryAction: createCopyErrorAction(getErrorMessage(error)),
+    });
+  }
+}
