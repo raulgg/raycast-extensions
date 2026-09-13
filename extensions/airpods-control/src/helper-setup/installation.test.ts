@@ -1,7 +1,8 @@
 import { confirmAlert, launchCommand, showToast, Toast } from "@raycast/api";
 import { expect, vi, test } from "vitest";
 import { installCliWithBrew, updateCliWithBrew } from "../homebrew/commands";
-import { cliSetup, deferred, installedCliSetup } from "../test/fixtures/cli-setup";
+import { cliSetup, installedCliSetup } from "../test/fixtures/cli-setup";
+import { deferred } from "../test/fixtures/deferred";
 import { detectCliSetup } from "./detection";
 import { promptForCliInstallation, runCliInstallation } from "./installation";
 

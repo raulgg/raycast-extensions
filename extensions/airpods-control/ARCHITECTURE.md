@@ -99,7 +99,7 @@ Raycast metadata updates apply in the executing command's context. Fixed-mode co
 - `controls/` and `status/` coordinate their own workflows. They communicate through Raycast launches, not direct imports of each other.
 - `helper-setup/` owns setup lifecycle and recovery. `homebrew/` owns command execution, OS locks, and supervisor cleanup.
 - `feedback/` owns shared Raycast feedback primitives and has no feature dependencies.
-- Production modules never import tests or test helpers. Unit tests stay beside their modules; composed workflow tests live in `src/test/integration/`.
+- Production modules never import tests or test helpers. Unit tests stay beside their modules; composed workflows, real-process tests, and macOS lock tests live in `src/test/integration/`. Follow [TESTING.md](TESTING.md) for Given/When/Then, fixture ownership, and suite selection.
 
 Use direct imports. Avoid barrel files that hide dependencies and generic workflow abstractions that obscure command-specific behavior. ESLint enforces the folder boundaries for production code.
 
@@ -126,12 +126,16 @@ Run from the extension directory:
 
 ```sh
 npm test
+npm run test:unit
+npm run test:integration
 npm run type-check
 npx --no-install prettier --check src .prettierrc eslint.config.js package.json tsconfig.json vitest.config.ts
 npm run lint
 npm run build
 npm run test:coverage
 ```
+
+Vitest separates unit, component, portable integration, and macOS integration projects. Every macOS integration case skips explicitly on other platforms. Each resource-owning test creates and removes its own temporary support directory.
 
 The tests cover manifest entrypoints, launch contexts, helper transport and state validation, subtitle ordering, setup transitions, feedback, and Homebrew process ownership. Transport integration tests use temporary fake helpers. The macOS lock tests run real `lockf` and supervised fixture processes. They do not run Homebrew installation or AirPods operations.
 

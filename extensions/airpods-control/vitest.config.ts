@@ -10,6 +10,16 @@ export default defineConfig({
       {
         extends: true,
         test: {
+          name: "unit",
+          include: ["src/**/*.test.ts"],
+          exclude: ["src/test/integration/**"],
+          environment: "node",
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "component",
           include: ["src/**/*.test.tsx"],
           environment: "happy-dom",
         },
@@ -17,7 +27,16 @@ export default defineConfig({
       {
         extends: true,
         test: {
-          include: ["src/**/*.test.ts"],
+          name: "integration",
+          include: ["src/test/integration/**/*.integration.test.ts"],
+          environment: "node",
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "macos",
+          include: ["src/test/integration/**/*.macos.test.ts"],
           environment: "node",
         },
       },
@@ -26,7 +45,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json", "html"],
       include: ["src/**/*.{ts,tsx}"],
-      exclude: ["node_modules/", "src/test/", "**/*.test.{ts,tsx}", "**/*.d.ts", "**/*.config.*", "**/mock*"],
+      exclude: ["node_modules/**", "src/test/**", "**/*.test.{ts,tsx}", "**/*.d.ts", "**/*.config.*"],
     },
   },
   resolve: {

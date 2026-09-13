@@ -1,25 +1,30 @@
 import { updateCommandMetadata } from "@raycast/api";
 import { expect, vi, test } from "vitest";
-import { createSupportDirectory } from "../test/fixtures/support-directory";
-import { publishCommandSubtitle, resetCommandSubtitle } from "./coordination";
+import { publishCommandSubtitle, resetCommandSubtitle } from "../../subtitles/coordination";
+import { createSupportDirectory } from "../fixtures/support-directory";
 
 const mockUpdateCommandMetadata = vi.mocked(updateCommandMetadata);
 
-test("publishes a dynamic subtitle and then restores the manifest subtitle", async () => {
-  // Given
-  createSupportDirectory();
-  const options = { channel: "listening-mode" as const };
-  // When
-  await publishCommandSubtitle("◑ Adaptive", options);
-  // Then
-  expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "◑ Adaptive" });
-  // When
-  await resetCommandSubtitle(options);
-  // Then
-  expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: null });
-});
+// These workflows use macOS lockf and must retain real OS locking.
 
-test("restores the manifest subtitle when publication fails", async () => {
+test.skipIf(process.platform !== "darwin")(
+  "publishes a dynamic subtitle and then restores the manifest subtitle",
+  async () => {
+    // Given
+    createSupportDirectory();
+    const options = { channel: "listening-mode" as const };
+    // When
+    await publishCommandSubtitle("◑ Adaptive", options);
+    // Then
+    expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "◑ Adaptive" });
+    // When
+    await resetCommandSubtitle(options);
+    // Then
+    expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: null });
+  },
+);
+
+test.skipIf(process.platform !== "darwin")("restores the manifest subtitle when publication fails", async () => {
   // Given
   createSupportDirectory();
   const options = { channel: "listening-mode" as const };
@@ -32,7 +37,7 @@ test("restores the manifest subtitle when publication fails", async () => {
   expect(mockUpdateCommandMetadata).toHaveBeenNthCalledWith(2, { subtitle: null });
 });
 
-test("does not surface reset failures", async () => {
+test.skipIf(process.platform !== "darwin")("does not surface reset failures", async () => {
   // Given
   createSupportDirectory();
   const options = { channel: "listening-mode" as const };

@@ -4,15 +4,15 @@ import { closeSync, existsSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { environment } from "@raycast/api";
 import { expect, test } from "vitest";
-import { createSupportDirectory } from "../test/fixtures/support-directory";
 import {
   acquireBrewLock,
   brewLockCommand,
   brewLockSupervisorCommand,
   isBrewOperationRunning,
   openBrewLock,
-} from "./lock";
-import { runProcessWithLifetime } from "./process-lifetime";
+} from "../../homebrew/lock";
+import { runProcessWithLifetime } from "../../homebrew/process-lifetime";
+import { createSupportDirectory } from "../fixtures/support-directory";
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -59,6 +59,8 @@ async function runSupervisor(file: string, args: string[], timeout: number) {
     closeSync(lockFileDescriptor);
   }
 }
+
+// These workflows use macOS lockf and must retain real OS locking.
 
 test.skipIf(process.platform !== "darwin")(
   "reports idle for concurrent status checks when no installation is running",
@@ -164,6 +166,7 @@ test.skipIf(process.platform !== "darwin")(
       // Then
       expect(result2).toBe(false);
     } finally {
+      await operation;
       rmSync(ready, { force: true });
       rmSync(marker, { force: true });
     }
@@ -235,8 +238,9 @@ test.skipIf(process.platform !== "darwin")(
       `lock.on("close", (code) => { if (code !== 0) process.exit(2); const supervisor = spawn(${JSON.stringify(command.file)}, ${JSON.stringify(command.args)}, { detached: true, stdio: ["pipe", "pipe", "ignore", lockFileDescriptor] }); supervisor.stdout.on("data", (chunk) => { if (chunk.toString().includes("READY")) process.kill(process.pid, "SIGKILL"); }); setTimeout(() => process.kill(process.pid, "SIGKILL"), 3000); });`,
     ].join("\n");
     const launcher = spawn(process.execPath, ["-e", launcherSource], { stdio: "ignore" });
+    const launcherClosed = once(launcher, "close");
     try {
-      const [exitCode, signal] = (await once(launcher, "close")) as [number | null, NodeJS.Signals | null];
+      const [exitCode, signal] = (await launcherClosed) as [number | null, NodeJS.Signals | null];
       // Then
       expect(exitCode).toBeNull();
       expect(signal).toBe("SIGKILL");
@@ -253,6 +257,9 @@ test.skipIf(process.platform !== "darwin")(
       // Then
       expect(result).toBe(false);
     } finally {
+      if (launcher.exitCode === null && launcher.signalCode === null) launcher.kill("SIGKILL");
+      await launcherClosed;
+      await waitForLockState(false, 4000);
       rmSync(ready, { force: true });
       rmSync(marker, { force: true });
     }

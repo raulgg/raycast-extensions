@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { runProcessWithLifetime } from "./process-lifetime";
+import { runProcessWithLifetime } from "../../homebrew/process-lifetime";
 
 test("captures output from an ordinary detached supervisor completion", async () => {
   // Given

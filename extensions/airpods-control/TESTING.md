@@ -11,6 +11,15 @@ Follow the [testing principles](https://github.com/kentcdodds/kody/blob/main/doc
 - Use local fakes for Raycast and external tools. Do not run Homebrew installation, contact the public internet, or change AirPods settings in automated tests.
 - Test runner infrastructure may use lifecycle hooks for mock/log verification and cleanup. It must not hide scenario setup.
 
-`npm test` runs the complete suite. During migration it includes colocated Node tests, the happy-dom setup view, and process/macOS integration tests. The final suite selection and platform requirements will be documented here when the projects are separated.
+`npm test` runs all four projects. `npm run test:unit` runs unit and component tests; `npm run test:integration` runs composed/process and macOS integration tests.
+
+| Project       | Files                                               | Environment and boundary                                                                                               |
+| ------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `unit`        | Colocated `src/**/*.test.ts`, excluding integration | Node, with external Raycast/tool behavior stubbed. No real helper processes or OS locks.                               |
+| `component`   | `src/**/*.test.tsx`                                 | happy-dom with the Raycast DOM adapter. Exercises actions and lifecycle, not native rendering.                         |
+| `integration` | `src/test/integration/**/*.integration.test.ts`     | Composed application modules and temporary helper/supervisor processes. Process fixtures require POSIX shell and bash. |
+| `macos`       | `src/test/integration/**/*.macos.test.ts`           | Real `lockf`, file descriptors, revision files, and supervised processes. Every case explicitly skips outside macOS.   |
+
+Keep file isolation enabled. Each file must belong to exactly one project. Unit and component cases remain sequential within a file because module mocks are shared. Real lock behavior belongs in the macOS project; do not replace it with stubs or reduce timeout allowances to shorten runs.
 
 For review, check whether a test would fail if the claimed behavior broke. Three comments alone do not establish Given/When/Then, and reducing the test count is not a target.
