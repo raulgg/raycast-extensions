@@ -2,7 +2,7 @@
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "airpods-control",
   "title": "AirPods Control",
-  "description": "Control AirPods listening modes and Conversation Awareness from Raycast with the AirPods Control helper.",
+  "description": "Control listening modes and Conversation Awareness on AirPods, and on Beats where macOS exposes those controls, from Raycast with the AirPods Control helper.",
   "icon": "airpods-control.png",
   "author": "raulg",
   "platforms": [
@@ -11,6 +11,15 @@
   "categories": [
     "System",
     "Media"
+  ],
+  "keywords": [
+    "airpods",
+    "beats",
+    "anc",
+    "noise cancellation",
+    "transparency",
+    "adaptive",
+    "conversation awareness"
   ],
   "license": "MIT",
   "type": "module",
@@ -24,14 +33,9 @@
       "keywords": [
         "airpods",
         "beats",
-        "pods",
-        "noise",
-        "control",
-        "listening",
-        "mode",
         "anc",
-        "cancellation",
-        "cancelling"
+        "canceling",
+        "isolation"
       ]
     },
     {
@@ -43,12 +47,8 @@
       "keywords": [
         "airpods",
         "beats",
-        "pods",
-        "noise",
-        "control",
-        "listening",
-        "mode",
-        "trans"
+        "ambient",
+        "passthrough"
       ]
     },
     {
@@ -59,13 +59,8 @@
       "mode": "no-view",
       "keywords": [
         "airpods",
-        "beats",
-        "pods",
-        "noise",
-        "control",
-        "listening",
-        "mode",
-        "automatic"
+        "automatic",
+        "audio"
       ],
       "disabledByDefault": true
     },
@@ -78,12 +73,9 @@
       "keywords": [
         "airpods",
         "beats",
-        "pods",
+        "disable",
         "noise",
-        "control",
-        "listening",
-        "mode",
-        "disable"
+        "control"
       ],
       "disabledByDefault": true
     },
@@ -96,17 +88,8 @@
       "keywords": [
         "airpods",
         "beats",
-        "pods",
-        "noise",
-        "control",
-        "listening",
-        "mode",
         "switch",
-        "toggle",
-        "transparency",
-        "anc",
-        "adaptive",
-        "off"
+        "toggle"
       ],
       "preferences": [
         {
@@ -152,47 +135,37 @@
       "mode": "no-view",
       "keywords": [
         "airpods",
-        "beats",
-        "pods",
-        "conversation",
-        "awareness",
-        "toggle",
-        "speech"
+        "speech",
+        "talk",
+        "voice"
       ]
     },
     {
       "name": "refresh-airpods-status",
       "title": "Refresh AirPods Status",
-      "subtitle": "AirPods",
       "description": "Refresh the Listening Mode and Conversation Awareness subtitles now and about once a minute while Background Refresh is active. If deactivated, the last confirmed values remain visible until another refresh or control command.",
       "mode": "no-view",
       "interval": "1m",
       "keywords": [
         "airpods",
         "beats",
-        "pods",
         "background",
-        "refresh",
-        "status"
+        "sync"
       ]
     },
     {
       "name": "update-airpods-control-cli",
       "title": "Manage AirPods Control Helper",
-      "subtitle": "AirPods",
       "description": "Install, update, or fix the AirPods Control helper used by this extension.",
       "mode": "view",
       "keywords": [
         "airpods",
-        "beats",
-        "pods",
         "cli",
-        "helper",
         "install",
         "update",
         "upgrade",
         "setup",
-        "helper",
+        "fix",
         "homebrew",
         "brew"
       ]

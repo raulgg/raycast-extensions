@@ -21,7 +21,7 @@ import type { ConversationAwarenessState, CycleCommandPreferences, ListeningMode
 
 const OFF_NOT_APPLIED_HINT =
   "macOS did not confirm Off after the requested change. Off may be disabled in your AirPods noise-control settings; " +
-  "if so, uncheck Off in the Cycle Listening Mode preferences and disable the Disable Noise Control command.";
+  "if so, uncheck Off in the Cycle Listening Mode preferences and disable the Set to Off command.";
 
 interface SetListeningModeCommandOptions {
   updateCycleSubtitle: boolean;

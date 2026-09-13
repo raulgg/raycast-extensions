@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Tighten command titles and keywords for Root Search, keep AirPods on every command, and add Beats on listening-mode and status commands plus Store keywords.
 - Validate CLI JSON envelopes and required command state while preserving explicit `null` unsupported results and actionable error readback.
 - Report bounded helper stderr with exit status and signal diagnostics, distinguishing timeouts, signals, max-buffer failures, and ordinary process failures.
 - Keep Homebrew installation locks through supervised process-tree cleanup, including timeout escalation and abrupt Raycast termination.
