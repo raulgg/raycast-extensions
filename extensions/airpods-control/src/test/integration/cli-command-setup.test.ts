@@ -4,7 +4,7 @@ import { isCliInstalled } from "../../cli/discovery";
 import { detectCliSetup } from "../../helper-setup/detection";
 import { runWithCliGuard } from "../../helper-setup/guard";
 import { installCliWithBrew } from "../../homebrew/commands";
-import { cliSetup, installedCli } from "../cli-setup-fixture";
+import { cliSetup, installedCli } from "../fixtures/cli-setup";
 
 vi.mock("../../homebrew/commands", () => ({ installCliWithBrew: vi.fn() }));
 vi.mock("../../cli/discovery", () => ({ isCliInstalled: vi.fn() }));

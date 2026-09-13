@@ -3,7 +3,7 @@ import { Clipboard, launchCommand } from "@raycast/api";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cliSetup, deferred, installedCli } from "../test/cli-setup-fixture";
+import { cliSetup, deferred, installedCli } from "../test/fixtures/cli-setup";
 import Command from "../update-airpods-control-cli";
 import {
   CLI_INSTALL_COMMAND,
