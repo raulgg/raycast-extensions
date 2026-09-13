@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { expect, vi, test } from "vitest";
 import {
   confirmedConversationAwareness,
   confirmedListeningMode,
@@ -19,128 +19,171 @@ vi.mock("./transport", async (importOriginal) => {
 
 const mockRunCli = vi.mocked(runCli);
 
-describe("airpods-control CLI shim", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+test.each([
+  ["off", "off"],
+  ["transparency", "transparency"],
+  ["adaptive", "adaptive"],
+  ["anc", "noise-cancellation"],
+] as const)("sets %s using the canonical CLI token", async (mode, token) => {
+  // Given
+  mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode: token });
+  // When
+  const result = setListeningMode(mode);
+  // Then
+  await expect(result).resolves.toBe(mode);
+  expect(mockRunCli).toHaveBeenCalledWith(["listening-mode", "set", token]);
+});
 
-  it.each([
-    ["off", "off"],
-    ["transparency", "transparency"],
-    ["adaptive", "adaptive"],
-    ["anc", "noise-cancellation"],
-  ] as const)("sets %s using the canonical CLI token", async (mode, token) => {
-    mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode: token });
-
-    await expect(setListeningMode(mode)).resolves.toBe(mode);
-
-    expect(mockRunCli).toHaveBeenCalledWith(["listening-mode", "set", token]);
-  });
-
-  it("treats a no-op with the requested confirmed mode as success", async () => {
-    mockRunCli.mockRejectedValue(
-      new CliError("no-op", { result: "error", device: "AirPods", listeningMode: "noise-cancellation" }),
-    );
-
-    await expect(setListeningMode("anc")).resolves.toBe("anc");
-  });
-
-  it("rejects a successful set response that confirms a different mode", async () => {
-    mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode: "transparency" });
-
-    await expect(setListeningMode("anc")).rejects.toMatchObject({
-      code: "no-op",
-      payload: expect.objectContaining({ listeningMode: "transparency" }),
-    });
-  });
-
-  it("cycles a selected set in CLI order supplied by the workflow", async () => {
-    mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode: "adaptive" });
-
-    await expect(cycleListeningMode(["off", "adaptive", "anc"])).resolves.toBe("adaptive");
-
-    expect(mockRunCli).toHaveBeenCalledWith(["listening-mode", "cycle", "--modes", "off,adaptive,noise-cancellation"]);
-  });
-
-  it("uses a bare CLI cycle when no selected set is supplied", async () => {
-    mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode: "off" });
-
-    await cycleListeningMode();
-
-    expect(mockRunCli).toHaveBeenCalledWith(["listening-mode", "cycle"]);
-  });
-
-  it("gets and maps the current listening mode", async () => {
-    mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode: "noise-cancellation" });
-
-    await expect(getListeningMode()).resolves.toBe("anc");
-  });
-
-  it.each([null, "", "future-mode", "toString", "constructor", "__proto__"])(
-    "rejects invalid listening mode %s",
-    async (listeningMode) => {
-      mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode });
-
-      await expect(getListeningMode()).rejects.toMatchObject({ code: "invalid-response" });
-    },
+test("treats a no-op with the requested confirmed mode as success", async () => {
+  // Given
+  mockRunCli.mockRejectedValue(
+    new CliError("no-op", { result: "error", device: "AirPods", listeningMode: "noise-cancellation" }),
   );
+  // When
+  const result = setListeningMode("anc");
+  // Then
+  await expect(result).resolves.toBe("anc");
+});
 
-  it("gets Conversation Awareness", async () => {
-    mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", conversationAwareness: "on" });
-
-    await expect(getConversationAwareness()).resolves.toBe("on");
-    expect(mockRunCli).toHaveBeenCalledWith(["conversation-awareness", "get"]);
+test("rejects a successful set response that confirms a different mode", async () => {
+  // Given
+  mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode: "transparency" });
+  // When
+  const result = setListeningMode("anc");
+  // Then
+  await expect(result).rejects.toMatchObject({
+    code: "no-op",
+    payload: expect.objectContaining({ listeningMode: "transparency" }),
   });
+});
 
-  it("treats unavailable Conversation Awareness as unsupported", async () => {
-    mockRunCli.mockResolvedValue({ result: "ok", device: "Other Headphones", conversationAwareness: null });
+test("cycles a selected set in CLI order supplied by the workflow", async () => {
+  // Given
+  mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode: "adaptive" });
+  // When
+  const result = cycleListeningMode(["off", "adaptive", "anc"]);
+  // Then
+  await expect(result).resolves.toBe("adaptive");
+  expect(mockRunCli).toHaveBeenCalledWith(["listening-mode", "cycle", "--modes", "off,adaptive,noise-cancellation"]);
+});
 
-    await expect(getConversationAwareness()).rejects.toMatchObject({ code: "unsupported" });
+test("uses a bare CLI cycle when no selected set is supplied", async () => {
+  // Given
+  mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode: "off" });
+  // When
+  await cycleListeningMode();
+  // Then
+  expect(mockRunCli).toHaveBeenCalledWith(["listening-mode", "cycle"]);
+});
+
+test("gets and maps the current listening mode", async () => {
+  // Given
+  mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode: "noise-cancellation" });
+  // When
+  const result = getListeningMode();
+  // Then
+  await expect(result).resolves.toBe("anc");
+});
+
+test.each([null, "", "future-mode", "toString", "constructor", "__proto__"])(
+  "rejects invalid listening mode %s",
+  async (listeningMode) => {
+    // Given
+    mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", listeningMode });
+    // When
+    const result = getListeningMode();
+    // Then
+    await expect(result).rejects.toMatchObject({ code: "invalid-response" });
+  },
+);
+
+test("gets Conversation Awareness", async () => {
+  // Given
+  mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", conversationAwareness: "on" });
+  // When
+  const result = getConversationAwareness();
+  // Then
+  await expect(result).resolves.toBe("on");
+  expect(mockRunCli).toHaveBeenCalledWith(["conversation-awareness", "get"]);
+});
+
+test("treats unavailable Conversation Awareness as unsupported", async () => {
+  // Given
+  mockRunCli.mockResolvedValue({ result: "ok", device: "Other Headphones", conversationAwareness: null });
+  // When
+  const result = getConversationAwareness();
+  // Then
+  await expect(result).rejects.toMatchObject({ code: "unsupported" });
+});
+
+test("rejects a response that omits Conversation Awareness state", async () => {
+  // Given
+  mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods" });
+  // When
+  const result = getConversationAwareness();
+  // Then
+  await expect(result).rejects.toMatchObject({ code: "invalid-response" });
+});
+
+test("rejects an unknown Conversation Awareness state", async () => {
+  // Given
+  mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", conversationAwareness: "automatic" });
+  // When
+  const result = getConversationAwareness();
+  // Then
+  await expect(result).rejects.toMatchObject({ code: "invalid-response" });
+});
+
+test("sets and confirms Conversation Awareness", async () => {
+  // Given
+  mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", conversationAwareness: "off" });
+  // When
+  const result = setConversationAwareness("off");
+  // Then
+  await expect(result).resolves.toBe("off");
+  expect(mockRunCli).toHaveBeenCalledWith(["conversation-awareness", "set", "off"]);
+});
+
+test("treats a confirmed Conversation Awareness no-op as success", async () => {
+  // Given
+  mockRunCli.mockRejectedValue(
+    new CliError("no-op", { result: "error", device: "AirPods", conversationAwareness: "on" }),
+  );
+  // When
+  const result = setConversationAwareness("on");
+  // Then
+  await expect(result).resolves.toBe("on");
+});
+
+test("rejects unknown Conversation Awareness state", async () => {
+  // Given
+  mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", conversationAwareness: "automatic" });
+  // When
+  const result = setConversationAwareness("on");
+  // Then
+  await expect(result).rejects.toMatchObject({ code: "invalid-response" });
+});
+
+test("extracts confirmed state only from known payload values", () => {
+  // Given the input supplied by this case
+  // When
+  const result = confirmedListeningMode({ result: "error", device: "AirPods", listeningMode: "transparency" });
+  // Then
+  expect(result).toBe("transparency");
+  // When
+  const result2 = confirmedListeningMode({ result: "error", device: "AirPods", listeningMode: "future-mode" });
+  // Then
+  expect(result2).toBeNull();
+  // When
+  const result3 = confirmedConversationAwareness({ result: "error", device: "AirPods", conversationAwareness: "off" });
+  // Then
+  expect(result3).toBe("off");
+  // When
+  const result4 = confirmedConversationAwareness({
+    result: "error",
+    device: "AirPods",
+    conversationAwareness: "automatic",
   });
-
-  it("rejects a response that omits Conversation Awareness state", async () => {
-    mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods" });
-
-    await expect(getConversationAwareness()).rejects.toMatchObject({ code: "invalid-response" });
-  });
-
-  it("rejects an unknown Conversation Awareness state", async () => {
-    mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", conversationAwareness: "automatic" });
-
-    await expect(getConversationAwareness()).rejects.toMatchObject({ code: "invalid-response" });
-  });
-
-  it("sets and confirms Conversation Awareness", async () => {
-    mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", conversationAwareness: "off" });
-
-    await expect(setConversationAwareness("off")).resolves.toBe("off");
-    expect(mockRunCli).toHaveBeenCalledWith(["conversation-awareness", "set", "off"]);
-  });
-
-  it("treats a confirmed Conversation Awareness no-op as success", async () => {
-    mockRunCli.mockRejectedValue(
-      new CliError("no-op", { result: "error", device: "AirPods", conversationAwareness: "on" }),
-    );
-
-    await expect(setConversationAwareness("on")).resolves.toBe("on");
-  });
-
-  it("rejects unknown Conversation Awareness state", async () => {
-    mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", conversationAwareness: "automatic" });
-
-    await expect(setConversationAwareness("on")).rejects.toMatchObject({ code: "invalid-response" });
-  });
-
-  it("extracts confirmed state only from known payload values", () => {
-    expect(confirmedListeningMode({ result: "error", device: "AirPods", listeningMode: "transparency" })).toBe(
-      "transparency",
-    );
-    expect(confirmedListeningMode({ result: "error", device: "AirPods", listeningMode: "future-mode" })).toBeNull();
-    expect(confirmedConversationAwareness({ result: "error", device: "AirPods", conversationAwareness: "off" })).toBe(
-      "off",
-    );
-    expect(
-      confirmedConversationAwareness({ result: "error", device: "AirPods", conversationAwareness: "automatic" }),
-    ).toBeNull();
-  });
+  // Then
+  expect(result4).toBeNull();
 });

@@ -1,6 +1,6 @@
 import { Clipboard, Keyboard, launchCommand, type Toast } from "@raycast/api";
 import { showFailureToast } from "@raycast/utils";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { expect, vi, test } from "vitest";
 import { isCliInstalled } from "../cli/discovery";
 import { runWithCliGuard } from "./guard";
 import { promptForCliInstallation } from "./installation";
@@ -12,74 +12,76 @@ vi.mock("../cli/discovery", () => ({
 }));
 
 const mockIsCliInstalled = vi.mocked(isCliInstalled);
+
 const mockClipboardCopy = vi.mocked(Clipboard.copy);
+
 const mockLaunchCommand = vi.mocked(launchCommand);
+
 const mockShowFailureToast = vi.mocked(showFailureToast);
 
-describe("cli-guard", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+test("run the action when the CLI is installed", async () => {
+  // Given
+  mockIsCliInstalled.mockReturnValue(true);
+  const perform = vi.fn().mockResolvedValue(undefined);
+  // When
+  await runWithCliGuard(perform);
+  // Then
+  expect(perform).toHaveBeenCalled();
+  expect(mockLaunchCommand).not.toHaveBeenCalled();
+});
+
+test("offers setup without running the action, even if installation succeeds", async () => {
+  // Given
+  mockIsCliInstalled.mockReturnValue(true);
+  mockIsCliInstalled.mockReturnValue(false);
+  const perform = vi.fn();
+  const onUnavailable = vi.fn().mockResolvedValue(undefined);
+  vi.mocked(promptForCliInstallation).mockImplementation(async () => {
     mockIsCliInstalled.mockReturnValue(true);
   });
+  // When
+  await runWithCliGuard(perform, { onUnavailable });
+  // Then
+  expect(onUnavailable).toHaveBeenCalledOnce();
+  expect(promptForCliInstallation).toHaveBeenCalledOnce();
+  expect(mockLaunchCommand).not.toHaveBeenCalled();
+  expect(perform).not.toHaveBeenCalled();
+  // When
+  await runWithCliGuard(perform);
+  // Then
+  expect(perform).toHaveBeenCalledOnce();
+});
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+test("not run unavailable cleanup when the CLI is installed", async () => {
+  // Given
+  mockIsCliInstalled.mockReturnValue(true);
+  const perform = vi.fn().mockResolvedValue(undefined);
+  const onUnavailable = vi.fn().mockResolvedValue(undefined);
+  // When
+  await runWithCliGuard(perform, { onUnavailable });
+  // Then
+  expect(onUnavailable).not.toHaveBeenCalled();
+});
+
+test("show a copyable failure toast when the action rejects unexpectedly", async () => {
+  // Given
+  mockIsCliInstalled.mockReturnValue(true);
+  const error = new Error("boom");
+  const perform = vi.fn().mockRejectedValue(error);
+  // When
+  await runWithCliGuard(perform);
+  // Then
+  expect(mockShowFailureToast).toHaveBeenCalledWith(error, {
+    title: "AirPods command failed",
+    message: error.message,
+    primaryAction: expect.objectContaining({
+      title: "Copy Error",
+      shortcut: Keyboard.Shortcut.Common.Copy,
+    }),
   });
-
-  it("should run the action when the CLI is installed", async () => {
-    const perform = vi.fn().mockResolvedValue(undefined);
-
-    await runWithCliGuard(perform);
-
-    expect(perform).toHaveBeenCalled();
-    expect(mockLaunchCommand).not.toHaveBeenCalled();
-  });
-
-  it("offers setup without running the action, even if installation succeeds", async () => {
-    mockIsCliInstalled.mockReturnValue(false);
-    const perform = vi.fn();
-    const onUnavailable = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(promptForCliInstallation).mockImplementation(async () => {
-      mockIsCliInstalled.mockReturnValue(true);
-    });
-
-    await runWithCliGuard(perform, { onUnavailable });
-
-    expect(onUnavailable).toHaveBeenCalledOnce();
-    expect(promptForCliInstallation).toHaveBeenCalledOnce();
-    expect(mockLaunchCommand).not.toHaveBeenCalled();
-    expect(perform).not.toHaveBeenCalled();
-
-    await runWithCliGuard(perform);
-    expect(perform).toHaveBeenCalledOnce();
-  });
-
-  it("should not run unavailable cleanup when the CLI is installed", async () => {
-    const perform = vi.fn().mockResolvedValue(undefined);
-    const onUnavailable = vi.fn().mockResolvedValue(undefined);
-
-    await runWithCliGuard(perform, { onUnavailable });
-
-    expect(onUnavailable).not.toHaveBeenCalled();
-  });
-
-  it("should show a copyable failure toast when the action rejects unexpectedly", async () => {
-    const error = new Error("boom");
-    const perform = vi.fn().mockRejectedValue(error);
-
-    await runWithCliGuard(perform);
-
-    expect(mockShowFailureToast).toHaveBeenCalledWith(error, {
-      title: "AirPods command failed",
-      message: error.message,
-      primaryAction: expect.objectContaining({
-        title: "Copy Error",
-        shortcut: Keyboard.Shortcut.Common.Copy,
-      }),
-    });
-
-    const options = mockShowFailureToast.mock.calls[0][1];
-    await options?.primaryAction?.onAction({} as Toast);
-    expect(mockClipboardCopy).toHaveBeenCalledWith(error.message);
-  });
+  const options = mockShowFailureToast.mock.calls[0][1];
+  // When
+  await options?.primaryAction?.onAction({} as Toast);
+  // Then
+  expect(mockClipboardCopy).toHaveBeenCalledWith(error.message);
 });

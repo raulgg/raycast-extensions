@@ -1,5 +1,5 @@
 import { LaunchType, type LaunchProps } from "@raycast/api";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { expect, vi, test } from "vitest";
 import { runToggleConversationAwarenessCommand } from "./controls/conversation-awareness";
 import { runWithCliGuard } from "./helper-setup/guard";
 import { resetCommandSubtitle } from "./subtitles/coordination";
@@ -14,6 +14,7 @@ vi.mock("./subtitles/feature-subtitles", () => ({
   publishConversationAwarenessSubtitle: vi.fn(),
   refreshConversationAwarenessSubtitle: vi.fn(),
 }));
+
 vi.mock("./controls/conversation-awareness", () => ({
   runToggleConversationAwarenessCommand: vi.fn(),
 }));
@@ -35,72 +36,75 @@ function props(
   return { launchType, arguments: undefined, launchContext } as unknown as Props;
 }
 
-describe("Toggle Conversation Awareness entry point", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+test("preserves current status and restores AirPods only when the CLI is unavailable", async () => {
+  // Given the input supplied by this case
+  // When
+  await main(props());
+  // Then
+  expect(refreshConversationAwarenessSubtitle).not.toHaveBeenCalled();
+  expect(resetCommandSubtitle).not.toHaveBeenCalled();
+  expect(runWithCliGuard).toHaveBeenCalledWith(runToggleConversationAwarenessCommand, {
+    onUnavailable: expect.any(Function),
   });
+  expect(runToggleConversationAwarenessCommand).toHaveBeenCalledOnce();
+});
 
-  it("preserves current status and restores AirPods only when the CLI is unavailable", async () => {
-    await main(props());
+test("only refreshes the subtitle during a background launch", async () => {
+  // Given the input supplied by this case
+  // When
+  await main(props(LaunchType.Background));
+  // Then
+  expect(refreshConversationAwarenessSubtitle).toHaveBeenCalledOnce();
+  expect(publishConversationAwarenessSubtitle).not.toHaveBeenCalled();
+  expect(runWithCliGuard).not.toHaveBeenCalled();
+  expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
+});
 
-    expect(refreshConversationAwarenessSubtitle).not.toHaveBeenCalled();
-    expect(resetCommandSubtitle).not.toHaveBeenCalled();
-    expect(runWithCliGuard).toHaveBeenCalledWith(runToggleConversationAwarenessCommand, {
-      onUnavailable: expect.any(Function),
-    });
-    expect(runToggleConversationAwarenessCommand).toHaveBeenCalledOnce();
-  });
+test("publishes coordinator state during a background launch without reading or toggling", async () => {
+  // Given the input supplied by this case
+  // When
+  await main(
+    props(LaunchType.Background, {
+      operation: "refresh-conversation-awareness-subtitle",
+      state: "on",
+      revision: "read-revision",
+    }),
+  );
+  // Then
+  expect(publishConversationAwarenessSubtitle).toHaveBeenCalledWith("on", "read-revision");
+  expect(refreshConversationAwarenessSubtitle).not.toHaveBeenCalled();
+  expect(runWithCliGuard).not.toHaveBeenCalled();
+  expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
+});
 
-  it("only refreshes the subtitle during a background launch", async () => {
-    await main(props(LaunchType.Background));
+test("resets the coordinator-owned subtitle during a background launch", async () => {
+  // Given the input supplied by this case
+  // When
+  await main(
+    props(LaunchType.Background, {
+      operation: "refresh-conversation-awareness-subtitle",
+      state: null,
+      revision: "read-revision",
+    }),
+  );
+  // Then
+  expect(publishConversationAwarenessSubtitle).toHaveBeenCalledWith(null, "read-revision");
+  expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
+});
 
-    expect(refreshConversationAwarenessSubtitle).toHaveBeenCalledOnce();
-    expect(publishConversationAwarenessSubtitle).not.toHaveBeenCalled();
-    expect(runWithCliGuard).not.toHaveBeenCalled();
-    expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
-  });
-
-  it("publishes coordinator state during a background launch without reading or toggling", async () => {
-    await main(
-      props(LaunchType.Background, {
-        operation: "refresh-conversation-awareness-subtitle",
-        state: "on",
-        revision: "read-revision",
-      }),
-    );
-
-    expect(publishConversationAwarenessSubtitle).toHaveBeenCalledWith("on", "read-revision");
-    expect(refreshConversationAwarenessSubtitle).not.toHaveBeenCalled();
-    expect(runWithCliGuard).not.toHaveBeenCalled();
-    expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
-  });
-
-  it("resets the coordinator-owned subtitle during a background launch", async () => {
-    await main(
-      props(LaunchType.Background, {
-        operation: "refresh-conversation-awareness-subtitle",
-        state: null,
-        revision: "read-revision",
-      }),
-    );
-
-    expect(publishConversationAwarenessSubtitle).toHaveBeenCalledWith(null, "read-revision");
-    expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
-  });
-
-  it("rejects user-initiated refresh context without toggling", async () => {
-    await expect(
-      main(
-        props(LaunchType.UserInitiated, {
-          operation: "refresh-conversation-awareness-subtitle",
-          state: "off",
-          revision: "read-revision",
-        }),
-      ),
-    ).rejects.toThrow("invalid launch context");
-
-    expect(resetCommandSubtitle).toHaveBeenCalledWith({ channel: "conversation-awareness" });
-    expect(runWithCliGuard).not.toHaveBeenCalled();
-    expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
-  });
+test("rejects user-initiated refresh context without toggling", async () => {
+  // Given the input supplied by this case
+  // When
+  const result = main(
+    props(LaunchType.UserInitiated, {
+      operation: "refresh-conversation-awareness-subtitle",
+      state: "off",
+      revision: "read-revision",
+    }),
+  );
+  // Then
+  await expect(result).rejects.toThrow("invalid launch context");
+  expect(resetCommandSubtitle).toHaveBeenCalledWith({ channel: "conversation-awareness" });
+  expect(runWithCliGuard).not.toHaveBeenCalled();
+  expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
 });

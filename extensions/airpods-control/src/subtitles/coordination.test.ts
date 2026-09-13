@@ -1,51 +1,49 @@
-import { rmSync } from "fs";
-import { environment, updateCommandMetadata } from "@raycast/api";
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { updateCommandMetadata } from "@raycast/api";
+import { expect, vi, test } from "vitest";
+import { createSupportDirectory } from "../test/fixtures/support-directory";
 import { publishCommandSubtitle, resetCommandSubtitle } from "./coordination";
 
 const mockUpdateCommandMetadata = vi.mocked(updateCommandMetadata);
 
-afterAll(() => {
-  rmSync(environment.supportPath, { recursive: true, force: true });
+const options = { channel: "listening-mode" as const };
+
+test("restores the manifest subtitle", async () => {
+  // Given
+  createSupportDirectory();
+  // When
+  await resetCommandSubtitle(options);
+  // Then
+  expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: null });
 });
 
-describe("command metadata", () => {
-  const options = { channel: "listening-mode" as const };
+test("publishes a dynamic subtitle", async () => {
+  // Given
+  createSupportDirectory();
+  // When
+  await publishCommandSubtitle("◑ Adaptive", options);
+  // Then
+  expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "◑ Adaptive" });
+});
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+test("restores the manifest subtitle when publication fails", async () => {
+  // Given
+  createSupportDirectory();
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  mockUpdateCommandMetadata.mockRejectedValueOnce(new Error("metadata failed"));
+  // When
+  await publishCommandSubtitle("◑ Adaptive", options);
+  // Then
+  expect(mockUpdateCommandMetadata).toHaveBeenNthCalledWith(1, { subtitle: "◑ Adaptive" });
+  expect(mockUpdateCommandMetadata).toHaveBeenNthCalledWith(2, { subtitle: null });
+});
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("restores the manifest subtitle", async () => {
-    await resetCommandSubtitle(options);
-
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: null });
-  });
-
-  it("publishes a dynamic subtitle", async () => {
-    await publishCommandSubtitle("◑ Adaptive", options);
-
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "◑ Adaptive" });
-  });
-
-  it("restores the manifest subtitle when publication fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mockUpdateCommandMetadata.mockRejectedValueOnce(new Error("metadata failed"));
-
-    await publishCommandSubtitle("◑ Adaptive", options);
-
-    expect(mockUpdateCommandMetadata).toHaveBeenNthCalledWith(1, { subtitle: "◑ Adaptive" });
-    expect(mockUpdateCommandMetadata).toHaveBeenNthCalledWith(2, { subtitle: null });
-  });
-
-  it("does not surface reset failures", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mockUpdateCommandMetadata.mockRejectedValueOnce(new Error("metadata failed"));
-
-    await expect(resetCommandSubtitle(options)).resolves.toBeUndefined();
-  });
+test("does not surface reset failures", async () => {
+  // Given
+  createSupportDirectory();
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  mockUpdateCommandMetadata.mockRejectedValueOnce(new Error("metadata failed"));
+  // When
+  const result = resetCommandSubtitle(options);
+  // Then
+  await expect(result).resolves.toBeUndefined();
 });

@@ -1,200 +1,476 @@
 import { confirmAlert, launchCommand, showToast, Toast } from "@raycast/api";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { expect, vi, test } from "vitest";
 import { installCliWithBrew, updateCliWithBrew } from "../homebrew/commands";
 import { cliSetup, deferred, installedCliSetup } from "../test/fixtures/cli-setup";
 import { detectCliSetup } from "./detection";
 import { promptForCliInstallation, runCliInstallation } from "./installation";
 
 vi.mock("../homebrew/commands", () => ({ installCliWithBrew: vi.fn(), updateCliWithBrew: vi.fn() }));
-vi.mock("./detection", () => ({ detectCliSetup: vi.fn() }));
 
-beforeEach(() => {
-  vi.useFakeTimers();
-  vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
-  vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
-  vi.mocked(installCliWithBrew)
-    .mockReset()
-    .mockImplementation(async () => {
-      vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
-    });
-  vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
-});
-afterEach(() => {
-  vi.useRealTimers();
-  vi.restoreAllMocks();
-});
+vi.mock("./detection", () => ({ detectCliSetup: vi.fn() }));
 
 async function progressToast() {
   await vi.advanceTimersByTimeAsync(0);
   return await vi.mocked(showToast).mock.results[0].value;
 }
 
-describe("CLI installation entry points", () => {
-  it.each(["installing", "needs-homebrew", "needs-developer-tools", "invalid-cli-path", "needs-link"] as const)(
-    "opens persistent setup for %s without an install alert or failure toast",
-    async (state) => {
+test.each(["installing", "needs-homebrew", "needs-developer-tools", "invalid-cli-path", "needs-link"] as const)(
+  "opens persistent setup for %s without an install alert or failure toast",
+  async (state) => {
+    // Given
+    vi.useFakeTimers();
+    try {
+      vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+      vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+      vi.mocked(installCliWithBrew)
+        .mockReset()
+        .mockImplementation(async () => {
+          vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+        });
+      vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
       vi.mocked(detectCliSetup).mockResolvedValue(cliSetup({ state }));
+      // When
       await promptForCliInstallation();
+      // Then
       expect(launchCommand).toHaveBeenCalledWith({ name: "update-airpods-control-cli", type: "userInitiated" });
       expect(confirmAlert).not.toHaveBeenCalled();
       expect(installCliWithBrew).not.toHaveBeenCalled();
       expect(showToast).not.toHaveBeenCalled();
-    },
-  );
-  it("opens setup when detection fails", async () => {
+    } finally {
+      vi.useRealTimers();
+    }
+  },
+);
+
+test("opens setup when detection fails", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     vi.mocked(detectCliSetup).mockRejectedValueOnce(new Error("brew broken"));
+    // When
     await promptForCliInstallation();
+    // Then
     expect(launchCommand).toHaveBeenCalledOnce();
     expect(confirmAlert).not.toHaveBeenCalled();
-  });
-  it("waits for explicit approval and allows cancellation", async () => {
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("waits for explicit approval and allows cancellation", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     const approval = deferred<boolean>();
     vi.mocked(confirmAlert).mockReturnValue(approval.promise);
+    // When
     const running = promptForCliInstallation();
     await vi.advanceTimersByTimeAsync(0);
+    // Then
     expect(installCliWithBrew).not.toHaveBeenCalled();
+    // When
     approval.resolve(false);
     await running;
+    // Then
     expect(showToast).not.toHaveBeenCalled();
     expect(confirmAlert).toHaveBeenCalledWith(
       expect.objectContaining({ primaryAction: { title: "Install with Homebrew" } }),
     );
-  });
-  it("shares concurrent prompts and installs only once", async () => {
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("shares concurrent prompts and installs only once", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     const approval = deferred<boolean>();
     vi.mocked(confirmAlert).mockReturnValue(approval.promise);
+    // When
     const first = promptForCliInstallation();
     const second = promptForCliInstallation();
     await vi.advanceTimersByTimeAsync(0);
+    // Then
     expect(confirmAlert).toHaveBeenCalledOnce();
+    // When
     approval.resolve(true);
     await Promise.all([first, second]);
+    // Then
     expect(installCliWithBrew).toHaveBeenCalledOnce();
-  });
-  it("skips installation if another command installed the CLI while the alert was open", async () => {
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("skips installation if another command installed the CLI while the alert was open", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     vi.mocked(detectCliSetup).mockResolvedValueOnce(cliSetup()).mockResolvedValue(installedCliSetup());
+    // When
     await promptForCliInstallation();
+    // Then
     expect(installCliWithBrew).not.toHaveBeenCalled();
     expect((await progressToast()).message).toContain("Run your AirPods command again");
-  });
-  it("does not install after prerequisites change during confirmation", async () => {
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("does not install after prerequisites change during confirmation", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     vi.mocked(detectCliSetup)
       .mockResolvedValueOnce(cliSetup())
       .mockResolvedValue(cliSetup({ state: "needs-homebrew" }));
+    // When
     await promptForCliInstallation();
+    // Then
     expect(installCliWithBrew).not.toHaveBeenCalled();
     expect((await progressToast()).style).toBe(Toast.Style.Failure);
-  });
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
-describe("shared installer", () => {
-  it("finishes with manual rerun instructions", async () => {
-    expect(await runCliInstallation("install")).toEqual(installedCliSetup());
+test("finishes with manual rerun instructions", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
+    // When
+    const result = await runCliInstallation("install");
+    // Then
+    expect(result).toEqual(installedCliSetup());
     const toast = await progressToast();
     expect(toast.style).toBe(Toast.Style.Success);
     expect(toast.message).toContain("Run your AirPods command again");
     expect(launchCommand).not.toHaveBeenCalled();
-  });
-  it("upgrades a Homebrew-managed CLI", async () => {
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("upgrades a Homebrew-managed CLI", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+    // When
     await runCliInstallation("update");
+    // Then
     expect(updateCliWithBrew).toHaveBeenCalledOnce();
     expect(installCliWithBrew).not.toHaveBeenCalled();
-  });
-  it("refuses to update a manual CLI", async () => {
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("refuses to update a manual CLI", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     vi.mocked(detectCliSetup).mockResolvedValue(cliSetup({ state: "manual-cli", cliPath: "/custom/cli" }));
-    await expect(runCliInstallation("update")).rejects.toThrow("Setup has changed");
+    // When
+    const result = runCliInstallation("update");
+    // Then
+    await expect(result).rejects.toThrow("Setup has changed");
     expect(updateCliWithBrew).not.toHaveBeenCalled();
-  });
-  it("re-shows the same toast beyond a minute and stops after success", async () => {
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("re-shows the same toast beyond a minute and stops after success", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     const install = deferred<void>();
     vi.mocked(installCliWithBrew).mockReturnValue(install.promise);
+    // When
     const running = runCliInstallation("install");
     const toast = await progressToast();
     await vi.advanceTimersByTimeAsync(66000);
+    // Then
     expect(showToast).toHaveBeenCalledOnce();
     expect(toast.show).toHaveBeenCalledTimes(22);
     expect(toast.message).toBe("This can take several minutes. Keep Raycast open until it finishes.");
     vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+    // When
     install.resolve();
     await running;
+    // Then
     const count = vi.mocked(toast.show).mock.calls.length;
+    // When
     await vi.advanceTimersByTimeAsync(60000);
+    // Then
     expect(toast.show).toHaveBeenCalledTimes(count);
     expect(toast.style).toBe(Toast.Style.Success);
     expect(vi.getTimerCount()).toBe(0);
-  });
-  it("keeps refreshing while verifying the completed Homebrew installation", async () => {
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("keeps refreshing while verifying the completed Homebrew installation", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     const verification = deferred<ReturnType<typeof cliSetup>>();
     vi.mocked(installCliWithBrew).mockImplementation(async () => {
       vi.mocked(detectCliSetup).mockReturnValue(verification.promise);
     });
+    // When
     const running = runCliInstallation("install");
     const toast = await progressToast();
     await vi.advanceTimersByTimeAsync(12000);
+    // Then
     expect(toast.style).toBe(Toast.Style.Animated);
     expect(toast.show).toHaveBeenCalledTimes(4);
+    // When
     verification.resolve(installedCliSetup());
     await running;
+    // Then
     expect(toast.style).toBe(Toast.Style.Success);
     expect(vi.getTimerCount()).toBe(0);
-  });
+  } finally {
+    vi.useRealTimers();
+  }
+});
 
-  it("waits for an in-flight refresh before publishing the final result", async () => {
+test("waits for an in-flight refresh before publishing the final result", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     const install = deferred<void>();
     const refresh = deferred<void>();
     vi.mocked(installCliWithBrew).mockReturnValue(install.promise);
+    // When
     const running = runCliInstallation("install");
     const toast = await progressToast();
     vi.mocked(toast.show).mockReturnValueOnce(refresh.promise);
     await vi.advanceTimersByTimeAsync(9000);
+    // Then
     expect(toast.show).toHaveBeenCalledOnce();
     vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+    // When
     install.resolve();
     await vi.advanceTimersByTimeAsync(0);
+    // Then
     expect(toast.style).toBe(Toast.Style.Animated);
+    // When
     refresh.resolve();
     await running;
+    // Then
     expect(toast.style).toBe(Toast.Style.Success);
     expect(vi.getTimerCount()).toBe(0);
-  });
-  it("does not abort brew when a progress refresh fails", async () => {
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("does not abort brew when a progress refresh fails", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     vi.spyOn(console, "error").mockImplementation(() => {});
     const install = deferred<void>();
     vi.mocked(installCliWithBrew).mockReturnValue(install.promise);
+    // When
     const running = runCliInstallation("install");
     const toast = await progressToast();
     vi.mocked(toast.show).mockRejectedValueOnce(new Error("toast unavailable"));
     await vi.advanceTimersByTimeAsync(6000);
+    // Then
     expect(toast.show).toHaveBeenCalledTimes(2);
     vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+    // When
     install.resolve();
     await running;
+    // Then
     expect(toast.style).toBe(Toast.Style.Success);
-  });
-  it("stops progress on failure and allows a later retry", async () => {
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("stops progress on failure and allows a later retry", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     vi.mocked(installCliWithBrew).mockRejectedValueOnce(new Error("brew failed\nrepair instructions"));
-    await expect(runCliInstallation("install")).rejects.toThrow("repair instructions");
+    // When
+    const result = runCliInstallation("install");
+    // Then
+    await expect(result).rejects.toThrow("repair instructions");
     const toast = await progressToast();
     expect(toast.style).toBe(Toast.Style.Failure);
     expect(vi.getTimerCount()).toBe(0);
+    // When
     await toast.primaryAction.onAction(toast);
+    // Then
     expect(launchCommand).toHaveBeenCalledOnce();
-    await expect(runCliInstallation("install")).resolves.toEqual(installedCliSetup());
-  });
-  it("requires the active CLI to resolve to the Homebrew installation after success", async () => {
+    // When
+    const result2 = runCliInstallation("install");
+    // Then
+    await expect(result2).resolves.toEqual(installedCliSetup());
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("requires the active CLI to resolve to the Homebrew installation after success", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     vi.mocked(installCliWithBrew).mockResolvedValue(undefined);
-    await expect(runCliInstallation("install")).rejects.toThrow("helper is not ready to use");
-  });
-  it("shares an in-flight operation across callers", async () => {
+    // When
+    const result = runCliInstallation("install");
+    // Then
+    await expect(result).rejects.toThrow("helper is not ready to use");
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("shares an in-flight operation across callers", async () => {
+  // Given
+  vi.useFakeTimers();
+  try {
+    vi.mocked(confirmAlert).mockReset().mockResolvedValue(true);
+    vi.mocked(detectCliSetup).mockReset().mockResolvedValue(cliSetup());
+    vi.mocked(installCliWithBrew)
+      .mockReset()
+      .mockImplementation(async () => {
+        vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+      });
+    vi.mocked(updateCliWithBrew).mockReset().mockResolvedValue(undefined);
     const install = deferred<void>();
     vi.mocked(installCliWithBrew).mockReturnValue(install.promise);
+    // When
     const first = runCliInstallation("install");
     const second = runCliInstallation("install");
     await vi.advanceTimersByTimeAsync(0);
+    // Then
     expect(installCliWithBrew).toHaveBeenCalledOnce();
     vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+    // When
     install.resolve();
     await Promise.all([first, second]);
-  });
+  } finally {
+    vi.useRealTimers();
+  }
 });

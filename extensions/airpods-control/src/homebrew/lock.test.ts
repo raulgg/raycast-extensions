@@ -3,7 +3,8 @@ import { once } from "events";
 import { closeSync, existsSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { environment } from "@raycast/api";
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { expect, test } from "vitest";
+import { createSupportDirectory } from "../test/fixtures/support-directory";
 import {
   acquireBrewLock,
   brewLockCommand,
@@ -12,17 +13,6 @@ import {
   openBrewLock,
 } from "./lock";
 import { runProcessWithLifetime } from "./process-lifetime";
-
-vi.mock("@raycast/api", async () => {
-  const { mkdtempSync } = await import("fs");
-  const { tmpdir } = await import("os");
-  const { join } = await import("path");
-  return { environment: { supportPath: mkdtempSync(join(tmpdir(), "airpods-cli-lock-test-")) } };
-});
-
-afterAll(() => rmSync(environment.supportPath, { recursive: true, force: true }));
-
-const lockPath = join(environment.supportPath, "cli-install.lock");
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -70,46 +60,77 @@ async function runSupervisor(file: string, args: string[], timeout: number) {
   }
 }
 
-describe.skipIf(process.platform !== "darwin")("macOS installation lock", { concurrent: false }, () => {
-  it("reports idle for concurrent status checks when no installation is running", async () => {
+test.skipIf(process.platform !== "darwin")(
+  "reports idle for concurrent status checks when no installation is running",
+  async () => {
+    // Given
+    createSupportDirectory();
+    // When
     const results = await Promise.all(Array.from({ length: 12 }, () => isBrewOperationRunning()));
+    // Then
     expect(results).toEqual(Array(12).fill(false));
-  });
+  },
+);
 
-  it("keeps an acquired fd lock until its owner closes the fd", async () => {
-    const lockFileDescriptor = openBrewLock();
-    try {
-      await acquireBrewLock(lockFileDescriptor);
-      const results = await Promise.all(Array.from({ length: 4 }, () => isBrewOperationRunning()));
-      expect(results).toEqual(Array(4).fill(true));
-    } finally {
-      closeSync(lockFileDescriptor);
-    }
-    expect(await isBrewOperationRunning()).toBe(false);
-  });
+test.skipIf(process.platform !== "darwin")("keeps an acquired fd lock until its owner closes the fd", async () => {
+  // Given
+  createSupportDirectory();
+  // When
+  const lockFileDescriptor = openBrewLock();
+  try {
+    await acquireBrewLock(lockFileDescriptor);
+    const results = await Promise.all(Array.from({ length: 4 }, () => isBrewOperationRunning()));
+    // Then
+    expect(results).toEqual(Array(4).fill(true));
+  } finally {
+    closeSync(lockFileDescriptor);
+  }
+  const result = await isBrewOperationRunning();
+  // Then
+  expect(result).toBe(false);
+});
 
-  it("blocks other processes and releases automatically after the owner exits", async () => {
+test.skipIf(process.platform !== "darwin")(
+  "blocks other processes and releases automatically after the owner exits",
+  async () => {
+    // Given
+    createSupportDirectory();
+    // When
     const command = brewLockCommand(process.execPath, ["-e", 'process.stdout.write("ready"); process.stdin.resume();']);
     const owner = spawn(command.file, command.args);
     const closed = once(owner, "close");
     try {
       await once(owner.stdout, "data");
-      expect(await isBrewOperationRunning()).toBe(true);
+      const result = await isBrewOperationRunning();
+      // Then
+      expect(result).toBe(true);
+      // When
       const other = brewLockCommand(process.execPath, ["-e", 'process.stdout.write("started");']);
       const attempt = await new Promise<{ code: string | number | null | undefined; stdout: string }>((resolve) => {
         execFile(other.file, other.args, (error, stdout) => resolve({ code: error?.code, stdout }));
       });
+      // Then
       expect(attempt).toEqual({ code: 75, stdout: "" });
     } finally {
       owner.stdin.end();
       await closed;
     }
-    // The lock file remains, but it cannot leave setup stuck after process exit.
-    expect(await isBrewOperationRunning()).toBe(false);
-    expect(await isBrewOperationRunning()).toBe(false);
-  });
+    const result2 = await isBrewOperationRunning();
+    // Then
+    expect(result2).toBe(false);
+    // When
+    const result3 = await isBrewOperationRunning();
+    // Then
+    expect(result3).toBe(false);
+  },
+);
 
-  it("keeps the lock during timeout escalation and kills a TERM-ignoring process group", async () => {
+test.skipIf(process.platform !== "darwin")(
+  "keeps the lock during timeout escalation and kills a TERM-ignoring process group",
+  async () => {
+    // Given
+    createSupportDirectory();
+    // When
     const ready = join(environment.supportPath, "timeout-ready");
     const marker = join(environment.supportPath, "timeout-marker");
     rmSync(ready, { force: true });
@@ -124,26 +145,38 @@ describe.skipIf(process.platform !== "darwin")("macOS installation lock", { conc
         settled = true;
       },
     );
-
     try {
       await waitForFile(ready);
       await delay(Math.max(0, timeout - (Date.now() - startedAt)) + 100);
+      // Then
       expect(await isLockHeld()).toBe(true);
       expect(settled).toBe(false);
-
       const result = await operation;
       expect(result.timedOut).toBe(true);
       expect(result.exitCode).not.toBe(0);
-      expect(await isBrewOperationRunning()).toBe(false);
+      // When
+      const locked = await isBrewOperationRunning();
+      // Then
+      expect(locked).toBe(false);
+      // When
       await delay(1200);
-      expect(existsSync(marker)).toBe(false);
+      const result2 = existsSync(marker);
+      // Then
+      expect(result2).toBe(false);
     } finally {
       rmSync(ready, { force: true });
       rmSync(marker, { force: true });
     }
-  }, 12000);
+  },
+  12000,
+);
 
-  it("releases the lock only after an ordinary supervisor completion", async () => {
+test.skipIf(process.platform !== "darwin")(
+  "releases the lock only after an ordinary supervisor completion",
+  async () => {
+    // Given
+    createSupportDirectory();
+    // When
     const ready = join(environment.supportPath, "completion-ready");
     const release = join(environment.supportPath, "completion-release");
     const operation = runSupervisor(
@@ -158,21 +191,31 @@ describe.skipIf(process.platform !== "darwin")("macOS installation lock", { conc
       4000,
     );
     try {
-      // Wait for the worker before probing, so the probe cannot win the acquisition race.
       await waitForFile(ready);
+      // Then
       expect(await isLockHeld()).toBe(true);
     } finally {
       writeFileSync(release, "");
       await operation;
     }
-
     const result = await operation;
+    // Then
     expect(result).toMatchObject({ exitCode: 0, signal: null, timedOut: false });
     expect(result.stdout).toBe("ready");
-    expect(await isBrewOperationRunning()).toBe(false);
-  });
+    // When
+    const locked = await isBrewOperationRunning();
+    // Then
+    expect(locked).toBe(false);
+  },
+);
 
-  it("keeps ownership after the originating process is killed", async () => {
+test.skipIf(process.platform !== "darwin")(
+  "keeps ownership after the originating process is killed",
+  async () => {
+    // Given
+    createSupportDirectory();
+    // When
+    const lockPath = join(environment.supportPath, "cli-install.lock");
     const marker = join(environment.supportPath, "parent-death-marker");
     const ready = join(environment.supportPath, "parent-death-ready");
     rmSync(marker, { force: true });
@@ -192,21 +235,27 @@ describe.skipIf(process.platform !== "darwin")("macOS installation lock", { conc
       `lock.on("close", (code) => { if (code !== 0) process.exit(2); const supervisor = spawn(${JSON.stringify(command.file)}, ${JSON.stringify(command.args)}, { detached: true, stdio: ["pipe", "pipe", "ignore", lockFileDescriptor] }); supervisor.stdout.on("data", (chunk) => { if (chunk.toString().includes("READY")) process.kill(process.pid, "SIGKILL"); }); setTimeout(() => process.kill(process.pid, "SIGKILL"), 3000); });`,
     ].join("\n");
     const launcher = spawn(process.execPath, ["-e", launcherSource], { stdio: "ignore" });
-
     try {
       const [exitCode, signal] = (await once(launcher, "close")) as [number | null, NodeJS.Signals | null];
+      // Then
       expect(exitCode).toBeNull();
       expect(signal).toBe("SIGKILL");
+      // When
       await waitForFile(ready);
       await waitForLockState(true);
       await delay(250);
+      // Then
       expect(await isLockHeld()).toBe(true);
+      // When
       await waitForLockState(false, 4000);
       await delay(1200);
-      expect(existsSync(marker)).toBe(false);
+      const result = existsSync(marker);
+      // Then
+      expect(result).toBe(false);
     } finally {
       rmSync(ready, { force: true });
       rmSync(marker, { force: true });
     }
-  }, 12000);
-});
+  },
+  12000,
+);

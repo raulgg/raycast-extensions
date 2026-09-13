@@ -1,5 +1,5 @@
 import { LaunchType, type LaunchProps } from "@raycast/api";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { expect, vi, test } from "vitest";
 import { runWithCliGuard } from "./helper-setup/guard";
 import main from "./refresh-airpods-status";
 import { resetAirPodsStatusSubtitles, runAirPodsStatusRefresh } from "./status/refresh";
@@ -17,25 +17,23 @@ function props(launchType: LaunchType = LaunchType.UserInitiated): LaunchProps {
   return { launchType, arguments: undefined } as unknown as LaunchProps;
 }
 
-describe("Refresh AirPods Status entry point", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+test("uses the interactive CLI guard and shows feedback for a manual refresh", async () => {
+  // Given the input supplied by this case
+  // When
+  await main(props());
+  // Then
+  expect(runWithCliGuard).toHaveBeenCalledWith(expect.any(Function), {
+    onUnavailable: resetAirPodsStatusSubtitles,
   });
+  expect(runAirPodsStatusRefresh).toHaveBeenCalledWith({ showFeedback: true });
+});
 
-  it("uses the interactive CLI guard and shows feedback for a manual refresh", async () => {
-    await main(props());
-
-    expect(runWithCliGuard).toHaveBeenCalledWith(expect.any(Function), {
-      onUnavailable: resetAirPodsStatusSubtitles,
-    });
-    expect(runAirPodsStatusRefresh).toHaveBeenCalledWith({ showFeedback: true });
-  });
-
-  it("runs silently in the background without opening setup", async () => {
-    await main(props(LaunchType.Background));
-
-    expect(runAirPodsStatusRefresh).toHaveBeenCalledWith({ showFeedback: false });
-    expect(runWithCliGuard).not.toHaveBeenCalled();
-    expect(resetAirPodsStatusSubtitles).not.toHaveBeenCalled();
-  });
+test("runs silently in the background without opening setup", async () => {
+  // Given the input supplied by this case
+  // When
+  await main(props(LaunchType.Background));
+  // Then
+  expect(runAirPodsStatusRefresh).toHaveBeenCalledWith({ showFeedback: false });
+  expect(runWithCliGuard).not.toHaveBeenCalled();
+  expect(resetAirPodsStatusSubtitles).not.toHaveBeenCalled();
 });

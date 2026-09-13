@@ -4,6 +4,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     clearMocks: true,
+    mockReset: true,
+    restoreMocks: true,
     projects: [
       {
         extends: true,
@@ -29,9 +31,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": resolve(__dirname, "./src"),
-      "@raycast/api": resolve(__dirname, "./src/test/mocks/raycast-api-mock.ts"),
-      "@raycast/utils": resolve(__dirname, "./src/test/mocks/raycast-utils-mock.ts"),
+      "@": resolve(import.meta.dirname, "./src"),
+      "@raycast/api": resolve(import.meta.dirname, "./src/test/mocks/raycast-api-mock.ts"),
+      "@raycast/utils": resolve(import.meta.dirname, "./src/test/mocks/raycast-utils-mock.ts"),
     },
   },
 });
