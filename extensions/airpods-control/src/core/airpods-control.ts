@@ -41,13 +41,10 @@ async function runWithSubtitleOperation(
   } catch (error) {
     if (entered) throw error;
 
-    // A command must not change AirPods without the cross-process operation
-    // lock. This is a coordination failure, so surface it before any CLI call.
+    // Report lock failures before any CLI call.
     await toast.setToFailure({ error });
   } finally {
-    // Only control workflows use this wrapper. Launch after releasing the
-    // operation lock so the refresh can read the confirmed outcome, including
-    // a failed change. Subtitle-only background commands never launch it.
+    // Refresh after releasing the lock, including when the control action failed.
     if (entered) {
       try {
         await launchCommand({ name: REFRESH_AIRPODS_STATUS_COMMAND_NAME, type: LaunchType.Background });
@@ -124,20 +121,12 @@ async function publishConfirmedListeningMode(
   if (!enabled) return;
 
   const mode = error instanceof CliError ? AirPodsControlCli.confirmedListeningMode(error.payload) : null;
-  if (mode) {
-    await publishListeningModeSubtitle(mode, revision);
-  } else {
-    await publishListeningModeSubtitle(null, revision);
-  }
+  await publishListeningModeSubtitle(mode, revision);
 }
 
 async function publishConfirmedConversationAwareness(error: unknown, revision?: SubtitleRevision): Promise<void> {
   const state = error instanceof CliError ? AirPodsControlCli.confirmedConversationAwareness(error.payload) : null;
-  if (state) {
-    await publishConversationAwarenessSubtitle(state, revision);
-  } else {
-    await publishConversationAwarenessSubtitle(null, revision);
-  }
+  await publishConversationAwarenessSubtitle(state, revision);
 }
 
 async function showCliFailure(

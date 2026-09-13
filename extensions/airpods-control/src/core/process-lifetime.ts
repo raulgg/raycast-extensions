@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "child_process";
+import { spawn } from "child_process";
 
 const DEFAULT_MAX_BUFFER = 10 * 1024 * 1024;
 
@@ -29,22 +29,16 @@ export function runProcessWithLifetime(
   options: ProcessLifetimeOptions,
 ): Promise<ProcessLifetimeResult> {
   return new Promise((resolve, reject) => {
-    let child: ChildProcess;
-    try {
-      child = spawn(file, args, {
-        detached: true,
-        env: options.env,
-        stdio: [
-          "pipe",
-          "pipe",
-          "pipe",
-          ...(options.lockFileDescriptor === undefined ? [] : [options.lockFileDescriptor]),
-        ],
-      });
-    } catch (error) {
-      reject(error);
-      return;
-    }
+    const child = spawn(file, args, {
+      detached: true,
+      env: options.env,
+      stdio: [
+        "pipe",
+        "pipe",
+        "pipe",
+        ...(options.lockFileDescriptor === undefined ? [] : [options.lockFileDescriptor]),
+      ],
+    });
 
     const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
     let stdout = "";

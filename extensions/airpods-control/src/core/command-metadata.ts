@@ -4,7 +4,6 @@ import { closeSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, w
 import { join } from "path";
 import { environment, updateCommandMetadata } from "@raycast/api";
 
-/** The command whose subtitle is being coordinated. */
 export type SubtitleChannel = "listening-mode" | "conversation-awareness" | "status";
 export type SubtitleRevision = string;
 
@@ -36,10 +35,6 @@ const OPERATION_LOCK_NAMES: Record<SubtitleChannel, string> = {
 };
 const REVISION_STATE_NAME = "subtitle-metadata.json";
 
-// lockf's descriptor form leaves the BSD lock attached to the open file
-// description. Keeping this descriptor open in the parent lets us hold the
-// lock across an awaited Raycast API call. The OS releases it if the process
-// exits, so a crashed command cannot leave a stale lock marker behind.
 function pathFor(name: string): string {
   const path = environment.supportPath;
   mkdirSync(path, { recursive: true });
@@ -58,6 +53,7 @@ function waitForLockf(
 }
 
 async function withOperatingSystemLock<T>(path: string, operation: () => Promise<T>): Promise<T> {
+  // Keep the descriptor open across awaits. The OS releases its lock on process exit.
   const descriptor = openSync(path, "a+");
   try {
     const lockf = spawn(LOCKF_PATH, ["-s", "-t", LOCK_TIMEOUT_SECONDS, "3"], {
@@ -218,14 +214,13 @@ async function clearSubtitleAfterPublicationFailure(
 }
 
 export async function resetCommandSubtitle(options: CommandSubtitleOptions): Promise<void> {
-  let revision = options.revision;
+  const revision = options.revision;
   try {
     if (revision) {
       await writeSubtitleForRevision(null, options.channel, revision);
       return;
     }
     await withSubtitleOperation(options.channel, async (operationRevision) => {
-      revision = operationRevision;
       await writeSubtitleForRevision(null, options.channel, operationRevision);
     });
   } catch (error) {

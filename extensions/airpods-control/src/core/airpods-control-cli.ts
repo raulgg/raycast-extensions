@@ -78,18 +78,10 @@ export async function cycleListeningMode(modes?: ListeningModes[]): Promise<List
 
 export async function getConversationAwareness(): Promise<ConversationAwarenessState> {
   const payload = await runCli(["conversation-awareness", "get"]);
-  const state = confirmedConversationAwareness(payload);
-  if (state) {
-    return state;
-  }
   if (payload.conversationAwareness === null) {
     throw new CliError("unsupported", payload);
   }
-  throw new CliError(
-    "invalid-response",
-    payload,
-    "The airpods-control CLI returned an invalid Conversation Awareness state.",
-  );
+  return requireConversationAwareness(payload);
 }
 
 export async function setConversationAwareness(state: ConversationAwarenessState): Promise<ConversationAwarenessState> {

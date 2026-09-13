@@ -1,6 +1,6 @@
 import { execFile, spawn } from "child_process";
 import { once } from "events";
-import { closeSync, existsSync, rmSync } from "fs";
+import { closeSync, existsSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { environment } from "@raycast/api";
 import { afterAll, describe, expect, it, vi } from "vitest";
@@ -144,8 +144,27 @@ describe.skipIf(process.platform !== "darwin")("macOS installation lock", { conc
   }, 12000);
 
   it("releases the lock only after an ordinary supervisor completion", async () => {
-    const operation = runSupervisor("/bin/bash", ["-c", "/bin/sleep .15; printf ready"], 2000);
-    await waitForLockState(true);
+    const ready = join(environment.supportPath, "completion-ready");
+    const release = join(environment.supportPath, "completion-release");
+    const operation = runSupervisor(
+      "/bin/bash",
+      [
+        "-c",
+        '/usr/bin/touch "$1"; while [ ! -f "$2" ]; do /bin/sleep .05; done; printf ready',
+        "worker",
+        ready,
+        release,
+      ],
+      4000,
+    );
+    try {
+      // Wait for the worker before probing, so the probe cannot win the acquisition race.
+      await waitForFile(ready);
+      expect(await isLockHeld()).toBe(true);
+    } finally {
+      writeFileSync(release, "");
+      await operation;
+    }
 
     const result = await operation;
     expect(result).toMatchObject({ exitCode: 0, signal: null, timedOut: false });
