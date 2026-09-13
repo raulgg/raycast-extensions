@@ -9,10 +9,10 @@ import {
 
 describe("state presentation", () => {
   it.each([
-    ["off", "Off ○̸", "Set to Off ○̸"],
-    ["transparency", "Transparency ○", "Set to Transparency ○"],
+    ["off", "Off ○", "Set to Off ○"],
+    ["transparency", "Transparency ◎", "Set to Transparency ◎"],
     ["adaptive", "Adaptive ◑", "Set to Adaptive ◑"],
-    ["anc", "Noise Cancellation ●", "Set to Noise Cancellation ●"],
+    ["anc", "Noise Cancellation ◉", "Set to Noise Cancellation ◉"],
   ] as const)("formats %s listening mode", (mode, subtitle, hud) => {
     expect(listeningModeSubtitle(mode)).toBe(subtitle);
     expect(listeningModeHud(mode)).toBe(hud);
@@ -27,12 +27,12 @@ describe("state presentation", () => {
   });
 
   it.each([
-    [{ listeningMode: "anc", conversationAwareness: "on" }, "Noise Cancellation ● · CA ●"],
-    [{ listeningMode: "transparency", conversationAwareness: "off" }, "Transparency ○ · CA ○"],
+    [{ listeningMode: "anc", conversationAwareness: "on" }, "Noise Cancellation ◉ · CA ●"],
+    [{ listeningMode: "transparency", conversationAwareness: "off" }, "Transparency ◎ · CA ○"],
     [{ listeningMode: "adaptive", conversationAwareness: null }, "Adaptive ◑"],
     [{ listeningMode: null, conversationAwareness: "on" }, "CA ●"],
     [{ listeningMode: null, conversationAwareness: "off" }, "CA ○"],
-    [{ listeningMode: "off", conversationAwareness: null }, "Off ○̸"],
+    [{ listeningMode: "off", conversationAwareness: null }, "Off ○"],
     [{ listeningMode: null, conversationAwareness: null }, null],
   ] as const)("formats a combined status subtitle %#", (status, expected) => {
     expect(formatAirPodsStatusSubtitle(status)).toBe(expected);

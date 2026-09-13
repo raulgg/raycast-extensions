@@ -74,9 +74,9 @@ describe("subtitle coordination composed workflows", () => {
 
     expect(AirPodsControlCli.setListeningMode).toHaveBeenCalledWith("anc");
     expect(mockUpdateCommandMetadata.mock.calls.map(([metadata]) => metadata)).toEqual([
-      { subtitle: "Noise Cancellation ●" },
+      { subtitle: "Noise Cancellation ◉" },
       { subtitle: null },
-      { subtitle: "Noise Cancellation ●" },
+      { subtitle: "Noise Cancellation ◉" },
     ]);
   });
 
@@ -153,8 +153,8 @@ describe("subtitle coordination composed workflows", () => {
     await secondRefresh;
 
     expect(mockUpdateCommandMetadata.mock.calls.map(([metadata]) => metadata.subtitle)).toEqual([
-      "Transparency ○ · CA ○",
-      "Noise Cancellation ● · CA ○",
+      "Transparency ◎ · CA ○",
+      "Noise Cancellation ◉ · CA ○",
     ]);
   });
 
@@ -171,14 +171,14 @@ describe("subtitle coordination composed workflows", () => {
     const resetPromise = resetCommandSubtitle({ channel: "listening-mode" });
     await Promise.resolve();
     expect(mockUpdateCommandMetadata).toHaveBeenCalledTimes(1);
-    expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "Noise Cancellation ●" });
+    expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "Noise Cancellation ◉" });
 
     resolveSet("anc");
     await Promise.all([controlPromise, resetPromise]);
 
     expect(mockUpdateCommandMetadata.mock.calls.map(([metadata]) => metadata)).toEqual([
-      { subtitle: "Noise Cancellation ●" },
-      { subtitle: "Noise Cancellation ●" },
+      { subtitle: "Noise Cancellation ◉" },
+      { subtitle: "Noise Cancellation ◉" },
       { subtitle: null },
     ]);
   });
@@ -209,7 +209,7 @@ describe("subtitle coordination composed workflows", () => {
     } as never);
 
     expect(mockUpdateCommandMetadata.mock.calls.length).toBe(metadataCallCountAfterSet);
-    expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "Noise Cancellation ●" });
+    expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "Noise Cancellation ◉" });
   });
 
   it("ignores a delayed Conversation Awareness dispatch after a newer confirmed toggle", async () => {
@@ -251,7 +251,7 @@ describe("subtitle coordination composed workflows", () => {
     } as never);
 
     expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation ●" });
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation ◉" });
     expect(mockUpdateCommandMetadata).not.toHaveBeenCalledWith({ subtitle: null });
   });
 

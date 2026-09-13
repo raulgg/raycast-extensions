@@ -142,7 +142,7 @@ describe("airpods-control workflows", () => {
       await refreshListeningModeSubtitle();
 
       expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Noise Cancellation ●", {
+      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Noise Cancellation ◉", {
         channel: "listening-mode",
         revision: "test-revision",
       });
@@ -194,25 +194,25 @@ describe("airpods-control workflows", () => {
 
       expect(AirPodsControlCli.setListeningMode).toHaveBeenCalledWith("anc");
       expect(mockPublishCommandSubtitle).toHaveBeenCalledTimes(2);
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Noise Cancellation ●", {
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Noise Cancellation ◉", {
         channel: "listening-mode",
         revision: "test-revision",
       });
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ●", {
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ◉", {
         channel: "listening-mode",
         revision: "test-revision",
       });
       expect(mockPublishCommandSubtitle.mock.invocationCallOrder[0]).toBeLessThan(
         vi.mocked(AirPodsControlCli.setListeningMode).mock.invocationCallOrder[0],
       );
-      expect(toast.setToSuccess).toHaveBeenCalledWith({ titleOverride: "Set to Noise Cancellation ●" });
+      expect(toast.setToSuccess).toHaveBeenCalledWith({ titleOverride: "Set to Noise Cancellation ◉" });
     });
 
     it("does not update the fixed command subtitle in the disabled-Cycle fallback", async () => {
       await runSetListeningModeCommand("transparency", { updateCycleSubtitle: false });
 
       expect(mockPublishCommandSubtitle).not.toHaveBeenCalled();
-      expect(toast.setToSuccess).toHaveBeenCalledWith({ titleOverride: "Set to Transparency ○" });
+      expect(toast.setToSuccess).toHaveBeenCalledWith({ titleOverride: "Set to Transparency ◎" });
     });
 
     it("publishes a confirmed remaining state from a failed change", async () => {
@@ -225,11 +225,11 @@ describe("airpods-control workflows", () => {
 
       await runSetListeningModeCommand("anc", { updateCycleSubtitle: true });
 
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Noise Cancellation ●", {
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Noise Cancellation ◉", {
         channel: "listening-mode",
         revision: "test-revision",
       });
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Transparency ○", {
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Transparency ◎", {
         channel: "listening-mode",
         revision: "test-revision",
       });
@@ -246,7 +246,7 @@ describe("airpods-control workflows", () => {
         titleOverride: "Off mode was not applied",
         error: expect.objectContaining({ message: expect.stringContaining("Off may be disabled") }),
       });
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Off ○̸", {
+      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Off ○", {
         channel: "listening-mode",
         revision: "test-revision",
       });
@@ -327,11 +327,11 @@ describe("airpods-control workflows", () => {
 
       expect(AirPodsControlCli.cycleListeningMode).toHaveBeenCalledWith(["transparency", "anc"]);
       expect(mockPublishCommandSubtitle).toHaveBeenCalledTimes(2);
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Noise Cancellation ●", {
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Noise Cancellation ◉", {
         channel: "listening-mode",
         revision: "test-revision",
       });
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ●", {
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ◉", {
         channel: "listening-mode",
         revision: "test-revision",
       });
@@ -354,7 +354,7 @@ describe("airpods-control workflows", () => {
         channel: "listening-mode",
         revision: "test-revision",
       });
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ●", {
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ◉", {
         channel: "listening-mode",
         revision: "test-revision",
       });
@@ -376,12 +376,12 @@ describe("airpods-control workflows", () => {
         channel: "listening-mode",
         revision: "test-revision",
       });
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ●", {
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ◉", {
         channel: "listening-mode",
         revision: "test-revision",
       });
       expect(toast.setToSuccess).toHaveBeenCalledWith({
-        titleOverride: "Set to Noise Cancellation ●",
+        titleOverride: "Set to Noise Cancellation ◉",
       });
     });
 

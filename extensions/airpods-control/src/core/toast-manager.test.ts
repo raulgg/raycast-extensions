@@ -9,7 +9,7 @@ const mockShowToast = vi.mocked(showToast);
 
 const titles: ToastTitles = {
   loading: "Setting AirPods to Transparency...",
-  success: "Set to Transparency ○",
+  success: "Set to Transparency ◎",
   failure: "Failed to set AirPods to Transparency",
 };
 

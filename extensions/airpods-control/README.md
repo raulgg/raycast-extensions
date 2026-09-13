@@ -64,7 +64,7 @@ Control commands keep Raycast open and show a confirmation toast. If Raycast is 
 
 ## Status Refresh
 
-The listening-mode, Conversation Awareness, and status-refresh commands always run against the real CLI. The **Refresh AirPods Status** subtitle combines the confirmed states in a compact format such as `Adaptive ◑ · CA ○`. `CA ●` means Conversation Awareness is on; `CA ○` means it is off. Only available values are shown. After a control action finishes, the extension requests a background status refresh so the subtitles reflect the confirmed outcome without waiting for the next scheduled refresh. If the status command is disabled, this request cannot run.
+The listening-mode, Conversation Awareness, and status-refresh commands always run against the real CLI. The **Refresh AirPods Status** subtitle combines the confirmed states in a compact format. Only available values are shown. After a control action finishes, the extension requests a background status refresh so the subtitles reflect the confirmed outcome without waiting for the next scheduled refresh. If the status command is disabled, this request cannot run.
 
 Run **Refresh AirPods Status** once to activate its shared Background Refresh schedule, which also detects changes made outside the extension. Raycast schedules it approximately rather than at an exact time and lets you deactivate it from the command's Action Panel or preferences.
 

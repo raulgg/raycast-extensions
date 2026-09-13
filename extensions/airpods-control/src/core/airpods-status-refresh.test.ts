@@ -60,7 +60,7 @@ describe("AirPods status refresh", () => {
     expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
     expect(AirPodsControlCli.getConversationAwareness).toHaveBeenCalledOnce();
     expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({
-      subtitle: "Noise Cancellation ● · CA ●",
+      subtitle: "Noise Cancellation ◉ · CA ●",
     });
     const listeningRevision = mockLaunchCommand.mock.calls.find(
       ([options]) => options.name === CYCLE_LISTENING_MODE_COMMAND_NAME,
@@ -148,7 +148,7 @@ describe("AirPods status refresh", () => {
 
     await refreshAirPodsStatus();
 
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation ●" });
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation ◉" });
   });
 
   it("restores the manifest status subtitle for a confirmed unavailable device", async () => {
@@ -237,7 +237,7 @@ describe("AirPods status refresh", () => {
     });
     expect(toast.style).toBe(Toast.Style.Success);
     expect(toast.title).toBe("AirPods status read");
-    expect(toast.message).toBe("Listening: Noise Cancellation ● · Conversation Awareness: On ●");
+    expect(toast.message).toBe("Listening: Noise Cancellation ◉ · Conversation Awareness: On ●");
     expect(toast.primaryAction).toBeUndefined();
     expect(toast.show).toHaveBeenCalledOnce();
   });
@@ -253,7 +253,7 @@ describe("AirPods status refresh", () => {
     expect(toast.style).toBe(Toast.Style.Failure);
     expect(toast.title).toBe("Could not refresh subtitles");
     expect(toast.message).toBe(
-      "Listening: Noise Cancellation ● · Conversation Awareness: On ● · Listening Mode subtitle: Cycle Listening Mode is disabled",
+      "Listening: Noise Cancellation ◉ · Conversation Awareness: On ● · Listening Mode subtitle: Cycle Listening Mode is disabled",
     );
     expect(toast.primaryAction).toEqual(expect.objectContaining({ title: "Copy Error" }));
     expect(toast.show).toHaveBeenCalledOnce();
@@ -271,7 +271,7 @@ describe("AirPods status refresh", () => {
 
     expect(toast.style).toBe(Toast.Style.Failure);
     expect(toast.title).toBe("AirPods status partially refreshed");
-    expect(toast.message).toContain("Listening: Noise Cancellation ●");
+    expect(toast.message).toContain("Listening: Noise Cancellation ◉");
     expect(toast.message).toContain("Conversation Awareness: This feature is not supported");
     expect(toast.message).toContain("Listening Mode subtitle: Cycle Listening Mode is disabled");
     expect(toast.primaryAction).toEqual(expect.objectContaining({ title: "Copy Error" }));
@@ -287,7 +287,7 @@ describe("AirPods status refresh", () => {
 
     expect(toast.style).toBe(Toast.Style.Failure);
     expect(toast.title).toBe("AirPods status partially refreshed");
-    expect(toast.message).toContain("Listening: Noise Cancellation ●");
+    expect(toast.message).toContain("Listening: Noise Cancellation ◉");
     expect(toast.message).toContain("Conversation Awareness: This feature is not supported");
     expect(toast.primaryAction).toEqual(expect.objectContaining({ title: "Copy Error" }));
     expect(toast.show).toHaveBeenCalledOnce();
