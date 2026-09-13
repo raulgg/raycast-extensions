@@ -4,13 +4,13 @@ import {
   conversationAwarenessRevisionFromSubtitleRefreshContext,
   type ConversationAwarenessSubtitleRefreshContext,
 } from "./commands/launch-context";
+import { runToggleConversationAwarenessCommand } from "./controls/conversation-awareness";
+import { runWithCliGuard } from "./helper-setup/guard";
+import { resetCommandSubtitle } from "./subtitles/coordination";
 import {
   publishConversationAwarenessSubtitle,
   refreshConversationAwarenessSubtitle,
-  runToggleConversationAwarenessCommand,
-} from "./controls/airpods-control";
-import { runWithCliGuard } from "./helper-setup/guard";
-import { resetCommandSubtitle } from "./subtitles/coordination";
+} from "./subtitles/feature-subtitles";
 
 type ToggleConversationAwarenessLaunchProps = LaunchProps<{
   launchContext?: ConversationAwarenessSubtitleRefreshContext;

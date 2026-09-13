@@ -1,6 +1,6 @@
 import { showFailureToast } from "@raycast/utils";
 import { isCliInstalled } from "../cli/discovery";
-import { createCopyErrorAction, getErrorMessage } from "../feedback/toast-manager";
+import { createCopyErrorAction, getErrorMessage } from "../feedback/error-actions";
 import { promptForCliInstallation } from "./installation";
 
 /** Offer setup when the CLI is missing without running the requested action. */

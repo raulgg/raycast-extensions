@@ -8,7 +8,7 @@ import {
   openExtensionPreferences,
 } from "@raycast/api";
 import { useEffect, useReducer } from "react";
-import { getErrorMessage } from "./feedback/toast-manager";
+import { getErrorMessage } from "./feedback/error-actions";
 import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL, CLI_SOURCE_INSTALL_COMMAND } from "./helper-setup/constants";
 import { detectCliSetup, type CliSetup } from "./helper-setup/detection";
 import { runCliInstallation, type CliOperation } from "./helper-setup/installation";

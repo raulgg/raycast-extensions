@@ -1,18 +1,20 @@
 import { LaunchType, type LaunchProps } from "@raycast/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { runToggleConversationAwarenessCommand } from "./controls/conversation-awareness";
+import { runWithCliGuard } from "./helper-setup/guard";
+import { resetCommandSubtitle } from "./subtitles/coordination";
 import {
   publishConversationAwarenessSubtitle,
   refreshConversationAwarenessSubtitle,
-  runToggleConversationAwarenessCommand,
-} from "./controls/airpods-control";
-import { runWithCliGuard } from "./helper-setup/guard";
-import { resetCommandSubtitle } from "./subtitles/coordination";
+} from "./subtitles/feature-subtitles";
 import main from "./toggle-conversation-awareness";
 import type { ConversationAwarenessSubtitleRefreshContext } from "./commands/launch-context";
 
-vi.mock("./controls/airpods-control", () => ({
+vi.mock("./subtitles/feature-subtitles", () => ({
   publishConversationAwarenessSubtitle: vi.fn(),
   refreshConversationAwarenessSubtitle: vi.fn(),
+}));
+vi.mock("./controls/conversation-awareness", () => ({
   runToggleConversationAwarenessCommand: vi.fn(),
 }));
 

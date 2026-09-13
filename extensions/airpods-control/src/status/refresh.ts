@@ -1,31 +1,17 @@
 import { launchCommand, LaunchType, showToast, Toast } from "@raycast/api";
-import {
-  conversationAwarenessSubtitle,
-  formatAirPodsStatusSubtitle,
-  listeningModeSubtitle,
-} from "../airpods/presentation";
+import { formatAirPodsStatusSubtitle } from "../airpods/presentation";
 import * as AirPodsControlCli from "../cli/client";
-import { CliError } from "../cli/errors";
 import { type SubtitleRevision } from "../commands/launch-context";
 import { CYCLE_LISTENING_MODE_COMMAND_NAME, TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME } from "../commands/names";
-import { createCopyErrorAction, getErrorMessage } from "../feedback/toast-manager";
 import { publishCommandSubtitle, resetCommandSubtitle, withSubtitleSnapshotOperation } from "../subtitles/coordination";
+import { finishToast } from "./feedback";
+import { totalReadFailureIncludes, type AirPodsStatusRefreshResult } from "./result";
+import type { SubtitleDispatchResult } from "./result";
 import type { AirPodsStatusSnapshot, ConversationAwarenessState, ListeningModes } from "../airpods/types";
 import type {
-  ListeningModeSubtitleRefreshContext,
   ConversationAwarenessSubtitleRefreshContext,
+  ListeningModeSubtitleRefreshContext,
 } from "../commands/launch-context";
-
-interface SubtitleDispatchResult {
-  listeningMode: PromiseSettledResult<void>;
-  conversationAwareness: PromiseSettledResult<void>;
-}
-
-export interface AirPodsStatusRefreshResult {
-  listeningMode: PromiseSettledResult<ListeningModes>;
-  conversationAwareness: PromiseSettledResult<ConversationAwarenessState>;
-  subtitleDispatch: SubtitleDispatchResult;
-}
 
 async function dispatchSubtitleRefreshes(
   mode: ListeningModes | null,
@@ -93,17 +79,6 @@ function statusSnapshot(result: {
   };
 }
 
-function totalReadFailureIncludes(
-  result: Pick<AirPodsStatusRefreshResult, "listeningMode" | "conversationAwareness">,
-  code: "no-device" | "unavailable",
-): boolean {
-  if (result.listeningMode.status !== "rejected" || result.conversationAwareness.status !== "rejected") return false;
-
-  return [result.listeningMode.reason, result.conversationAwareness.reason].some(
-    (reason) => reason instanceof CliError && reason.code === code,
-  );
-}
-
 async function publishStatusSubtitle(
   result: {
     listeningMode: PromiseSettledResult<ListeningModes>;
@@ -159,92 +134,6 @@ export async function refreshAirPodsStatus(): Promise<AirPodsStatusRefreshResult
     const subtitleDispatch = await dispatchSubtitleRefreshes(null, null);
     return { ...result, subtitleDispatch };
   }
-}
-
-function fulfilledStatusMessage(result: AirPodsStatusRefreshResult): string {
-  const parts: string[] = [];
-  if (result.listeningMode.status === "fulfilled") {
-    parts.push(`Listening: ${listeningModeSubtitle(result.listeningMode.value)}`);
-  }
-  if (result.conversationAwareness.status === "fulfilled") {
-    parts.push(`Conversation Awareness: ${conversationAwarenessSubtitle(result.conversationAwareness.value)}`);
-  }
-  return parts.join(" · ");
-}
-
-function failureMessage(result: AirPodsStatusRefreshResult): string {
-  const failures: Array<{ label: string; message: string }> = [];
-  if (result.listeningMode.status === "rejected") {
-    failures.push({ label: "Listening Mode", message: getErrorMessage(result.listeningMode.reason) });
-  }
-  if (result.conversationAwareness.status === "rejected") {
-    failures.push({
-      label: "Conversation Awareness",
-      message: getErrorMessage(result.conversationAwareness.reason),
-    });
-  }
-
-  if (failures.length === 2 && failures[0].message === failures[1].message) {
-    return failures[0].message;
-  }
-  return failures.map(({ label, message }) => `${label}: ${message}`).join(" · ");
-}
-
-function subtitleDispatchFailureMessage(result: AirPodsStatusRefreshResult): string {
-  const failures: Array<{ label: string; message: string }> = [];
-  if (result.subtitleDispatch.listeningMode.status === "rejected") {
-    failures.push({
-      label: "Listening Mode subtitle",
-      message: getErrorMessage(result.subtitleDispatch.listeningMode.reason),
-    });
-  }
-  if (result.subtitleDispatch.conversationAwareness.status === "rejected") {
-    failures.push({
-      label: "Conversation Awareness subtitle",
-      message: getErrorMessage(result.subtitleDispatch.conversationAwareness.reason),
-    });
-  }
-  return failures.map(({ label, message }) => `${label}: ${message}`).join(" · ");
-}
-
-async function finishToast(toast: Toast, result: AirPodsStatusRefreshResult): Promise<void> {
-  const listeningSucceeded = result.listeningMode.status === "fulfilled";
-  const conversationSucceeded = result.conversationAwareness.status === "fulfilled";
-  const listeningRefreshLaunched = result.subtitleDispatch.listeningMode.status === "fulfilled";
-  const conversationRefreshLaunched = result.subtitleDispatch.conversationAwareness.status === "fulfilled";
-
-  if (listeningSucceeded && conversationSucceeded && listeningRefreshLaunched && conversationRefreshLaunched) {
-    toast.style = Toast.Style.Success;
-    toast.title = "AirPods status read";
-    toast.message = fulfilledStatusMessage(result);
-    toast.primaryAction = undefined;
-    toast.secondaryAction = undefined;
-  } else if (totalReadFailureIncludes(result, "no-device") && listeningRefreshLaunched && conversationRefreshLaunched) {
-    toast.style = Toast.Style.Success;
-    toast.title = "AirPods not connected";
-    toast.message = "Connect your AirPods to your Mac and try again.";
-    toast.primaryAction = undefined;
-    toast.secondaryAction = undefined;
-  } else {
-    const partial = listeningSucceeded || conversationSucceeded;
-    const confirmed = fulfilledStatusMessage(result);
-    const readFailure = failureMessage(result);
-    const dispatchFailure = subtitleDispatchFailureMessage(result);
-    const failures = [readFailure, dispatchFailure].filter(Boolean);
-    const message = [confirmed, ...failures].filter(Boolean).join(" · ");
-
-    toast.style = Toast.Style.Failure;
-    if (dispatchFailure && !readFailure) {
-      toast.title = "Could not refresh subtitles";
-    } else {
-      toast.title = partial ? "AirPods status partially refreshed" : "Failed to refresh AirPods status";
-    }
-    toast.message = message;
-    toast.primaryAction = createCopyErrorAction(message);
-    toast.secondaryAction = undefined;
-  }
-
-  await toast.show();
 }
 
 export async function runAirPodsStatusRefresh({ showFeedback }: { showFeedback: boolean }): Promise<void> {

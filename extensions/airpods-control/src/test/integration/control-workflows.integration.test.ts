@@ -1,19 +1,15 @@
 import { getPreferenceValues, launchCommand, LaunchType, openCommandPreferences } from "@raycast/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as AirPodsControlCli from "../cli/client";
-import { CliError } from "../cli/errors";
-import { ToastManager } from "../feedback/toast-manager";
-import { publishCommandSubtitle, resetCommandSubtitle, withSubtitleOperation } from "../subtitles/coordination";
-import {
-  refreshConversationAwarenessSubtitle,
-  refreshListeningModeSubtitle,
-  runCycleListeningModeCommand,
-  runSetListeningModeCommand,
-  runToggleConversationAwarenessCommand,
-} from "./airpods-control";
-import type { CycleCommandPreferences } from "./preferences";
+import * as AirPodsControlCli from "../../cli/client";
+import { CliError } from "../../cli/errors";
+import { runToggleConversationAwarenessCommand } from "../../controls/conversation-awareness";
+import { runCycleListeningModeCommand, runSetListeningModeCommand } from "../../controls/listening-mode";
+import { ToastManager } from "../../feedback/toast-manager";
+import { publishCommandSubtitle, resetCommandSubtitle, withSubtitleOperation } from "../../subtitles/coordination";
+import { refreshConversationAwarenessSubtitle, refreshListeningModeSubtitle } from "../../subtitles/feature-subtitles";
+import type { CycleCommandPreferences } from "../../controls/preferences";
 
-vi.mock("../cli/client", () => ({
+vi.mock("../../cli/client", () => ({
   confirmedConversationAwareness: vi.fn((payload) => payload?.conversationAwareness ?? null),
   confirmedListeningMode: vi.fn((payload) => {
     const modes: Record<string, string> = {
@@ -31,13 +27,13 @@ vi.mock("../cli/client", () => ({
   setListeningMode: vi.fn(),
 }));
 
-vi.mock("../subtitles/coordination", () => ({
+vi.mock("../../subtitles/coordination", () => ({
   publishCommandSubtitle: vi.fn(),
   resetCommandSubtitle: vi.fn(),
   withSubtitleOperation: vi.fn(async (_channel, operation) => operation("test-revision")),
 }));
 
-vi.mock("../feedback/toast-manager", () => ({
+vi.mock("../../feedback/toast-manager", () => ({
   ToastManager: vi.fn(),
 }));
 

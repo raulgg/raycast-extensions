@@ -1,6 +1,6 @@
 import { launchCommand, LaunchType, open, showToast, Toast } from "@raycast/api";
 import { CLI_SETUP_COMMAND_NAME } from "../commands/names";
-import { createCopyErrorAction, getErrorMessage } from "../feedback/toast-manager";
+import { createCopyErrorAction, getErrorMessage } from "../feedback/error-actions";
 import { CLI_INSTALL_DOCS_URL } from "./constants";
 
 export async function openCliSetup(): Promise<void> {

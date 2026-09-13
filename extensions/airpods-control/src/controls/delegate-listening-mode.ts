@@ -1,7 +1,7 @@
 import { launchCommand, LaunchType } from "@raycast/api";
 import { CYCLE_LISTENING_MODE_COMMAND_NAME } from "../commands/names";
 import { runWithCliGuard } from "../helper-setup/guard";
-import { runSetListeningModeCommand } from "./airpods-control";
+import { runSetListeningModeCommand } from "./listening-mode";
 import type { ListeningModes } from "../airpods/types";
 import type { SetListeningModeLaunchContext } from "../commands/launch-context";
 

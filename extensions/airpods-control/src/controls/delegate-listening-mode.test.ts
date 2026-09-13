@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isCliInstalled } from "../cli/discovery";
 import { CYCLE_LISTENING_MODE_COMMAND_NAME } from "../commands/names";
 import { promptForCliInstallation } from "../helper-setup/installation";
-import { runSetListeningModeCommand } from "./airpods-control";
 import { setListeningMode } from "./delegate-listening-mode";
+import { runSetListeningModeCommand } from "./listening-mode";
 
-vi.mock("./airpods-control", () => ({
+vi.mock("./listening-mode", () => ({
   runSetListeningModeCommand: vi.fn(),
 }));
 

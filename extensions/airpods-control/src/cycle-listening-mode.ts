@@ -5,14 +5,10 @@ import {
   listeningModeRevisionFromSubtitleRefreshContext,
   type ListeningModeSubtitleRefreshContext,
 } from "./commands/launch-context";
-import {
-  publishListeningModeSubtitle,
-  refreshListeningModeSubtitle,
-  runCycleListeningModeCommand,
-  runSetListeningModeCommand,
-} from "./controls/airpods-control";
+import { runCycleListeningModeCommand, runSetListeningModeCommand } from "./controls/listening-mode";
 import { runWithCliGuard } from "./helper-setup/guard";
 import { resetCommandSubtitle } from "./subtitles/coordination";
+import { publishListeningModeSubtitle, refreshListeningModeSubtitle } from "./subtitles/feature-subtitles";
 
 type CycleListeningModeLaunchProps = LaunchProps<{
   launchContext?: SetListeningModeLaunchContext | ListeningModeSubtitleRefreshContext;

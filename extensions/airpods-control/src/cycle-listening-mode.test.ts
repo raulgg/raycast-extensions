@@ -1,20 +1,18 @@
 import { LaunchType, type LaunchProps } from "@raycast/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  publishListeningModeSubtitle,
-  refreshListeningModeSubtitle,
-  runCycleListeningModeCommand,
-  runSetListeningModeCommand,
-} from "./controls/airpods-control";
+import { runCycleListeningModeCommand, runSetListeningModeCommand } from "./controls/listening-mode";
 import main from "./cycle-listening-mode";
 import { runWithCliGuard } from "./helper-setup/guard";
 import { resetCommandSubtitle } from "./subtitles/coordination";
+import { publishListeningModeSubtitle, refreshListeningModeSubtitle } from "./subtitles/feature-subtitles";
 import type { SetListeningModeLaunchContext } from "./commands/launch-context";
 import type { ListeningModeSubtitleRefreshContext } from "./commands/launch-context";
 
-vi.mock("./controls/airpods-control", () => ({
+vi.mock("./subtitles/feature-subtitles", () => ({
   publishListeningModeSubtitle: vi.fn(),
   refreshListeningModeSubtitle: vi.fn(),
+}));
+vi.mock("./controls/listening-mode", () => ({
   runCycleListeningModeCommand: vi.fn(),
   runSetListeningModeCommand: vi.fn(),
 }));

@@ -1,31 +1,10 @@
-import { Clipboard, Keyboard, showToast, Toast } from "@raycast/api";
-
-const UNEXPECTED_ERROR_MESSAGE = "An unexpected error occurred.";
+import { showToast, Toast } from "@raycast/api";
+import { createCopyErrorAction, getErrorMessage } from "./error-actions";
 
 export interface ToastTitles {
   loading: string;
   success: string;
   failure: string;
-}
-
-export function getErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-  if (typeof error === "string" && error.trim()) {
-    return error.trim();
-  }
-  return UNEXPECTED_ERROR_MESSAGE;
-}
-
-export function createCopyErrorAction(message: string): Toast.ActionOptions {
-  return {
-    title: "Copy Error",
-    shortcut: Keyboard.Shortcut.Common.Copy,
-    onAction: async () => {
-      await Clipboard.copy(message);
-    },
-  };
 }
 
 export class ToastManager {

@@ -1,5 +1,5 @@
 import { confirmAlert, showToast, Toast } from "@raycast/api";
-import { createCopyErrorAction, getErrorMessage } from "../feedback/toast-manager";
+import { createCopyErrorAction, getErrorMessage } from "../feedback/error-actions";
 import { installCliWithBrew, updateCliWithBrew } from "../homebrew/commands";
 import { detectCliSetup, type CliSetup } from "./detection";
 import { openCliSetup } from "./navigation";

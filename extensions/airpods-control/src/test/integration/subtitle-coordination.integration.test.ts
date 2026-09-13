@@ -6,7 +6,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import * as AirPodsControlCli from "../../cli/client";
 import { type ListeningModeSubtitleRefreshContext } from "../../commands/launch-context";
 import { CYCLE_LISTENING_MODE_COMMAND_NAME, TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME } from "../../commands/names";
-import { runSetListeningModeCommand, runToggleConversationAwarenessCommand } from "../../controls/airpods-control";
+import { runToggleConversationAwarenessCommand } from "../../controls/conversation-awareness";
+import { runSetListeningModeCommand } from "../../controls/listening-mode";
 import cycleListeningMode from "../../cycle-listening-mode";
 import { refreshAirPodsStatus } from "../../status/refresh";
 import {
