@@ -7,6 +7,7 @@ import {
 } from "./core/airpods-control";
 import {
   listeningModeFromSubtitleRefreshContext,
+  listeningModeRevisionFromSubtitleRefreshContext,
   type ListeningModeSubtitleRefreshContext,
 } from "./core/airpods-status-refresh";
 import { runWithCliGuard } from "./core/cli-guard";
@@ -20,10 +21,11 @@ type CycleListeningModeLaunchProps = LaunchProps<{
 export default async function main({ launchContext, launchType }: CycleListeningModeLaunchProps) {
   if (launchType === LaunchType.Background) {
     const mode = listeningModeFromSubtitleRefreshContext(launchContext);
-    if (mode === undefined) {
+    const revision = listeningModeRevisionFromSubtitleRefreshContext(launchContext);
+    if (mode === undefined || revision === undefined) {
       await refreshListeningModeSubtitle();
     } else {
-      await publishListeningModeSubtitle(mode);
+      await publishListeningModeSubtitle(mode, revision);
     }
     return;
   }
@@ -37,11 +39,11 @@ export default async function main({ launchContext, launchType }: CycleListening
 
       const mode = modeFromLaunchContext(launchContext);
       if (!mode) {
-        await resetCommandSubtitle();
+        await resetCommandSubtitle({ channel: "listening-mode" });
         throw new Error("Cycle Listening Mode received invalid launch context.");
       }
       await runSetListeningModeCommand(mode, { updateCycleSubtitle: true });
     },
-    { onUnavailable: resetCommandSubtitle },
+    { onUnavailable: () => resetCommandSubtitle({ channel: "listening-mode" }) },
   );
 }

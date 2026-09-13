@@ -1,7 +1,13 @@
 import { getPreferenceValues, openCommandPreferences } from "@raycast/api";
 import * as AirPodsControlCli from "./airpods-control-cli";
 import { CliError } from "./cli";
-import { publishCommandSubtitle, resetCommandSubtitle } from "./command-metadata";
+import {
+  publishCommandSubtitle,
+  resetCommandSubtitle,
+  type SubtitleChannel,
+  type SubtitleRevision,
+  withSubtitleOperation,
+} from "./command-metadata";
 import { CYCLE_MODE_ORDER } from "./consts";
 import {
   conversationAwarenessHud,
@@ -21,58 +27,105 @@ interface SetListeningModeCommandOptions {
   updateCycleSubtitle: boolean;
 }
 
+async function runWithSubtitleOperation(
+  channel: SubtitleChannel,
+  toast: ToastManager,
+  operation: (revision: SubtitleRevision) => Promise<void>,
+): Promise<void> {
+  let entered = false;
+  try {
+    await withSubtitleOperation(channel, async (revision) => {
+      entered = true;
+      await operation(revision);
+    });
+  } catch (error) {
+    if (entered) throw error;
+
+    // A command must not change AirPods without the cross-process operation
+    // lock. This is a coordination failure, so surface it before any CLI call.
+    await toast.setToFailure({ error });
+  }
+}
+
 async function refreshCommandSubtitle<State>(
   readState: () => Promise<State>,
-  publishState: (state: State | null) => Promise<void>,
+  publishState: (state: State | null, revision?: SubtitleRevision) => Promise<void>,
+  revision?: SubtitleRevision,
 ): Promise<void> {
   try {
-    await publishState(await readState());
+    await publishState(await readState(), revision);
   } catch {
-    await publishState(null);
+    await publishState(null, revision);
   }
 }
 
-export async function publishListeningModeSubtitle(mode: ListeningModes | null): Promise<void> {
+export async function publishListeningModeSubtitle(
+  mode: ListeningModes | null,
+  revision?: SubtitleRevision,
+): Promise<void> {
   if (mode) {
-    await publishCommandSubtitle(listeningModeSubtitle(mode));
+    await publishCommandSubtitle(listeningModeSubtitle(mode), { channel: "listening-mode", revision });
   } else {
-    await resetCommandSubtitle();
+    await resetCommandSubtitle({ channel: "listening-mode", revision });
   }
 }
 
-export async function publishConversationAwarenessSubtitle(state: ConversationAwarenessState | null): Promise<void> {
+export async function publishConversationAwarenessSubtitle(
+  state: ConversationAwarenessState | null,
+  revision?: SubtitleRevision,
+): Promise<void> {
   if (state) {
-    await publishCommandSubtitle(conversationAwarenessSubtitle(state));
+    await publishCommandSubtitle(conversationAwarenessSubtitle(state), { channel: "conversation-awareness", revision });
   } else {
-    await resetCommandSubtitle();
+    await resetCommandSubtitle({ channel: "conversation-awareness", revision });
   }
 }
 
 export async function refreshListeningModeSubtitle(): Promise<void> {
-  await refreshCommandSubtitle(AirPodsControlCli.getListeningMode, publishListeningModeSubtitle);
+  try {
+    await withSubtitleOperation("listening-mode", async (revision) => {
+      await refreshCommandSubtitle(AirPodsControlCli.getListeningMode, publishListeningModeSubtitle, revision);
+    });
+  } catch (error) {
+    console.error("Failed to coordinate listening-mode refresh", error);
+  }
 }
 
 export async function refreshConversationAwarenessSubtitle(): Promise<void> {
-  await refreshCommandSubtitle(AirPodsControlCli.getConversationAwareness, publishConversationAwarenessSubtitle);
+  try {
+    await withSubtitleOperation("conversation-awareness", async (revision) => {
+      await refreshCommandSubtitle(
+        AirPodsControlCli.getConversationAwareness,
+        publishConversationAwarenessSubtitle,
+        revision,
+      );
+    });
+  } catch (error) {
+    console.error("Failed to coordinate Conversation Awareness refresh", error);
+  }
 }
 
-async function publishConfirmedListeningMode(error: unknown, enabled: boolean): Promise<void> {
+async function publishConfirmedListeningMode(
+  error: unknown,
+  enabled: boolean,
+  revision?: SubtitleRevision,
+): Promise<void> {
   if (!enabled) return;
 
   const mode = error instanceof CliError ? AirPodsControlCli.confirmedListeningMode(error.payload) : null;
   if (mode) {
-    await publishCommandSubtitle(listeningModeSubtitle(mode));
+    await publishListeningModeSubtitle(mode, revision);
   } else {
-    await resetCommandSubtitle();
+    await publishListeningModeSubtitle(null, revision);
   }
 }
 
-async function publishConfirmedConversationAwareness(error: unknown): Promise<void> {
+async function publishConfirmedConversationAwareness(error: unknown, revision?: SubtitleRevision): Promise<void> {
   const state = error instanceof CliError ? AirPodsControlCli.confirmedConversationAwareness(error.payload) : null;
   if (state) {
-    await publishCommandSubtitle(conversationAwarenessSubtitle(state));
+    await publishConversationAwarenessSubtitle(state, revision);
   } else {
-    await resetCommandSubtitle();
+    await publishConversationAwarenessSubtitle(null, revision);
   }
 }
 
@@ -106,20 +159,27 @@ export async function runSetListeningModeCommand(
   });
   await toast.setToLoading();
 
-  if (updateCycleSubtitle) {
-    await publishCommandSubtitle(listeningModeSubtitle(modeToActivate));
-  }
-
-  try {
-    const confirmedMode = await AirPodsControlCli.setListeningMode(modeToActivate);
-    if (updateCycleSubtitle && confirmedMode !== modeToActivate) {
-      await publishCommandSubtitle(listeningModeSubtitle(confirmedMode));
+  const run = async (revision: SubtitleRevision): Promise<void> => {
+    if (updateCycleSubtitle) {
+      await publishListeningModeSubtitle(modeToActivate, revision);
     }
-    await toast.setToSuccess({ titleOverride: listeningModeHud(confirmedMode) });
-  } catch (error) {
-    await publishConfirmedListeningMode(error, updateCycleSubtitle);
-    await showCliFailure(toast, error, { offRequested: modeToActivate === "off" });
-  }
+
+    try {
+      const confirmedMode = await AirPodsControlCli.setListeningMode(modeToActivate);
+      // Set adapters return the requested state when macOS confirms a no-op,
+      // so this publication must remain unconditional to recover from a
+      // failed optimistic update or a reset performed by its error path.
+      if (updateCycleSubtitle) {
+        await publishListeningModeSubtitle(confirmedMode, revision);
+      }
+      await toast.setToSuccess({ titleOverride: listeningModeHud(confirmedMode) });
+    } catch (error) {
+      await publishConfirmedListeningMode(error, updateCycleSubtitle, revision);
+      await showCliFailure(toast, error, { offRequested: modeToActivate === "off" });
+    }
+  };
+
+  await runWithSubtitleOperation("listening-mode", toast, run);
 }
 
 function nextCycleMode(currentMode: ListeningModes, cycleModes: ListeningModes[]): ListeningModes {
@@ -164,33 +224,36 @@ export async function runCycleListeningModeCommand(): Promise<void> {
     return;
   }
 
-  try {
-    const currentMode = await AirPodsControlCli.getListeningMode();
-    const expectedMode = nextCycleMode(currentMode, selectedModes);
-    await publishCommandSubtitle(listeningModeSubtitle(expectedMode));
-    const confirmedMode = await AirPodsControlCli.cycleListeningMode(selectedModes);
-    if (confirmedMode !== expectedMode) {
-      await publishCommandSubtitle(listeningModeSubtitle(confirmedMode));
-    }
-    await toast.setToSuccess({
-      titleOverride: listeningModeHud(confirmedMode),
-    });
-  } catch (error) {
-    await publishConfirmedListeningMode(error, true);
-    if (error instanceof CliError && error.code === "unsupported") {
-      await toast.setToFailure({
-        error: new Error(
-          "Your AirPods support fewer than two of the selected cycle modes. Adjust the command preferences.",
-        ),
-        action: {
-          title: "Open Command Preferences",
-          onAction: openCommandPreferences,
-        },
+  const run = async (revision: SubtitleRevision): Promise<void> => {
+    try {
+      const currentMode = await AirPodsControlCli.getListeningMode();
+      const expectedMode = nextCycleMode(currentMode, selectedModes);
+      await publishListeningModeSubtitle(expectedMode, revision);
+      const confirmedMode = await AirPodsControlCli.cycleListeningMode(selectedModes);
+      // Reconcile every successful cycle with the CLI's confirmed state.
+      await publishListeningModeSubtitle(confirmedMode, revision);
+      await toast.setToSuccess({
+        titleOverride: listeningModeHud(confirmedMode),
       });
-      return;
+    } catch (error) {
+      await publishConfirmedListeningMode(error, true, revision);
+      if (error instanceof CliError && error.code === "unsupported") {
+        await toast.setToFailure({
+          error: new Error(
+            "Your AirPods support fewer than two of the selected cycle modes. Adjust the command preferences.",
+          ),
+          action: {
+            title: "Open Command Preferences",
+            onAction: openCommandPreferences,
+          },
+        });
+        return;
+      }
+      await showCliFailure(toast, error, { offRequested: selectedModes.includes("off") });
     }
-    await showCliFailure(toast, error, { offRequested: selectedModes.includes("off") });
-  }
+  };
+
+  await runWithSubtitleOperation("listening-mode", toast, run);
 }
 
 export async function runToggleConversationAwarenessCommand(): Promise<void> {
@@ -201,24 +264,27 @@ export async function runToggleConversationAwarenessCommand(): Promise<void> {
   });
   await toast.setToLoading();
 
-  try {
-    const currentState = await AirPodsControlCli.getConversationAwareness();
-    const nextState: ConversationAwarenessState = currentState === "on" ? "off" : "on";
-    await publishCommandSubtitle(conversationAwarenessSubtitle(nextState));
-    const confirmedState = await AirPodsControlCli.setConversationAwareness(nextState);
-    if (confirmedState !== nextState) {
-      await publishCommandSubtitle(conversationAwarenessSubtitle(confirmedState));
+  const run = async (revision: SubtitleRevision): Promise<void> => {
+    try {
+      const currentState = await AirPodsControlCli.getConversationAwareness();
+      const nextState: ConversationAwarenessState = currentState === "on" ? "off" : "on";
+      await publishConversationAwarenessSubtitle(nextState, revision);
+      const confirmedState = await AirPodsControlCli.setConversationAwareness(nextState);
+      // Reconcile every successful toggle with the CLI's confirmed state.
+      await publishConversationAwarenessSubtitle(confirmedState, revision);
+      await toast.setToSuccess({ titleOverride: conversationAwarenessHud(confirmedState) });
+    } catch (error) {
+      await publishConfirmedConversationAwareness(error, revision);
+      if (error instanceof CliError && error.code === "unsupported") {
+        await toast.setToFailure({
+          titleOverride: "Conversation Awareness not supported",
+          error: new Error("Your connected device doesn't support Conversation Awareness."),
+        });
+        return;
+      }
+      await showCliFailure(toast, error);
     }
-    await toast.setToSuccess({ titleOverride: conversationAwarenessHud(confirmedState) });
-  } catch (error) {
-    await publishConfirmedConversationAwareness(error);
-    if (error instanceof CliError && error.code === "unsupported") {
-      await toast.setToFailure({
-        titleOverride: "Conversation Awareness not supported",
-        error: new Error("Your connected device doesn't support Conversation Awareness."),
-      });
-      return;
-    }
-    await showCliFailure(toast, error);
-  }
+  };
+
+  await runWithSubtitleOperation("conversation-awareness", toast, run);
 }

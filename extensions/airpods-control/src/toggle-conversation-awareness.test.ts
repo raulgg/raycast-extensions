@@ -44,7 +44,7 @@ describe("Toggle Conversation Awareness entry point", () => {
     expect(refreshConversationAwarenessSubtitle).not.toHaveBeenCalled();
     expect(resetCommandSubtitle).not.toHaveBeenCalled();
     expect(runWithCliGuard).toHaveBeenCalledWith(runToggleConversationAwarenessCommand, {
-      onUnavailable: resetCommandSubtitle,
+      onUnavailable: expect.any(Function),
     });
     expect(runToggleConversationAwarenessCommand).toHaveBeenCalledOnce();
   });
@@ -63,10 +63,11 @@ describe("Toggle Conversation Awareness entry point", () => {
       props(LaunchType.Background, {
         operation: "refresh-conversation-awareness-subtitle",
         state: "on",
+        revision: "read-revision",
       }),
     );
 
-    expect(publishConversationAwarenessSubtitle).toHaveBeenCalledWith("on");
+    expect(publishConversationAwarenessSubtitle).toHaveBeenCalledWith("on", "read-revision");
     expect(refreshConversationAwarenessSubtitle).not.toHaveBeenCalled();
     expect(runWithCliGuard).not.toHaveBeenCalled();
     expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
@@ -77,10 +78,11 @@ describe("Toggle Conversation Awareness entry point", () => {
       props(LaunchType.Background, {
         operation: "refresh-conversation-awareness-subtitle",
         state: null,
+        revision: "read-revision",
       }),
     );
 
-    expect(publishConversationAwarenessSubtitle).toHaveBeenCalledWith(null);
+    expect(publishConversationAwarenessSubtitle).toHaveBeenCalledWith(null, "read-revision");
     expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
   });
 
@@ -90,11 +92,12 @@ describe("Toggle Conversation Awareness entry point", () => {
         props(LaunchType.UserInitiated, {
           operation: "refresh-conversation-awareness-subtitle",
           state: "off",
+          revision: "read-revision",
         }),
       ),
     ).rejects.toThrow("invalid launch context");
 
-    expect(resetCommandSubtitle).toHaveBeenCalledOnce();
+    expect(resetCommandSubtitle).toHaveBeenCalledWith({ channel: "conversation-awareness" });
     expect(runWithCliGuard).not.toHaveBeenCalled();
     expect(runToggleConversationAwarenessCommand).not.toHaveBeenCalled();
   });

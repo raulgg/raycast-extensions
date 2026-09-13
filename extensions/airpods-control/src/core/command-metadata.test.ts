@@ -1,10 +1,17 @@
-import { updateCommandMetadata } from "@raycast/api";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { rmSync } from "fs";
+import { environment, updateCommandMetadata } from "@raycast/api";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { publishCommandSubtitle, resetCommandSubtitle } from "./command-metadata";
 
 const mockUpdateCommandMetadata = vi.mocked(updateCommandMetadata);
 
+afterAll(() => {
+  rmSync(environment.supportPath, { recursive: true, force: true });
+});
+
 describe("command metadata", () => {
+  const options = { channel: "listening-mode" as const };
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -14,13 +21,13 @@ describe("command metadata", () => {
   });
 
   it("restores the manifest subtitle", async () => {
-    await resetCommandSubtitle();
+    await resetCommandSubtitle(options);
 
     expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: null });
   });
 
   it("publishes a dynamic subtitle", async () => {
-    await publishCommandSubtitle("◑ Adaptive");
+    await publishCommandSubtitle("◑ Adaptive", options);
 
     expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "◑ Adaptive" });
   });
@@ -29,7 +36,7 @@ describe("command metadata", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     mockUpdateCommandMetadata.mockRejectedValueOnce(new Error("metadata failed"));
 
-    await publishCommandSubtitle("◑ Adaptive");
+    await publishCommandSubtitle("◑ Adaptive", options);
 
     expect(mockUpdateCommandMetadata).toHaveBeenNthCalledWith(1, { subtitle: "◑ Adaptive" });
     expect(mockUpdateCommandMetadata).toHaveBeenNthCalledWith(2, { subtitle: null });
@@ -39,6 +46,6 @@ describe("command metadata", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     mockUpdateCommandMetadata.mockRejectedValueOnce(new Error("metadata failed"));
 
-    await expect(resetCommandSubtitle()).resolves.toBeUndefined();
+    await expect(resetCommandSubtitle(options)).resolves.toBeUndefined();
   });
 });

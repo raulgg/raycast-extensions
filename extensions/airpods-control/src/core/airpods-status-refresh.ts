@@ -1,5 +1,11 @@
 import { launchCommand, LaunchType, showToast, Toast } from "@raycast/api";
 import * as AirPodsControlCli from "./airpods-control-cli";
+import {
+  reserveSubtitleRevisionForReset,
+  type SubtitleChannel,
+  type SubtitleRevision,
+  withSubtitleOperation,
+} from "./command-metadata";
 import { CYCLE_LISTENING_MODE_COMMAND_NAME, TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME } from "./consts";
 import { conversationAwarenessSubtitle, listeningModeSubtitle } from "./presentation";
 import { createCopyErrorAction, getErrorMessage } from "./toast-manager";
@@ -8,11 +14,13 @@ import type { ConversationAwarenessState, ListeningModes } from "./types";
 export interface ListeningModeSubtitleRefreshContext {
   operation: "refresh-listening-mode-subtitle";
   mode: ListeningModes | null;
+  revision?: SubtitleRevision;
 }
 
 export interface ConversationAwarenessSubtitleRefreshContext {
   operation: "refresh-conversation-awareness-subtitle";
   state: ConversationAwarenessState | null;
+  revision?: SubtitleRevision;
 }
 
 interface SubtitleDispatchResult {
@@ -48,23 +56,82 @@ export function conversationAwarenessFromSubtitleRefreshContext(
   return state === "on" || state === "off" ? state : undefined;
 }
 
+function revisionFromSubtitleRefreshContext(context: unknown, operation: string): SubtitleRevision | undefined {
+  if (typeof context !== "object" || context === null) return undefined;
+
+  const { operation: contextOperation, revision } = context as Record<string, unknown>;
+  return contextOperation === operation && typeof revision === "string" && revision.length > 0 ? revision : undefined;
+}
+
+export function listeningModeRevisionFromSubtitleRefreshContext(context: unknown): SubtitleRevision | undefined {
+  return revisionFromSubtitleRefreshContext(context, "refresh-listening-mode-subtitle");
+}
+
+export function conversationAwarenessRevisionFromSubtitleRefreshContext(
+  context: unknown,
+): SubtitleRevision | undefined {
+  return revisionFromSubtitleRefreshContext(context, "refresh-conversation-awareness-subtitle");
+}
+
+interface StatusReadResult<State> {
+  result: PromiseSettledResult<State>;
+  revision?: SubtitleRevision;
+}
+
+async function readStatus<State>(
+  channel: SubtitleChannel,
+  readState: () => Promise<State>,
+): Promise<StatusReadResult<State>> {
+  try {
+    return await withSubtitleOperation(channel, async (revision) => {
+      try {
+        return { result: { status: "fulfilled", value: await readState() }, revision } as StatusReadResult<State>;
+      } catch (reason) {
+        return { result: { status: "rejected", reason }, revision } as StatusReadResult<State>;
+      }
+    });
+  } catch (reason) {
+    // A failed coordination lock is reported like a failed read. The caller
+    // will dispatch a guarded neutral context and retain the existing UX.
+    return { result: { status: "rejected", reason } };
+  }
+}
+
+async function tryReserveSubtitleRevision(channel: SubtitleChannel): Promise<SubtitleRevision | undefined> {
+  try {
+    return await reserveSubtitleRevisionForReset(channel);
+  } catch (error) {
+    console.error(`Failed to reserve ${channel} subtitle revision`, error);
+    return undefined;
+  }
+}
+
 async function dispatchSubtitleRefreshes(
   mode: ListeningModes | null,
   state: ConversationAwarenessState | null,
+  listeningRevision?: SubtitleRevision,
+  conversationRevision?: SubtitleRevision,
 ): Promise<SubtitleDispatchResult> {
+  const listeningContext: ListeningModeSubtitleRefreshContext = {
+    operation: "refresh-listening-mode-subtitle",
+    mode,
+    ...(listeningRevision ? { revision: listeningRevision } : {}),
+  };
+  const conversationContext: ConversationAwarenessSubtitleRefreshContext = {
+    operation: "refresh-conversation-awareness-subtitle",
+    state,
+    ...(conversationRevision ? { revision: conversationRevision } : {}),
+  };
   const [listeningMode, conversationAwareness] = await Promise.allSettled([
     launchCommand({
       name: CYCLE_LISTENING_MODE_COMMAND_NAME,
       type: LaunchType.Background,
-      context: { operation: "refresh-listening-mode-subtitle", mode } satisfies ListeningModeSubtitleRefreshContext,
+      context: listeningContext,
     }),
     launchCommand({
       name: TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME,
       type: LaunchType.Background,
-      context: {
-        operation: "refresh-conversation-awareness-subtitle",
-        state,
-      } satisfies ConversationAwarenessSubtitleRefreshContext,
+      context: conversationContext,
     }),
   ]);
 
@@ -84,19 +151,27 @@ function logSubtitleDispatchFailures(result: SubtitleDispatchResult): void {
 }
 
 export async function resetAirPodsStatusSubtitles(): Promise<void> {
-  logSubtitleDispatchFailures(await dispatchSubtitleRefreshes(null, null));
+  const [listeningRevision, conversationRevision] = await Promise.all([
+    tryReserveSubtitleRevision("listening-mode"),
+    tryReserveSubtitleRevision("conversation-awareness"),
+  ]);
+  logSubtitleDispatchFailures(await dispatchSubtitleRefreshes(null, null, listeningRevision, conversationRevision));
 }
 
 export async function refreshAirPodsStatus(): Promise<AirPodsStatusRefreshResult> {
-  const [listeningMode, conversationAwareness] = await Promise.allSettled([
-    AirPodsControlCli.getListeningMode(),
-    AirPodsControlCli.getConversationAwareness(),
+  const [listeningModeRead, conversationAwarenessRead] = await Promise.all([
+    readStatus("listening-mode", AirPodsControlCli.getListeningMode),
+    readStatus("conversation-awareness", AirPodsControlCli.getConversationAwareness),
   ]);
+  const listeningMode = listeningModeRead.result;
+  const conversationAwareness = conversationAwarenessRead.result;
   const result = { listeningMode, conversationAwareness };
 
   const subtitleDispatch = await dispatchSubtitleRefreshes(
     listeningMode.status === "fulfilled" ? listeningMode.value : null,
     conversationAwareness.status === "fulfilled" ? conversationAwareness.value : null,
+    listeningModeRead.revision,
+    conversationAwarenessRead.revision,
   );
   return { ...result, subtitleDispatch };
 }

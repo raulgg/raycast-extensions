@@ -1,3 +1,5 @@
+import { tmpdir } from "os";
+import { join } from "path";
 import { createElement, type ReactNode } from "react";
 import { vi, type Mock } from "vitest";
 import type {
@@ -26,6 +28,11 @@ export const LaunchType = {
   UserInitiated: "userInitiated",
   Background: "background",
 } as const;
+
+export const environment = {
+  supportPath: join(tmpdir(), `airpods-control-raycast-test-${process.pid}-${Math.random().toString(36).slice(2)}`),
+  entryPointName: "",
+};
 
 export const Keyboard = {
   Shortcut: {

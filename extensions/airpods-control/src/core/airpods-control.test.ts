@@ -34,6 +34,7 @@ vi.mock("./airpods-control-cli", () => ({
 vi.mock("./command-metadata", () => ({
   publishCommandSubtitle: vi.fn(),
   resetCommandSubtitle: vi.fn(),
+  withSubtitleOperation: vi.fn(async (_channel, operation) => operation("test-revision")),
 }));
 
 vi.mock("./toast-manager", () => ({
@@ -85,7 +86,10 @@ describe("airpods-control workflows", () => {
       await refreshListeningModeSubtitle();
 
       expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Noise Cancellation ●");
+      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Noise Cancellation ●", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
       expect(AirPodsControlCli.cycleListeningMode).not.toHaveBeenCalled();
       expect(AirPodsControlCli.setListeningMode).not.toHaveBeenCalled();
       expect(mockToastManager).not.toHaveBeenCalled();
@@ -107,7 +111,10 @@ describe("airpods-control workflows", () => {
       await refreshConversationAwarenessSubtitle();
 
       expect(AirPodsControlCli.getConversationAwareness).toHaveBeenCalledOnce();
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Off ○");
+      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Off ○", {
+        channel: "conversation-awareness",
+        revision: "test-revision",
+      });
       expect(AirPodsControlCli.setConversationAwareness).not.toHaveBeenCalled();
       expect(mockToastManager).not.toHaveBeenCalled();
     });
@@ -130,8 +137,15 @@ describe("airpods-control workflows", () => {
       await runSetListeningModeCommand("anc", { updateCycleSubtitle: true });
 
       expect(AirPodsControlCli.setListeningMode).toHaveBeenCalledWith("anc");
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledOnce();
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Noise Cancellation ●");
+      expect(mockPublishCommandSubtitle).toHaveBeenCalledTimes(2);
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Noise Cancellation ●", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ●", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
       expect(mockPublishCommandSubtitle.mock.invocationCallOrder[0]).toBeLessThan(
         vi.mocked(AirPodsControlCli.setListeningMode).mock.invocationCallOrder[0],
       );
@@ -155,8 +169,14 @@ describe("airpods-control workflows", () => {
 
       await runSetListeningModeCommand("anc", { updateCycleSubtitle: true });
 
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Noise Cancellation ●");
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Transparency ○");
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Noise Cancellation ●", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Transparency ○", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
       expect(toast.setToFailure).toHaveBeenCalledWith({ error });
       expect(toast.setToSuccess).not.toHaveBeenCalled();
     });
@@ -170,7 +190,10 @@ describe("airpods-control workflows", () => {
         titleOverride: "Off mode was not applied",
         error: expect.objectContaining({ message: expect.stringContaining("Off may be disabled") }),
       });
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Off ○̸");
+      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Off ○̸", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
       expect(mockResetCommandSubtitle).toHaveBeenCalledOnce();
     });
 
@@ -179,7 +202,10 @@ describe("airpods-control workflows", () => {
 
       await runSetListeningModeCommand("adaptive", { updateCycleSubtitle: true });
 
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Adaptive ◑");
+      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Adaptive ◑", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
       expect(mockResetCommandSubtitle).toHaveBeenCalledOnce();
     });
   });
@@ -192,8 +218,15 @@ describe("airpods-control workflows", () => {
 
       expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
       expect(AirPodsControlCli.cycleListeningMode).toHaveBeenCalledWith(["transparency", "adaptive", "anc"]);
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledOnce();
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Adaptive ◑");
+      expect(mockPublishCommandSubtitle).toHaveBeenCalledTimes(2);
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Adaptive ◑", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Adaptive ◑", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
       expect(mockPublishCommandSubtitle.mock.invocationCallOrder[0]).toBeLessThan(
         vi.mocked(AirPodsControlCli.cycleListeningMode).mock.invocationCallOrder[0],
       );
@@ -237,8 +270,15 @@ describe("airpods-control workflows", () => {
       await runCycleListeningModeCommand();
 
       expect(AirPodsControlCli.cycleListeningMode).toHaveBeenCalledWith(["transparency", "anc"]);
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledOnce();
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Noise Cancellation ●");
+      expect(mockPublishCommandSubtitle).toHaveBeenCalledTimes(2);
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Noise Cancellation ●", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ●", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
       expect(mockPublishCommandSubtitle.mock.invocationCallOrder[0]).toBeLessThan(
         vi.mocked(AirPodsControlCli.cycleListeningMode).mock.invocationCallOrder[0],
       );
@@ -254,8 +294,14 @@ describe("airpods-control workflows", () => {
 
       await runCycleListeningModeCommand();
 
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Adaptive ◑");
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ●");
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Adaptive ◑", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ●", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
       expect(toast.setToFailure).toHaveBeenCalledWith({
         error: expect.objectContaining({ message: expect.stringContaining("fewer than two") }),
         action: {
@@ -270,8 +316,14 @@ describe("airpods-control workflows", () => {
 
       await runCycleListeningModeCommand();
 
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Adaptive ◑");
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ●");
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "Adaptive ◑", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Noise Cancellation ●", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
       expect(toast.setToSuccess).toHaveBeenCalledWith({
         titleOverride: "Set to Noise Cancellation ●",
       });
@@ -292,7 +344,10 @@ describe("airpods-control workflows", () => {
 
       await runCycleListeningModeCommand();
 
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Adaptive ◑");
+      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Adaptive ◑", {
+        channel: "listening-mode",
+        revision: "test-revision",
+      });
       expect(mockResetCommandSubtitle).toHaveBeenCalledOnce();
     });
   });
@@ -302,8 +357,15 @@ describe("airpods-control workflows", () => {
       await runToggleConversationAwarenessCommand();
 
       expect(AirPodsControlCli.setConversationAwareness).toHaveBeenCalledWith("on");
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledOnce();
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("On ●");
+      expect(mockPublishCommandSubtitle).toHaveBeenCalledTimes(2);
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "On ●", {
+        channel: "conversation-awareness",
+        revision: "test-revision",
+      });
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "On ●", {
+        channel: "conversation-awareness",
+        revision: "test-revision",
+      });
       expect(mockPublishCommandSubtitle.mock.invocationCallOrder[0]).toBeLessThan(
         vi.mocked(AirPodsControlCli.setConversationAwareness).mock.invocationCallOrder[0],
       );
@@ -320,8 +382,14 @@ describe("airpods-control workflows", () => {
 
       await runToggleConversationAwarenessCommand();
 
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "On ●");
-      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Off ○");
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(1, "On ●", {
+        channel: "conversation-awareness",
+        revision: "test-revision",
+      });
+      expect(mockPublishCommandSubtitle).toHaveBeenNthCalledWith(2, "Off ○", {
+        channel: "conversation-awareness",
+        revision: "test-revision",
+      });
       expect(toast.setToFailure).toHaveBeenCalledWith({ error });
     });
 
@@ -343,7 +411,10 @@ describe("airpods-control workflows", () => {
 
       await runToggleConversationAwarenessCommand();
 
-      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("On ●");
+      expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("On ●", {
+        channel: "conversation-awareness",
+        revision: "test-revision",
+      });
       expect(mockResetCommandSubtitle).toHaveBeenCalledOnce();
     });
   });

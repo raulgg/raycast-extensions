@@ -50,7 +50,7 @@ describe("Cycle Listening Mode entry point", () => {
     expect(resetCommandSubtitle).not.toHaveBeenCalled();
     expect(runWithCliGuard).toHaveBeenCalledOnce();
     expect(runWithCliGuard).toHaveBeenCalledWith(expect.any(Function), {
-      onUnavailable: resetCommandSubtitle,
+      onUnavailable: expect.any(Function),
     });
     expect(runCycleListeningModeCommand).toHaveBeenCalledOnce();
     expect(runSetListeningModeCommand).not.toHaveBeenCalled();
@@ -67,9 +67,14 @@ describe("Cycle Listening Mode entry point", () => {
   });
 
   it("publishes coordinator state during a background launch without reading or cycling", async () => {
-    await main(props({ operation: "refresh-listening-mode-subtitle", mode: "anc" }, LaunchType.Background));
+    await main(
+      props(
+        { operation: "refresh-listening-mode-subtitle", mode: "anc", revision: "read-revision" },
+        LaunchType.Background,
+      ),
+    );
 
-    expect(publishListeningModeSubtitle).toHaveBeenCalledWith("anc");
+    expect(publishListeningModeSubtitle).toHaveBeenCalledWith("anc", "read-revision");
     expect(refreshListeningModeSubtitle).not.toHaveBeenCalled();
     expect(runWithCliGuard).not.toHaveBeenCalled();
     expect(runCycleListeningModeCommand).not.toHaveBeenCalled();
@@ -77,9 +82,14 @@ describe("Cycle Listening Mode entry point", () => {
   });
 
   it("resets the coordinator-owned subtitle during a background launch", async () => {
-    await main(props({ operation: "refresh-listening-mode-subtitle", mode: null }, LaunchType.Background));
+    await main(
+      props(
+        { operation: "refresh-listening-mode-subtitle", mode: null, revision: "read-revision" },
+        LaunchType.Background,
+      ),
+    );
 
-    expect(publishListeningModeSubtitle).toHaveBeenCalledWith(null);
+    expect(publishListeningModeSubtitle).toHaveBeenCalledWith(null, "read-revision");
     expect(runCycleListeningModeCommand).not.toHaveBeenCalled();
     expect(runSetListeningModeCommand).not.toHaveBeenCalled();
   });
@@ -97,17 +107,17 @@ describe("Cycle Listening Mode entry point", () => {
 
     await expect(main(props(invalid))).rejects.toThrow("invalid launch context");
 
-    expect(resetCommandSubtitle).toHaveBeenCalledOnce();
+    expect(resetCommandSubtitle).toHaveBeenCalledWith({ channel: "listening-mode" });
     expect(runCycleListeningModeCommand).not.toHaveBeenCalled();
     expect(runSetListeningModeCommand).not.toHaveBeenCalled();
   });
 
   it("never treats subtitle-refresh context as a user-initiated set", async () => {
-    await expect(main(props({ operation: "refresh-listening-mode-subtitle", mode: "adaptive" }))).rejects.toThrow(
-      "invalid launch context",
-    );
+    await expect(
+      main(props({ operation: "refresh-listening-mode-subtitle", mode: "adaptive", revision: "read-revision" })),
+    ).rejects.toThrow("invalid launch context");
 
-    expect(resetCommandSubtitle).toHaveBeenCalledOnce();
+    expect(resetCommandSubtitle).toHaveBeenCalledWith({ channel: "listening-mode" });
     expect(runCycleListeningModeCommand).not.toHaveBeenCalled();
     expect(runSetListeningModeCommand).not.toHaveBeenCalled();
   });

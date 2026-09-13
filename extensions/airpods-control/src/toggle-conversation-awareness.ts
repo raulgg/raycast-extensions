@@ -6,6 +6,7 @@ import {
 } from "./core/airpods-control";
 import {
   conversationAwarenessFromSubtitleRefreshContext,
+  conversationAwarenessRevisionFromSubtitleRefreshContext,
   type ConversationAwarenessSubtitleRefreshContext,
 } from "./core/airpods-status-refresh";
 import { runWithCliGuard } from "./core/cli-guard";
@@ -18,18 +19,21 @@ type ToggleConversationAwarenessLaunchProps = LaunchProps<{
 export default async function main({ launchContext, launchType }: ToggleConversationAwarenessLaunchProps) {
   if (launchType === LaunchType.Background) {
     const state = conversationAwarenessFromSubtitleRefreshContext(launchContext);
-    if (state === undefined) {
+    const revision = conversationAwarenessRevisionFromSubtitleRefreshContext(launchContext);
+    if (state === undefined || revision === undefined) {
       await refreshConversationAwarenessSubtitle();
     } else {
-      await publishConversationAwarenessSubtitle(state);
+      await publishConversationAwarenessSubtitle(state, revision);
     }
     return;
   }
 
   if (launchContext !== undefined) {
-    await resetCommandSubtitle();
+    await resetCommandSubtitle({ channel: "conversation-awareness" });
     throw new Error("Toggle Conversation Awareness received invalid launch context.");
   }
 
-  await runWithCliGuard(runToggleConversationAwarenessCommand, { onUnavailable: resetCommandSubtitle });
+  await runWithCliGuard(runToggleConversationAwarenessCommand, {
+    onUnavailable: () => resetCommandSubtitle({ channel: "conversation-awareness" }),
+  });
 }

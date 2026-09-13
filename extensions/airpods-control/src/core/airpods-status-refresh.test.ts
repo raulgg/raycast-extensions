@@ -61,12 +61,20 @@ describe("AirPods status refresh", () => {
     expect(mockLaunchCommand).toHaveBeenCalledWith({
       name: CYCLE_LISTENING_MODE_COMMAND_NAME,
       type: LaunchType.Background,
-      context: { operation: "refresh-listening-mode-subtitle", mode: "anc" },
+      context: {
+        operation: "refresh-listening-mode-subtitle",
+        mode: "anc",
+        revision: expect.any(String),
+      },
     });
     expect(mockLaunchCommand).toHaveBeenCalledWith({
       name: TOGGLE_CONVERSATION_AWARENESS_COMMAND_NAME,
       type: LaunchType.Background,
-      context: { operation: "refresh-conversation-awareness-subtitle", state: "on" },
+      context: {
+        operation: "refresh-conversation-awareness-subtitle",
+        state: "on",
+        revision: expect.any(String),
+      },
     });
   });
 
@@ -113,10 +121,14 @@ describe("AirPods status refresh", () => {
     await refreshAirPodsStatus();
 
     expect(mockLaunchCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ context: { operation: "refresh-listening-mode-subtitle", mode: "anc" } }),
+      expect.objectContaining({
+        context: expect.objectContaining({ operation: "refresh-listening-mode-subtitle", mode: "anc" }),
+      }),
     );
     expect(mockLaunchCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ context: { operation: "refresh-conversation-awareness-subtitle", state: null } }),
+      expect.objectContaining({
+        context: expect.objectContaining({ operation: "refresh-conversation-awareness-subtitle", state: null }),
+      }),
     );
   });
 
@@ -126,10 +138,14 @@ describe("AirPods status refresh", () => {
     expect(AirPodsControlCli.getListeningMode).not.toHaveBeenCalled();
     expect(AirPodsControlCli.getConversationAwareness).not.toHaveBeenCalled();
     expect(mockLaunchCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ context: { operation: "refresh-listening-mode-subtitle", mode: null } }),
+      expect.objectContaining({
+        context: expect.objectContaining({ operation: "refresh-listening-mode-subtitle", mode: null }),
+      }),
     );
     expect(mockLaunchCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ context: { operation: "refresh-conversation-awareness-subtitle", state: null } }),
+      expect.objectContaining({
+        context: expect.objectContaining({ operation: "refresh-conversation-awareness-subtitle", state: null }),
+      }),
     );
   });
 
