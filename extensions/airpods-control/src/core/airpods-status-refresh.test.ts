@@ -151,14 +151,65 @@ describe("AirPods status refresh", () => {
     expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation ◉" });
   });
 
-  it("restores the manifest status subtitle for a confirmed unavailable device", async () => {
-    const error = new CliError("no-device");
+  it.each([
+    ["no-device", "Not connected"],
+    ["unavailable", null],
+  ] as const)("publishes the appropriate subtitle for %s", async (code, subtitle) => {
+    const error = new CliError(code);
     vi.mocked(AirPodsControlCli.getListeningMode).mockRejectedValue(error);
     vi.mocked(AirPodsControlCli.getConversationAwareness).mockRejectedValue(error);
 
     await refreshAirPodsStatus();
 
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: null });
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle });
+  });
+
+  it("updates the subtitle when AirPods disconnect and reconnect", async () => {
+    vi.mocked(AirPodsControlCli.getListeningMode)
+      .mockResolvedValueOnce("anc")
+      .mockRejectedValueOnce(new CliError("no-device"))
+      .mockResolvedValueOnce("transparency");
+    vi.mocked(AirPodsControlCli.getConversationAwareness)
+      .mockResolvedValueOnce("on")
+      .mockRejectedValueOnce(new CliError("no-device"))
+      .mockResolvedValueOnce("off");
+
+    await refreshAirPodsStatus();
+    await refreshAirPodsStatus();
+    await refreshAirPodsStatus();
+
+    expect(mockUpdateCommandMetadata.mock.calls).toEqual([
+      [{ subtitle: "Noise Cancellation ◉ · CA ●" }],
+      [{ subtitle: "Not connected" }],
+      [{ subtitle: "Transparency ◎ · CA ○" }],
+    ]);
+  });
+
+  it("keeps a confirmed reading when the other read reports no device", async () => {
+    vi.mocked(AirPodsControlCli.getConversationAwareness).mockRejectedValue(new CliError("no-device"));
+
+    await refreshAirPodsStatus();
+
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledExactlyOnceWith({ subtitle: "Noise Cancellation ◉" });
+  });
+
+  it("publishes disconnection when the other read fails transiently", async () => {
+    vi.mocked(AirPodsControlCli.getListeningMode).mockRejectedValue(new CliError("no-device"));
+    vi.mocked(AirPodsControlCli.getConversationAwareness).mockRejectedValue(new Error("timeout"));
+
+    await refreshAirPodsStatus();
+
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledExactlyOnceWith({ subtitle: "Not connected" });
+  });
+
+  it("stays silent when a background refresh detects disconnection", async () => {
+    vi.mocked(AirPodsControlCli.getListeningMode).mockRejectedValue(new CliError("no-device"));
+    vi.mocked(AirPodsControlCli.getConversationAwareness).mockRejectedValue(new CliError("no-device"));
+
+    await runAirPodsStatusRefresh({ showFeedback: false });
+
+    expect(mockShowToast).not.toHaveBeenCalled();
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Not connected" });
   });
 
   it("preserves the last status subtitle on a transient total read failure", async () => {
@@ -293,7 +344,7 @@ describe("AirPods status refresh", () => {
     expect(toast.show).toHaveBeenCalledOnce();
   });
 
-  it("deduplicates a shared failure when neither status can be read", async () => {
+  it("reports disconnection as a normal status without error actions", async () => {
     const toast = makeToast();
     mockShowToast.mockResolvedValueOnce(toast);
     vi.mocked(AirPodsControlCli.getListeningMode).mockRejectedValue(new CliError("no-device"));
@@ -301,9 +352,26 @@ describe("AirPods status refresh", () => {
 
     await runAirPodsStatusRefresh({ showFeedback: true });
 
-    expect(toast.style).toBe(Toast.Style.Failure);
-    expect(toast.title).toBe("Failed to refresh AirPods status");
+    expect(toast.style).toBe(Toast.Style.Success);
+    expect(toast.title).toBe("AirPods not connected");
     expect(toast.message).toBe("Connect your AirPods to your Mac and try again.");
+    expect(toast.primaryAction).toBeUndefined();
+    expect(toast.secondaryAction).toBeUndefined();
+    expect(toast.show).toHaveBeenCalledOnce();
+  });
+
+  it("still reports subtitle dispatch failures when disconnected", async () => {
+    const toast = makeToast();
+    mockShowToast.mockResolvedValueOnce(toast);
+    vi.mocked(AirPodsControlCli.getListeningMode).mockRejectedValue(new CliError("no-device"));
+    vi.mocked(AirPodsControlCli.getConversationAwareness).mockRejectedValue(new CliError("no-device"));
+    mockLaunchCommand.mockRejectedValueOnce(new Error("Cycle Listening Mode is disabled"));
+
+    await runAirPodsStatusRefresh({ showFeedback: true });
+
+    expect(toast.style).toBe(Toast.Style.Failure);
+    expect(toast.message).toContain("Cycle Listening Mode is disabled");
+    expect(toast.primaryAction).toEqual(expect.objectContaining({ title: "Copy Error" }));
     expect(toast.show).toHaveBeenCalledOnce();
   });
 

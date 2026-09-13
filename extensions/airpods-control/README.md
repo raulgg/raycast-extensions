@@ -68,7 +68,9 @@ The listening-mode, Conversation Awareness, and status-refresh commands always r
 
 Run **Refresh AirPods Status** once to activate its shared Background Refresh schedule, which also detects changes made outside the extension. Raycast schedules it approximately rather than at an exact time and lets you deactivate it from the command's Action Panel or preferences.
 
-Dynamic status subtitles fall back to **AirPods** when a change or background read fails without a recognized state and the subtitle update succeeds. If an update cannot run, the previous subtitle can remain visible. Background reads are silent and never change an AirPods setting. If you deactivate Background Refresh, the last confirmed subtitles remain visible until another refresh or control command updates them.
+When the CLI reports no connected device and neither setting can be read, **Refresh AirPods Status** shows **Not connected**. A manual refresh also asks you to connect your AirPods. After reconnection, the next successful refresh restores the listening mode and Conversation Awareness readings. Wearing and case states are not shown.
+
+If controls are unavailable, the combined subtitle falls back to **AirPods**. Transient or malformed reads preserve its last confirmed value, and partial reads show only the available setting. The individual control subtitles fall back to **AirPods** when their setting cannot be read. If a subtitle update cannot run, its previous value can remain visible. Background reads are silent and never change an AirPods setting. If you deactivate Background Refresh, the last confirmed subtitles remain visible until another refresh or control command updates them.
 
 ## Troubleshooting
 

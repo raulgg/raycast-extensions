@@ -140,17 +140,14 @@ function statusSnapshot(result: {
   };
 }
 
-function shouldResetStatusSubtitle(result: {
-  listeningMode: PromiseSettledResult<ListeningModes>;
-  conversationAwareness: PromiseSettledResult<ConversationAwarenessState>;
-}): boolean {
+function totalReadFailureIncludes(
+  result: Pick<AirPodsStatusRefreshResult, "listeningMode" | "conversationAwareness">,
+  code: "no-device" | "unavailable",
+): boolean {
   if (result.listeningMode.status !== "rejected" || result.conversationAwareness.status !== "rejected") return false;
 
-  // Keep the last known-good combined subtitle for transient or malformed
-  // reads. A known unavailable device is the one case where the manifest
-  // fallback should replace it.
   return [result.listeningMode.reason, result.conversationAwareness.reason].some(
-    (reason) => reason instanceof CliError && (reason.code === "no-device" || reason.code === "unavailable"),
+    (reason) => reason instanceof CliError && reason.code === code,
   );
 }
 
@@ -164,9 +161,12 @@ async function publishStatusSubtitle(
   const subtitle = formatAirPodsStatusSubtitle(statusSnapshot(result));
   if (subtitle) {
     await publishCommandSubtitle(subtitle, { channel: "status", revision });
-  } else if (shouldResetStatusSubtitle(result)) {
+  } else if (totalReadFailureIncludes(result, "no-device")) {
+    await publishCommandSubtitle("Not connected", { channel: "status", revision });
+  } else if (totalReadFailureIncludes(result, "unavailable")) {
     await resetCommandSubtitle({ channel: "status", revision });
   }
+  // Preserve the last confirmed subtitle on transient or malformed reads.
 }
 
 function rejectedStatusReadResult(reason: unknown): {
@@ -264,6 +264,12 @@ async function finishToast(toast: Toast, result: AirPodsStatusRefreshResult): Pr
     toast.style = Toast.Style.Success;
     toast.title = "AirPods status read";
     toast.message = fulfilledStatusMessage(result);
+    toast.primaryAction = undefined;
+    toast.secondaryAction = undefined;
+  } else if (totalReadFailureIncludes(result, "no-device") && listeningRefreshLaunched && conversationRefreshLaunched) {
+    toast.style = Toast.Style.Success;
+    toast.title = "AirPods not connected";
+    toast.message = "Connect your AirPods to your Mac and try again.";
     toast.primaryAction = undefined;
     toast.secondaryAction = undefined;
   } else {
