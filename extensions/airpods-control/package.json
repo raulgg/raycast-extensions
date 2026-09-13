@@ -17,60 +17,73 @@
   "commands": [
     {
       "name": "set-noise-cancellation",
-      "title": "Set Noise Cancellation",
+      "title": "Set to Noise Cancellation",
       "subtitle": "Listening Mode",
       "description": "Set the AirPods to Noise Cancellation (ANC) listening mode.",
       "mode": "no-view",
       "keywords": [
         "airpods",
-        "anc",
+        "beats",
+        "pods",
         "noise",
-        "cancellation",
-        "cancelling",
+        "control",
         "listening",
-        "mode"
+        "mode",
+        "anc",
+        "cancellation",
+        "cancelling"
       ]
     },
     {
       "name": "set-transparency",
-      "title": "Set Transparency",
+      "title": "Set to Transparency",
       "subtitle": "Listening Mode",
       "description": "Set the AirPods to Transparency listening mode.",
       "mode": "no-view",
       "keywords": [
         "airpods",
-        "transparency",
+        "beats",
+        "pods",
+        "noise",
+        "control",
         "listening",
-        "mode"
+        "mode",
+        "trans"
       ]
     },
     {
       "name": "set-adaptive",
-      "title": "Set Adaptive",
+      "title": "Set to Adaptive",
       "subtitle": "Listening Mode",
       "description": "Set the AirPods to Adaptive listening mode when supported by your AirPods.",
       "mode": "no-view",
       "keywords": [
         "airpods",
-        "adaptive",
+        "beats",
+        "pods",
+        "noise",
+        "control",
         "listening",
-        "mode"
+        "mode",
+        "automatic"
       ],
       "disabledByDefault": true
     },
     {
       "name": "set-off",
-      "title": "Disable Noise Control",
+      "title": "Set to Off",
       "subtitle": "Listening Mode",
       "description": "Set the AirPods to the Off listening mode (no Noise Cancellation or Transparency).",
       "mode": "no-view",
       "keywords": [
         "airpods",
-        "off",
+        "beats",
+        "pods",
         "noise",
         "control",
         "listening",
-        "mode"
+        "mode",
+        "disable"
       ],
       "disabledByDefault": true
     },
@@ -81,14 +94,15 @@
       "description": "Cycle through your preferred listening modes. The current mode is read from the connected AirPods before cycling, and unsupported modes are skipped.",
       "mode": "no-view",
       "keywords": [
+        "airpods",
+        "beats",
+        "pods",
+        "noise",
+        "control",
         "listening",
         "mode",
         "switch",
         "toggle",
-        "cycle",
-        "airpods",
-        "noise",
-        "cancellation",
         "transparency",
         "anc",
         "adaptive",
@@ -138,6 +152,8 @@
       "mode": "no-view",
       "keywords": [
         "airpods",
+        "beats",
+        "pods",
         "conversation",
         "awareness",
         "toggle",
@@ -153,12 +169,11 @@
       "interval": "1m",
       "keywords": [
         "airpods",
-        "status",
-        "refresh",
+        "beats",
+        "pods",
         "background",
-        "listening",
-        "conversation",
-        "awareness"
+        "refresh",
+        "status"
       ]
     },
     {
@@ -169,7 +184,10 @@
       "mode": "view",
       "keywords": [
         "airpods",
+        "beats",
+        "pods",
         "cli",
+        "helper",
         "install",
         "update",
         "upgrade",
