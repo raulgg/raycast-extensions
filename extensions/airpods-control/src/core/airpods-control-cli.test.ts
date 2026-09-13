@@ -97,6 +97,12 @@ describe("airpods-control CLI shim", () => {
     await expect(getConversationAwareness()).rejects.toMatchObject({ code: "unsupported" });
   });
 
+  it("rejects a response that omits Conversation Awareness state", async () => {
+    mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods" });
+
+    await expect(getConversationAwareness()).rejects.toMatchObject({ code: "invalid-response" });
+  });
+
   it("rejects an unknown Conversation Awareness state", async () => {
     mockRunCli.mockResolvedValue({ result: "ok", device: "AirPods", conversationAwareness: "automatic" });
 

@@ -82,7 +82,7 @@ export async function getConversationAwareness(): Promise<ConversationAwarenessS
   if (state) {
     return state;
   }
-  if (payload.conversationAwareness === null || payload.conversationAwareness === undefined) {
+  if (payload.conversationAwareness === null) {
     throw new CliError("unsupported", payload);
   }
   throw new CliError(
