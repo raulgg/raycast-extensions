@@ -1,16 +1,5 @@
 # AirPods Control Changelog
 
-## Unreleased
-
-- Tighten command titles and keywords for Root Search, keep AirPods on every command, and add Beats on listening-mode and status commands plus Store keywords.
-- Validate CLI JSON envelopes and required command state while preserving explicit `null` unsupported results and actionable error readback.
-- Report bounded helper stderr with exit status and signal diagnostics, distinguishing timeouts, signals, max-buffer failures, and ordinary process failures.
-- Keep Homebrew installation locks through supervised process-tree cleanup, including timeout escalation and abrupt Raycast termination.
-- Order subtitle refresh writes by per-channel freshness so stale work cannot overwrite newer state.
-- Model helper setup as explicit checking, ready, running, failed, and completed states, including duplicate-action and late-completion protection.
-- Exercise transport with real temporary executables and cover malformed/schema, argument forwarding, nonzero/stderr, and signal paths without invoking AirPods hardware.
-- Include all runtime TypeScript/TSX in coverage and dispatch coverage for the fixed listening-mode entrypoints.
-
 ## [Initial Version] - {PR_MERGE_DATE}
 
 - Set Noise Cancellation, Transparency, Adaptive, or Off listening modes via the [airpods-control](https://github.com/raulgg/airpods-control) CLI

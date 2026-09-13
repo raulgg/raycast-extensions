@@ -27,7 +27,6 @@
     {
       "name": "set-noise-cancellation",
       "title": "Set to Noise Cancellation",
-      "subtitle": "Listening Mode",
       "description": "Set the AirPods to Noise Cancellation (ANC) listening mode.",
       "mode": "no-view",
       "keywords": [
@@ -41,7 +40,6 @@
     {
       "name": "set-transparency",
       "title": "Set to Transparency",
-      "subtitle": "Listening Mode",
       "description": "Set the AirPods to Transparency listening mode.",
       "mode": "no-view",
       "keywords": [
@@ -54,7 +52,6 @@
     {
       "name": "set-adaptive",
       "title": "Set to Adaptive",
-      "subtitle": "Listening Mode",
       "description": "Set the AirPods to Adaptive listening mode when supported by your AirPods.",
       "mode": "no-view",
       "keywords": [
@@ -67,7 +64,6 @@
     {
       "name": "set-off",
       "title": "Set to Off",
-      "subtitle": "Listening Mode",
       "description": "Set the AirPods to the Off listening mode (no Noise Cancellation or Transparency).",
       "mode": "no-view",
       "keywords": [
