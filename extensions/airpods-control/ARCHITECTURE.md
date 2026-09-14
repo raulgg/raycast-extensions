@@ -12,6 +12,7 @@ AirPods Control has eight Raycast command entrypoints. Keep those filenames and 
 | Follow combined status reads and subtitle dispatch    | `src/status/refresh.ts`                                                                                  |
 | Understand subtitle ordering across processes         | `src/subtitles/coordination.ts`                                                                          |
 | Inspect helper arguments and confirmed-state handling | `src/cli/client.ts`                                                                                      |
+| Inspect helper version comparison                     | `src/cli/version.ts`                                                                                     |
 | Inspect executable discovery                          | `src/cli/discovery.ts`                                                                                   |
 | Inspect JSON validation or error classification       | `src/cli/protocol.ts`, `src/cli/errors.ts`, `src/cli/transport.ts`                                       |
 | Change helper setup screens                           | `src/helper-setup/setup-view.tsx`, `setup-content.tsx`, `lifecycle.ts`                                   |
@@ -117,6 +118,7 @@ These rules describe existing behavior. A future change to any rule needs its ow
 - The combined subtitle preserves its last confirmed value on transient or malformed total reads. Disconnection, unavailable controls, and partial reads retain their separate outcomes. Individual feature subtitles can reset independently.
 - Background commands stay silent, do not initiate installation, and never change AirPods settings.
 - Setup detection precedence, persistent completion and error screens, cancellation guards, and in-process pending promises remain unchanged.
+- Helper setup offers Homebrew or manual updates only when version comparison reports an update, or when the installed version cannot be determined. An up-to-date helper shows status without an update action. Latest Homebrew versions come from the local tap without running `brew update`.
 - Homebrew retains its OS lock until descendant cleanup finishes, including timeout escalation and parent termination. The CLI transport and Homebrew supervisor have different lifetimes; keep their execution mechanisms separate.
 - Preserve command identifiers, preference keys, visible messages, action ordering, shortcuts, and helper version references during structural maintenance.
 

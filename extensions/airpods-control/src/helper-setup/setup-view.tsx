@@ -68,18 +68,26 @@ export default function Command() {
   if (operation) {
     markdown = `# ${operation === "install" ? "Installing" : "Updating"} helper…\n\nThis can take several minutes. Keep Raycast open until it finishes.`;
   } else if (error) {
-    markdown = `# Helper needs attention\n\nThe helper needs attention before you can continue. Follow the details below, then choose the **Refresh** action to check again. Installation instructions are available in the Action Panel.\n\n## Error details\n\n${error
+    markdown = `# AirPods Control Helper needs attention\n\n${error
       .split("\n")
       .map((line) => `    ${line}`)
       .join("\n")}`;
   } else if (completed) {
-    markdown = "# Your helper is ready\n\nYou can now run your AirPods commands.";
+    markdown = "# AirPods Control Helper is ready!";
   }
   const idle = !isChecking && !operation;
-  const availableOperation = setup?.state === "install" || setup?.state === "update" ? setup.state : undefined;
+  const availableOperation =
+    setup?.state === "install"
+      ? "install"
+      : setup?.state === "update" && setup.versionStatus !== "up-to-date"
+        ? "update"
+        : undefined;
   const canRun = idle && !error && !completed && availableOperation;
   const showAlternatives = idle && !error && !completed && setup && ["install", "needs-homebrew"].includes(setup.state);
-  const showManualUpdate = idle && !error && !completed && setup?.state === "manual-cli";
+  const showManualUpdate =
+    idle && !error && !completed && setup?.state === "manual-cli" && setup.versionStatus !== "up-to-date";
+  const showUpdateInstructions =
+    (setup?.state === "update" || setup?.state === "manual-cli") && setup.versionStatus !== "up-to-date";
   const showHomebrewHelp = setup?.brewPath === null;
 
   return (
@@ -126,11 +134,7 @@ export default function Command() {
             )}
             {!showManualUpdate && (
               <Action.OpenInBrowser
-                title={
-                  setup?.state === "update" || setup?.state === "manual-cli"
-                    ? "Open Update Instructions"
-                    : "Open Installation Instructions"
-                }
+                title={showUpdateInstructions ? "Open Update Instructions" : "Open Installation Instructions"}
                 url={CLI_INSTALL_DOCS_URL}
                 shortcut={showHomebrewHelp ? { modifiers: ["cmd", "opt"], key: "o" } : Keyboard.Shortcut.Common.Open}
               />

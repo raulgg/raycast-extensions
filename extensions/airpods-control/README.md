@@ -34,7 +34,7 @@ After installation, run an AirPods command again. Setup never changes an AirPods
 
 Raycast detects the helper automatically. For another location, set the full binary path in **CLI Path**. A custom path overrides automatic detection. An invalid custom path opens recovery instructions before attempting installation.
 
-CLI v0.4.0 is the contract reference for this extension. Open **Manage AirPods Control Helper** and choose the **Update with Homebrew** action to update the helper directly in Raycast. For a manual update, choose the **Copy Update Command** action, run both commands in Terminal, then return to Raycast and choose the **Refresh** action. When the helper is missing and prerequisites are ready, choose the **Install with Homebrew** action to install it directly.
+CLI v0.4.0 is the contract reference for this extension. **Manage AirPods Control Helper** shows the installed helper version and whether it was installed with Homebrew or manually. It offers a Homebrew update when the active helper belongs to the detected formula and Homebrew reports a newer version. For a manual update, choose the **Copy Update Command** action, run both commands in Terminal, then return to Raycast and choose the **Refresh** action. When the helper is missing and prerequisites are ready, choose the **Install with Homebrew** action to install it directly.
 
 To check or upgrade your installation in Terminal:
 
@@ -60,7 +60,7 @@ Control commands keep Raycast open and show a confirmation toast. If Raycast is 
 - **Cycle Listening Mode**. Cycle through modes selected in command preferences; select at least two modes. Its subtitle updates after macOS confirms the new mode.
 - **Toggle Conversation Awareness**. Read the current state and flip it. Its subtitle updates after macOS confirms the new state.
 - **Refresh AirPods Status**. Read both states, show the confirmed values in its combined subtitle, and update the feature subtitles immediately and, when Background Refresh is active, about once a minute. Manual refreshes keep Raycast open and show the states read from macOS. Failed subtitle refresh requests are reported.
-- **Manage AirPods Control Helper**. Install, update, or recover the helper. Automatic updates are offered when the active helper belongs to the detected Homebrew formula. Source and custom installations receive manual update instructions. Unlinked Homebrew installations and invalid CLI paths get specific recovery steps. Run an AirPods command again after an install or update.
+- **Manage AirPods Control Helper**. Install, update, or recover the helper. It reports the installed version and installation method. Homebrew updates are offered when the active helper belongs to the detected formula and Homebrew reports a newer version. Source and custom installations receive manual update instructions when GitHub reports a newer release. Unlinked Homebrew installations and invalid CLI paths get specific recovery steps. Run an AirPods command again after an install or update.
 
 ## Status Refresh
 

@@ -3,7 +3,7 @@ import { Clipboard, launchCommand, open } from "@raycast/api";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, onTestFinished, vi, test } from "vitest";
-import { cliSetup, installedCliSetup } from "../test/fixtures/cli-setup";
+import { cliSetup, installedCliSetup, outdatedCliSetup } from "../test/fixtures/cli-setup";
 import { deferred } from "../test/fixtures/deferred";
 import Command from "../update-airpods-control-cli";
 import { detectCliSetup } from "./detection";
@@ -165,7 +165,7 @@ test("shows a persistent installing state, prevents duplicate actions, and stays
   // When
   await act(async () => installation.resolve(installedCliSetup()));
   // Then
-  expect(view.markdown()).toContain("# Your helper is ready");
+  expect(view.markdown()).toContain("# AirPods Control Helper is ready");
   expect(runCliInstallation).toHaveBeenCalledExactlyOnceWith("install");
   expect(launchCommand).not.toHaveBeenCalled();
 });
@@ -199,7 +199,7 @@ test.each([
 ] as const)("offers direct %s before manual alternatives", async (state, title, copyTitle, command) => {
   // Given
   const view = createSetupView();
-  vi.mocked(detectCliSetup).mockResolvedValue(state === "install" ? cliSetup() : installedCliSetup());
+  vi.mocked(detectCliSetup).mockResolvedValue(state === "install" ? cliSetup() : outdatedCliSetup());
   // When
   await view.render();
   // Then
@@ -230,7 +230,7 @@ test.each([
   // When
   await act(async () => operation.resolve(installedCliSetup()));
   // Then
-  expect(view.markdown()).toContain("# Your helper is ready");
+  expect(view.markdown()).toContain("# AirPods Control Helper is ready");
 });
 
 test("keeps failure details visible until the user rechecks prerequisites", async () => {
@@ -295,6 +295,75 @@ test.each([
     expect(actions[0]).toBe("Open Update Instructions");
     expect(view.container.querySelector('[data-section-title="Alternative Methods"]')).toBeNull();
   }
+});
+
+test("hides Homebrew update actions when the helper is up to date", async () => {
+  // Given
+  const view = createSetupView();
+  vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
+  // When
+  await view.render();
+  const actions = Array.from(view.container.querySelectorAll("[data-action-title]"), (element) =>
+    element.getAttribute("data-action-title"),
+  );
+  // Then
+  expect(view.action("Update with Homebrew")).toBeNull();
+  expect(view.action("Copy Update Command")).toBeNull();
+  expect(view.action("Open Update Instructions")).toBeNull();
+  expect(view.action("Open Installation Instructions")).not.toBeNull();
+  expect(view.markdown()).toContain("# AirPods Control Helper is Up to date");
+  expect(view.markdown()).toContain("0.4.0");
+  expect(view.markdown()).toContain("Homebrew");
+  expect(view.markdown()).not.toContain("**Latest:**");
+  expect(actions.at(-1)).toBe("Refresh");
+});
+
+test("hides manual update instructions when the helper is up to date", async () => {
+  // Given
+  const view = createSetupView();
+  vi.mocked(detectCliSetup).mockResolvedValue(
+    cliSetup({
+      state: "manual-cli",
+      cliPath: "/usr/local/bin/airpods-control",
+      brewPath: null,
+      installationMethod: "manual",
+      installedVersion: "0.4.0",
+      latestVersion: "0.4.0",
+      latestSource: "github",
+      versionStatus: "up-to-date",
+    }),
+  );
+  // When
+  await view.render();
+  const actions = Array.from(view.container.querySelectorAll("[data-action-title]"), (element) =>
+    element.getAttribute("data-action-title"),
+  );
+  // Then
+  expect(view.action("Open Update Instructions")).toBeNull();
+  expect(view.action("Open Installation Instructions")).not.toBeNull();
+  expect(view.action("Update with Homebrew")).toBeNull();
+  expect(view.markdown()).toContain("# AirPods Control Helper is Up to date");
+  expect(view.markdown()).toContain("0.4.0");
+  expect(view.markdown()).toContain("Manual");
+  expect(view.markdown()).not.toContain("**Latest:**");
+  expect(actions.at(-1)).toBe("Refresh");
+});
+
+test("keeps Homebrew update available when the helper version is unknown", async () => {
+  // Given
+  const view = createSetupView();
+  vi.mocked(detectCliSetup).mockResolvedValue(
+    installedCliSetup({
+      installedVersion: null,
+      versionStatus: "unknown",
+    }),
+  );
+  // When
+  await view.render();
+  // Then
+  expect(view.action("Update with Homebrew")).not.toBeNull();
+  expect(view.action("Copy Update Command")).not.toBeNull();
+  expect(view.markdown()).toContain("**Latest:**");
 });
 
 test("does not navigate or start installation after leaving during detection", async () => {

@@ -11,3 +11,4 @@
 - Offer CLI installation through an alert when prerequisites are ready, or open the Manage AirPods Control Helper view for Homebrew, developer tools, and source-install instructions.
 - Share installation and recovery across commands, keep progress visible through completion, and require users to run the original command again after setup.
 - Verify Homebrew ownership before updating the active CLI, prevent concurrent installations, and preserve complete Homebrew error instructions.
+- Report the installed helper version and installation method, and offer updates only when a newer version is available.
