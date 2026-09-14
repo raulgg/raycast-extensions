@@ -26,6 +26,35 @@ export async function findBrewCliPrefix(brewPath: string): Promise<string | null
   return (await runBrewCommand(brewPath, ["--prefix", CLI_BREW_FORMULA])).trim();
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function brewStableVersion(value: unknown): string | null {
+  if (!isRecord(value) || !Array.isArray(value.formulae)) return null;
+  const formulae = value.formulae.filter(isRecord);
+  const formula =
+    formulae.find((candidate) => candidate.full_name === CLI_BREW_FORMULA) ??
+    (formulae.length === 1 ? formulae[0] : undefined);
+  if (!formula || !isRecord(formula.versions) || typeof formula.versions.stable !== "string") return null;
+  const stable = formula.versions.stable.trim();
+  return stable || null;
+}
+
+/**
+ * Return the local tap's current stable version without running `brew update`.
+ * The tap can be stale until the user updates Homebrew in Terminal.
+ */
+export async function findBrewLatestVersion(brewPath: string): Promise<string | null> {
+  try {
+    const stdout = await runBrewCommand(brewPath, ["info", "--json=v2", CLI_BREW_FORMULA]);
+    const parsed: unknown = JSON.parse(stdout);
+    return brewStableVersion(parsed);
+  } catch {
+    return null;
+  }
+}
+
 export async function installCliWithBrew(): Promise<void> {
   await runBrewCommand(requireBrew(), ["install", CLI_BREW_FORMULA], BREW_INSTALL_TIMEOUT_MS, true);
 }

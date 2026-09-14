@@ -2,6 +2,7 @@ import { getPreferenceValues } from "@raycast/api";
 import { expect, vi, test } from "vitest";
 import { CliError } from "../../cli/errors";
 import { runCli } from "../../cli/transport";
+import { readInstalledVersion } from "../../cli/version";
 import { createFakeCli } from "../fixtures/fake-cli";
 
 const mockGetPreferenceValues = vi.mocked(getPreferenceValues);
@@ -103,4 +104,24 @@ test("reports a real process signal separately from the timeout path", async () 
     });
     expect((error as CliError).message).toContain("terminated by SIGTERM");
   }
+});
+
+test("reads the installed helper version from JSON output of a real process", async () => {
+  // Given
+  const helper = await createFakeCli(
+    'test "$1" = --version\ntest "$2" = --json\nprintf \'%s\' \'{"result":"ok","version":"0.4.0"}\'',
+  );
+  // When
+  const version = await readInstalledVersion(helper.path);
+  // Then
+  expect(version).toBe("0.4.0");
+});
+
+test("reads the installed helper version from plain --version output of a real process", async () => {
+  // Given
+  const helper = await createFakeCli("printf '%s\\n' 'airpods-control 0.3.0'");
+  // When
+  const version = await readInstalledVersion(helper.path);
+  // Then
+  expect(version).toBe("0.3.0");
 });

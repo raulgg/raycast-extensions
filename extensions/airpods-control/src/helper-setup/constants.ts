@@ -24,4 +24,6 @@ export const CLI_LINK_COMMAND = `brew link ${CLI_BREW_FORMULA}`;
 
 export const CLI_REPO_URL = "https://github.com/raulgg/airpods-control";
 
+export const CLI_GITHUB_RELEASES_LATEST_URL = "https://api.github.com/repos/raulgg/airpods-control/releases/latest";
+
 export const CLI_INSTALL_DOCS_URL = `${CLI_REPO_URL}/blob/${CLI_VERSION}/README.md#install`;
