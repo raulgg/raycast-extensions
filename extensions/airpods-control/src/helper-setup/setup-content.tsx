@@ -65,13 +65,8 @@ export function cliSetupMarkdown(setup: CliSetup): string {
       return "# Setup is already running\n\nWait for it to finish, then Refresh.";
     case "needs-homebrew":
       return "# Install Homebrew\n\nHomebrew is not installed. Copy the install command, run it in Terminal, then Refresh.";
-    case "needs-developer-tools": {
-      const instructions =
-        setup.developerTools === "unavailable"
-          ? `Your Mac cannot use \`xcode-select\`. Download the Command Line Tools for your macOS version from [Apple Developer Downloads](${DEVELOPER_TOOLS_DOWNLOAD_URL}) and follow [Apple's installation instructions](${DEVELOPER_TOOLS_DOCS_URL}).`
-          : `Choose the **Copy Developer Tools Install Command** action, paste the command into Terminal, and run it. If macOS says the tools are already installed, follow [Apple's instructions](${DEVELOPER_TOOLS_DOCS_URL}) to update them or select a working Xcode installation.`;
-      return `# Install Apple's developer tools\n\nApple's developer tools are needed to install or update the helper.\n\n${instructions}`;
-    }
+    case "needs-developer-tools":
+      return `# Install Apple's developer tools\n\nApple's developer tools are needed to install or update the helper.\n\nCopy the install command and run it in Terminal. If that command is not available, or macOS says the tools are already installed, download the Command Line Tools from [Apple Developer Downloads](${DEVELOPER_TOOLS_DOWNLOAD_URL}) and follow [Apple's installation instructions](${DEVELOPER_TOOLS_DOCS_URL}).`;
     case "invalid-cli-path":
       return `# Fix CLI Path\n\nRaycast could not find the helper at the saved **CLI Path**.\n\n${code(setup.configuredCliPath ?? "")}\n\nClear or correct it in Extension Preferences.`;
     case "manual-cli":
@@ -96,12 +91,10 @@ export function CliSetupActions({ setup }: { setup: CliSetup }) {
   if (setup.state === "needs-developer-tools") {
     return (
       <>
-        {setup.developerTools === "missing" && (
-          <Action.CopyToClipboard
-            title="Copy Developer Tools Install Command"
-            content={DEVELOPER_TOOLS_INSTALL_COMMAND}
-          />
-        )}
+        <Action.CopyToClipboard
+          title="Copy Developer Tools Install Command"
+          content={DEVELOPER_TOOLS_INSTALL_COMMAND}
+        />
         <Action.OpenInBrowser title="Open Apple Developer Downloads" url={DEVELOPER_TOOLS_DOWNLOAD_URL} />
         <Action.OpenInBrowser title="Open Developer Tools Instructions" url={DEVELOPER_TOOLS_DOCS_URL} />
       </>

@@ -87,38 +87,24 @@ test("moves from missing Homebrew to install after Refresh without automatically
   expect(launchCommand).not.toHaveBeenCalled();
 });
 
-test("provides manual developer tools instructions and then allows installation after rechecking", async () => {
+test("provides developer tools recovery and then allows installation after rechecking", async () => {
   // Given
   const view = createSetupView();
   vi.mocked(detectCliSetup).mockResolvedValueOnce(
-    cliSetup({ state: "needs-developer-tools", developerTools: "missing" }),
+    cliSetup({ state: "needs-developer-tools", developerTools: "unavailable" }),
   );
   // When
   await view.render();
   await view.click("Copy Developer Tools Install Command");
+  await view.click("Open Apple Developer Downloads");
   // Then
   expect(Clipboard.copy).toHaveBeenCalledWith("xcode-select --install");
+  expect(open).toHaveBeenCalledWith("https://developer.apple.com/download/all/");
   expect(view.action("Install with Homebrew")).toBeNull();
   // When
   await view.click("Refresh");
   // Then
   expect(view.action("Install with Homebrew")).not.toBeNull();
-});
-
-test("links to Apple downloads when xcode-select itself is unavailable", async () => {
-  // Given
-  const view = createSetupView();
-  vi.mocked(detectCliSetup).mockResolvedValue(
-    cliSetup({ state: "needs-developer-tools", developerTools: "unavailable" }),
-  );
-  // When
-  await view.render();
-  // Then
-  expect(view.action("Copy Developer Tools Install Command")).toBeNull();
-  // When
-  await view.click("Open Apple Developer Downloads");
-  // Then
-  expect(open).toHaveBeenCalledWith("https://developer.apple.com/download/all/");
 });
 
 test.each(["installing", "manual-cli", "invalid-cli-path", "needs-link"] as const)(
