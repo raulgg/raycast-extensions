@@ -71,7 +71,7 @@ test.skipIf(process.platform !== "darwin")("clears the subtitle when the confirm
   // Then
   expect(AirPodsControlCli.setListeningMode).toHaveBeenCalledWith("anc");
   expect(mockUpdateCommandMetadata.mock.calls.map(([metadata]) => metadata)).toEqual([
-    { subtitle: "Noise Cancellation ◉" },
+    { subtitle: "Noise Cancellation ●" },
     { subtitle: null },
   ]);
 });
@@ -104,9 +104,9 @@ test.skipIf(process.platform !== "darwin")(
     // When
     await runSetListeningModeCommand("adaptive", { updateCycleSubtitle: true });
     // Then
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Adaptive ◑ · CA ○" });
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Adaptive ◑ · CA ○̸" });
     expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Adaptive ◑" });
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Off ○" });
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Off ○̸" });
     expect(mockLaunchCommand).toHaveBeenCalledTimes(3);
     expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
     expect(AirPodsControlCli.getConversationAwareness).toHaveBeenCalledOnce();
@@ -192,8 +192,8 @@ test.skipIf(process.platform !== "darwin")(
       await secondRefresh;
       // Then
       expect(mockUpdateCommandMetadata.mock.calls.map(([metadata]) => metadata.subtitle)).toEqual([
-        "Transparency ◎ · CA ○",
-        "Noise Cancellation ◉ · CA ○",
+        "Transparency ○ · CA ○̸",
+        "Noise Cancellation ● · CA ○̸",
       ]);
     } finally {
       firstRead.resolve("transparency");
@@ -234,7 +234,7 @@ test.skipIf(process.platform !== "darwin")(
       await Promise.all([controlPromise, resetPromise]);
       // Then
       expect(mockUpdateCommandMetadata.mock.calls.map(([metadata]) => metadata)).toEqual([
-        { subtitle: "Noise Cancellation ◉" },
+        { subtitle: "Noise Cancellation ●" },
         { subtitle: null },
       ]);
     } finally {
@@ -283,7 +283,7 @@ test.skipIf(process.platform !== "darwin")(
     } as never);
     // Then
     expect(mockUpdateCommandMetadata.mock.calls.length).toBe(metadataCallCountAfterSet);
-    expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "Noise Cancellation ◉" });
+    expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "Noise Cancellation ●" });
   },
 );
 
@@ -351,7 +351,7 @@ test.skipIf(process.platform !== "darwin")(
     } as never);
     // Then
     expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation ◉" });
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation ●" });
     expect(mockUpdateCommandMetadata).not.toHaveBeenCalledWith({ subtitle: null });
   },
 );

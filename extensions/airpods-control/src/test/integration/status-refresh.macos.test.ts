@@ -56,7 +56,7 @@ test.skipIf(process.platform !== "darwin")(
     expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
     expect(AirPodsControlCli.getConversationAwareness).toHaveBeenCalledOnce();
     expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({
-      subtitle: "Noise Cancellation ◉ · CA ●",
+      subtitle: "Noise Cancellation ● · CA ●",
     });
     const listeningRevision = mockLaunchCommand.mock.calls.find(
       ([options]) => options.name === CYCLE_LISTENING_MODE_COMMAND_NAME,
@@ -127,7 +127,7 @@ test.skipIf(process.platform !== "darwin")(
     // When
     await refreshAirPodsStatus();
     // Then
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation ◉" });
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledWith({ subtitle: "Noise Cancellation ●" });
     expect(mockLaunchCommand).toHaveBeenCalledWith(
       expect.objectContaining({
         context: expect.objectContaining({ operation: "refresh-listening-mode-subtitle", mode: "anc" }),
@@ -174,7 +174,7 @@ test.skipIf(process.platform !== "darwin")("updates the subtitle when AirPods di
   // When
   await refreshAirPodsStatus();
   // Then
-  expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "Noise Cancellation ◉ · CA ●" });
+  expect(mockUpdateCommandMetadata).toHaveBeenLastCalledWith({ subtitle: "Noise Cancellation ● · CA ●" });
   // When
   await refreshAirPodsStatus();
   // Then
@@ -183,9 +183,9 @@ test.skipIf(process.platform !== "darwin")("updates the subtitle when AirPods di
   await refreshAirPodsStatus();
   // Then
   expect(mockUpdateCommandMetadata.mock.calls).toEqual([
-    [{ subtitle: "Noise Cancellation ◉ · CA ●" }],
+    [{ subtitle: "Noise Cancellation ● · CA ●" }],
     [{ subtitle: "Not connected" }],
-    [{ subtitle: "Transparency ◎ · CA ○" }],
+    [{ subtitle: "Transparency ○ · CA ○̸" }],
   ]);
 });
 
@@ -200,7 +200,7 @@ test.skipIf(process.platform !== "darwin")(
     // When
     await refreshAirPodsStatus();
     // Then
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledExactlyOnceWith({ subtitle: "Noise Cancellation ◉" });
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledExactlyOnceWith({ subtitle: "Noise Cancellation ●" });
   },
 );
 
@@ -246,11 +246,11 @@ test.skipIf(process.platform !== "darwin")(
     // When
     await refreshAirPodsStatus();
     // Then
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledExactlyOnceWith({ subtitle: "Noise Cancellation ◉ · CA ●" });
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledExactlyOnceWith({ subtitle: "Noise Cancellation ● · CA ●" });
     // When
     await refreshAirPodsStatus();
     // Then
-    expect(mockUpdateCommandMetadata).toHaveBeenCalledExactlyOnceWith({ subtitle: "Noise Cancellation ◉ · CA ●" });
+    expect(mockUpdateCommandMetadata).toHaveBeenCalledExactlyOnceWith({ subtitle: "Noise Cancellation ● · CA ●" });
   },
 );
 
@@ -353,7 +353,7 @@ test.skipIf(process.platform !== "darwin")(
       title: "Refreshing AirPods status...",
     });
     expect(toast.style).toBe(Toast.Style.Success);
-    expect(toast.message).toBe("Listening: Noise Cancellation ◉ · Conversation Awareness: On ●");
+    expect(toast.message).toBe("Listening: Noise Cancellation ● · Conversation Awareness: On ●");
     expect(toast.primaryAction).toBeUndefined();
     expect(toast.show).toHaveBeenCalledOnce();
   },
@@ -375,7 +375,7 @@ test.skipIf(process.platform !== "darwin")(
     // Then
     expect(toast.style).toBe(Toast.Style.Failure);
     expect(toast.message).toBe(
-      "Listening: Noise Cancellation ◉ · Conversation Awareness: On ● · Listening Mode subtitle: Cycle Listening Mode is disabled",
+      "Listening: Noise Cancellation ● · Conversation Awareness: On ● · Listening Mode subtitle: Cycle Listening Mode is disabled",
     );
     expect(toast.primaryAction).toEqual(expect.objectContaining({ title: "Copy Error" }));
     // When
@@ -403,7 +403,7 @@ test.skipIf(process.platform !== "darwin")(
     await runAirPodsStatusRefresh({ showFeedback: true });
     // Then
     expect(toast.style).toBe(Toast.Style.Failure);
-    expect(toast.message).toContain("Listening: Noise Cancellation ◉");
+    expect(toast.message).toContain("Listening: Noise Cancellation ●");
     expect(toast.message).toContain("Conversation Awareness:");
     expect(toast.message).toContain("Listening Mode subtitle: Cycle Listening Mode is disabled");
     expect(toast.primaryAction).toEqual(expect.objectContaining({ title: "Copy Error" }));
@@ -425,7 +425,7 @@ test.skipIf(process.platform !== "darwin")(
     await runAirPodsStatusRefresh({ showFeedback: true });
     // Then
     expect(toast.style).toBe(Toast.Style.Failure);
-    expect(toast.message).toContain("Listening: Noise Cancellation ◉");
+    expect(toast.message).toContain("Listening: Noise Cancellation ●");
     expect(toast.message).toContain("Conversation Awareness: This feature is not supported");
     expect(toast.primaryAction).toEqual(expect.objectContaining({ title: "Copy Error" }));
     expect(toast.show).toHaveBeenCalledOnce();

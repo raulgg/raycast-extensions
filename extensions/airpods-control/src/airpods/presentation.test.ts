@@ -8,10 +8,10 @@ import {
 } from "./presentation";
 
 test.each([
-  ["off", "Off ○", "Set to Off ○"],
-  ["transparency", "Transparency ◎", "Set to Transparency ◎"],
+  ["off", "Off ○̸", "Set to Off ○̸"],
+  ["transparency", "Transparency ○", "Set to Transparency ○"],
   ["adaptive", "Adaptive ◑", "Set to Adaptive ◑"],
-  ["anc", "Noise Cancellation ◉", "Set to Noise Cancellation ◉"],
+  ["anc", "Noise Cancellation ●", "Set to Noise Cancellation ●"],
 ] as const)("formats %s listening mode", (mode, subtitle, hud) => {
   // Given the input supplied by this case
   // When
@@ -26,7 +26,7 @@ test.each([
 
 test.each([
   ["on", "On ●", "Conversation Awareness On ●"],
-  ["off", "Off ○", "Conversation Awareness Off ○"],
+  ["off", "Off ○̸", "Conversation Awareness Off ○̸"],
 ] as const)("formats Conversation Awareness %s", (state, subtitle, hud) => {
   // Given the input supplied by this case
   // When
@@ -40,12 +40,12 @@ test.each([
 });
 
 test.each([
-  [{ listeningMode: "anc", conversationAwareness: "on" }, "Noise Cancellation ◉ · CA ●"],
-  [{ listeningMode: "transparency", conversationAwareness: "off" }, "Transparency ◎ · CA ○"],
+  [{ listeningMode: "anc", conversationAwareness: "on" }, "Noise Cancellation ● · CA ●"],
+  [{ listeningMode: "transparency", conversationAwareness: "off" }, "Transparency ○ · CA ○̸"],
   [{ listeningMode: "adaptive", conversationAwareness: null }, "Adaptive ◑"],
   [{ listeningMode: null, conversationAwareness: "on" }, "CA ●"],
-  [{ listeningMode: null, conversationAwareness: "off" }, "CA ○"],
-  [{ listeningMode: "off", conversationAwareness: null }, "Off ○"],
+  [{ listeningMode: null, conversationAwareness: "off" }, "CA ○̸"],
+  [{ listeningMode: "off", conversationAwareness: null }, "Off ○̸"],
   [{ listeningMode: null, conversationAwareness: null }, null],
 ] as const)("formats a combined status subtitle %j", (status, expected) => {
   // Given the input supplied by this case

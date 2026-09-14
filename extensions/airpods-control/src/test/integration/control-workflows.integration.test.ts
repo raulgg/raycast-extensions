@@ -214,7 +214,7 @@ test("publishes the current listening mode without changing it or showing feedba
   await refreshListeningModeSubtitle();
   // Then
   expect(AirPodsControlCli.getListeningMode).toHaveBeenCalledOnce();
-  expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Noise Cancellation ◉", {
+  expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Noise Cancellation ●", {
     channel: "listening-mode",
     revision: "test-revision",
   });
@@ -272,7 +272,7 @@ test("publishes the current Conversation Awareness state without changing it or 
   await refreshConversationAwarenessSubtitle();
   // Then
   expect(AirPodsControlCli.getConversationAwareness).toHaveBeenCalledOnce();
-  expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Off ○", {
+  expect(mockPublishCommandSubtitle).toHaveBeenCalledWith("Off ○̸", {
     channel: "conversation-awareness",
     revision: "test-revision",
   });
@@ -329,14 +329,14 @@ test("publishes the confirmed mode after setting it", async () => {
   await runSetListeningModeCommand("anc", { updateCycleSubtitle: true });
   // Then
   expect(AirPodsControlCli.setListeningMode).toHaveBeenCalledWith("anc");
-  expect(mockPublishCommandSubtitle).toHaveBeenCalledExactlyOnceWith("Noise Cancellation ◉", {
+  expect(mockPublishCommandSubtitle).toHaveBeenCalledExactlyOnceWith("Noise Cancellation ●", {
     channel: "listening-mode",
     revision: "test-revision",
   });
   expect(vi.mocked(AirPodsControlCli.setListeningMode).mock.invocationCallOrder[0]).toBeLessThan(
     mockPublishCommandSubtitle.mock.invocationCallOrder[0],
   );
-  expect(toast.setToSuccess).toHaveBeenCalledWith({ titleOverride: "Set to Noise Cancellation ◉" });
+  expect(toast.setToSuccess).toHaveBeenCalledWith({ titleOverride: "Set to Noise Cancellation ●" });
 });
 
 test("does not update the fixed command subtitle in the disabled-Cycle fallback", async () => {
@@ -360,7 +360,7 @@ test("does not update the fixed command subtitle in the disabled-Cycle fallback"
   await runSetListeningModeCommand("transparency", { updateCycleSubtitle: false });
   // Then
   expect(mockPublishCommandSubtitle).not.toHaveBeenCalled();
-  expect(toast.setToSuccess).toHaveBeenCalledWith({ titleOverride: "Set to Transparency ◎" });
+  expect(toast.setToSuccess).toHaveBeenCalledWith({ titleOverride: "Set to Transparency ○" });
 });
 
 test("publishes a confirmed remaining state from a failed change", async () => {
@@ -389,7 +389,7 @@ test("publishes a confirmed remaining state from a failed change", async () => {
   vi.mocked(AirPodsControlCli.setListeningMode).mockRejectedValue(error);
   await runSetListeningModeCommand("anc", { updateCycleSubtitle: true });
   // Then
-  expect(mockPublishCommandSubtitle).toHaveBeenCalledExactlyOnceWith("Transparency ◎", {
+  expect(mockPublishCommandSubtitle).toHaveBeenCalledExactlyOnceWith("Transparency ○", {
     channel: "listening-mode",
     revision: "test-revision",
   });
@@ -552,7 +552,7 @@ test("passes the selected modes to the CLI in canonical order", async () => {
   await runCycleListeningModeCommand();
   // Then
   expect(AirPodsControlCli.cycleListeningMode).toHaveBeenCalledWith(["transparency", "anc"]);
-  expect(mockPublishCommandSubtitle).toHaveBeenCalledExactlyOnceWith("Noise Cancellation ◉", {
+  expect(mockPublishCommandSubtitle).toHaveBeenCalledExactlyOnceWith("Noise Cancellation ●", {
     channel: "listening-mode",
     revision: "test-revision",
   });
@@ -584,7 +584,7 @@ test("publishes confirmed state while preserving selected-mode failure guidance"
   vi.mocked(AirPodsControlCli.cycleListeningMode).mockRejectedValue(error);
   await runCycleListeningModeCommand();
   // Then
-  expect(mockPublishCommandSubtitle).toHaveBeenCalledExactlyOnceWith("Noise Cancellation ◉", {
+  expect(mockPublishCommandSubtitle).toHaveBeenCalledExactlyOnceWith("Noise Cancellation ●", {
     channel: "listening-mode",
     revision: "test-revision",
   });
@@ -679,7 +679,7 @@ test("publishes the confirmed state from a failed toggle", async () => {
   vi.mocked(AirPodsControlCli.setConversationAwareness).mockRejectedValue(error);
   await runToggleConversationAwarenessCommand();
   // Then
-  expect(mockPublishCommandSubtitle).toHaveBeenCalledExactlyOnceWith("Off ○", {
+  expect(mockPublishCommandSubtitle).toHaveBeenCalledExactlyOnceWith("Off ○̸", {
     channel: "conversation-awareness",
     revision: "test-revision",
   });
