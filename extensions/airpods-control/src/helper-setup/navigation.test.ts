@@ -13,5 +13,5 @@ test("offers manual instructions if the setup command is disabled, without retry
   // When
   await toast.primaryAction.onAction(toast);
   // Then
-  expect(open).toHaveBeenCalledWith("https://github.com/raulgg/airpods-control/blob/v0.4.0/README.md#install");
+  expect(open).toHaveBeenCalledWith("https://github.com/raulgg/airpods-control/blob/HEAD/README.md#install");
 });

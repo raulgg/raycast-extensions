@@ -32,7 +32,7 @@ test("returns the GitHub tag when the latest release is available", async () => 
   );
 });
 
-test("falls back to the local version when GitHub is unavailable", async () => {
+test("leaves latest unknown when GitHub is unavailable", async () => {
   // Given
   mockFetch(async () => {
     throw new Error("network down");
@@ -40,32 +40,32 @@ test("falls back to the local version when GitHub is unavailable", async () => {
   // When
   const result = await fetchLatestGithubRelease();
   // Then
-  expect(result).toEqual({ version: "0.4.0", source: "local", liveCheckFailed: true });
+  expect(result).toEqual({ version: null, source: null, liveCheckFailed: true });
 });
 
-test("falls back to the local version when GitHub returns a non-success status", async () => {
+test("leaves latest unknown when GitHub returns a non-success status", async () => {
   // Given
   mockFetch(async () => jsonResponse({ message: "API rate limit exceeded" }, 403));
   // When
   const result = await fetchLatestGithubRelease();
   // Then
-  expect(result).toEqual({ version: "0.4.0", source: "local", liveCheckFailed: true });
+  expect(result).toEqual({ version: null, source: null, liveCheckFailed: true });
 });
 
-test("falls back to the local version when the release payload has no tag", async () => {
+test("leaves latest unknown when the release payload has no tag", async () => {
   // Given
   mockFetch(async () => jsonResponse({ name: "0.5.0" }));
   // When
   const result = await fetchLatestGithubRelease();
   // Then
-  expect(result).toEqual({ version: "0.4.0", source: "local", liveCheckFailed: true });
+  expect(result).toEqual({ version: null, source: null, liveCheckFailed: true });
 });
 
-test("falls back to the local version when the release tag is not a version", async () => {
+test("leaves latest unknown when the release tag is not a version", async () => {
   // Given
   mockFetch(async () => jsonResponse({ tag_name: "latest" }));
   // When
   const result = await fetchLatestGithubRelease();
   // Then
-  expect(result).toEqual({ version: "0.4.0", source: "local", liveCheckFailed: true });
+  expect(result).toEqual({ version: null, source: null, liveCheckFailed: true });
 });

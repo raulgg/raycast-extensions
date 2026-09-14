@@ -1,12 +1,12 @@
 import { normalizeVersion } from "../cli/version";
-import { CLI_GITHUB_RELEASES_LATEST_URL, CLI_VERSION } from "./constants";
+import { CLI_GITHUB_RELEASES_LATEST_URL } from "./constants";
 
 const GITHUB_RELEASES_TIMEOUT_MS = 8000;
 const GITHUB_USER_AGENT = "airpods-control-raycast-extension";
 
 export interface LatestRelease {
   version: string | null;
-  source: "github" | "local";
+  source: "github" | null;
   liveCheckFailed: boolean;
 }
 
@@ -14,16 +14,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function localRelease(): LatestRelease {
-  return { version: normalizeVersion(CLI_VERSION), source: "local", liveCheckFailed: true };
+function failedRelease(): LatestRelease {
+  return { version: null, source: null, liveCheckFailed: true };
 }
 
 /**
  * Fetch the latest GitHub release tag. Any network, HTTP, or parse failure
- * falls back to the local CLI version. Never throws.
+ * leaves the latest version unknown. Never throws.
  */
 export async function fetchLatestGithubRelease(): Promise<LatestRelease> {
-  const fallback = localRelease();
+  const fallback = failedRelease();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GITHUB_RELEASES_TIMEOUT_MS);
   try {

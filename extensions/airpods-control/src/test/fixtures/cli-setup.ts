@@ -14,6 +14,7 @@ export function cliSetup(overrides: Partial<CliSetup> = {}): CliSetup {
     liveCheckFailed: false,
     installationMethod: null,
     versionStatus: "unknown",
+    meetsMinimum: null,
     ...overrides,
   };
 }
@@ -29,6 +30,7 @@ export function installedCliSetup(overrides: Partial<CliSetup> = {}): CliSetup {
     liveCheckFailed: false,
     installationMethod: "homebrew",
     versionStatus: "up-to-date",
+    meetsMinimum: true,
     ...overrides,
   });
 }
@@ -37,6 +39,7 @@ export function outdatedCliSetup(overrides: Partial<CliSetup> = {}): CliSetup {
   return installedCliSetup({
     installedVersion: "0.3.0",
     versionStatus: "update-available",
+    meetsMinimum: false,
     ...overrides,
   });
 }

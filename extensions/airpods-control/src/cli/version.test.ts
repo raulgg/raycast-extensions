@@ -1,6 +1,12 @@
 import { execFile } from "child_process";
 import { expect, vi, type Mock, test } from "vitest";
-import { compareVersions, normalizeVersion, readInstalledVersion, resolveVersionStatus } from "./version";
+import {
+  compareVersions,
+  meetsMinimumVersion,
+  normalizeVersion,
+  readInstalledVersion,
+  resolveVersionStatus,
+} from "./version";
 
 vi.mock("child_process", () => ({
   execFile: vi.fn(),
@@ -79,6 +85,21 @@ test.each([
   const result = resolveVersionStatus(installed, latest);
   // Then
   expect(result).toBe(status);
+});
+
+test.each([
+  { name: "equal to the minimum", installed: "0.4.0", minimum: "v0.4.0", result: true },
+  { name: "older than the minimum", installed: "0.3.0", minimum: "0.4.0", result: false },
+  { name: "newer than the minimum", installed: "0.5.0", minimum: "0.4.0", result: true },
+  { name: "a missing installed version is unknown", installed: null, minimum: "0.4.0", result: null },
+  { name: "an unusable installed version is unknown", installed: "latest", minimum: "0.4.0", result: null },
+  { name: "an unusable minimum is unknown", installed: "0.4.0", minimum: "latest", result: null },
+] as const)("$name", ({ installed, minimum, result }) => {
+  // Given
+  // When
+  const meetsMinimum = meetsMinimumVersion(installed, minimum);
+  // Then
+  expect(meetsMinimum).toBe(result);
 });
 
 test("reads the installed version from JSON output", async () => {

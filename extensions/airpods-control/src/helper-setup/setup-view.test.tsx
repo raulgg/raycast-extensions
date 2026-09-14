@@ -8,8 +8,12 @@ import { deferred } from "../test/fixtures/deferred";
 import Command from "../update-airpods-control-cli";
 import { detectCliSetup } from "./detection";
 import { runCliInstallation } from "./installation";
+import type * as Detection from "./detection";
 
-vi.mock("./detection", () => ({ detectCliSetup: vi.fn() }));
+vi.mock("./detection", async (importOriginal) => {
+  const actual = await importOriginal<typeof Detection>();
+  return { ...actual, detectCliSetup: vi.fn() };
+});
 
 vi.mock("./installation", () => ({ runCliInstallation: vi.fn() }));
 
@@ -214,7 +218,12 @@ test.each([
     expect(view.action("Open Installation Instructions")).not.toBeNull();
     await view.click("Copy Source Install Command");
     expect(Clipboard.copy).toHaveBeenCalledWith(
-      'base=https://raw.githubusercontent.com/raulgg/airpods-control/v0.4.0\ncurl -fsSL "$base/scripts/install-from-source.sh" | sh -s --',
+      [
+        "tag=$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/raulgg/airpods-control/releases/latest)",
+        "tag=${tag##*/}",
+        "base=https://raw.githubusercontent.com/raulgg/airpods-control/$tag",
+        'curl -fsSL "$base/scripts/install-from-source.sh" | sh -s -- --version "$tag"',
+      ].join("\n"),
     );
   } else {
     expect(view.action("Copy Source Install Command")).toBeNull();
@@ -331,6 +340,7 @@ test("hides manual update instructions when the helper is up to date", async () 
       latestVersion: "0.4.0",
       latestSource: "github",
       versionStatus: "up-to-date",
+      meetsMinimum: true,
     }),
   );
   // When
@@ -342,11 +352,30 @@ test("hides manual update instructions when the helper is up to date", async () 
   expect(view.action("Open Update Instructions")).toBeNull();
   expect(view.action("Open Installation Instructions")).not.toBeNull();
   expect(view.action("Update with Homebrew")).toBeNull();
-  expect(view.markdown()).toContain("# AirPods Control Helper is Up to date");
+  expect(view.markdown()).toContain("# AirPods Control Helper is up to date");
   expect(view.markdown()).toContain("0.4.0");
   expect(view.markdown()).toContain("Manual");
   expect(view.markdown()).not.toContain("**Latest:**");
   expect(actions.at(-1)).toBe("Refresh");
+});
+
+test("offers Homebrew update when the helper is below the minimum even if it matches the tap", async () => {
+  // Given
+  const view = createSetupView();
+  vi.mocked(detectCliSetup).mockResolvedValue(
+    installedCliSetup({
+      installedVersion: "0.3.0",
+      latestVersion: "0.3.0",
+      versionStatus: "up-to-date",
+      meetsMinimum: false,
+    }),
+  );
+  // When
+  await view.render();
+  // Then
+  expect(view.action("Update with Homebrew")).not.toBeNull();
+  expect(view.action("Copy Update Command")).not.toBeNull();
+  expect(view.markdown()).toContain("**Latest:**");
 });
 
 test("keeps Homebrew update available when the helper version is unknown", async () => {
@@ -356,6 +385,7 @@ test("keeps Homebrew update available when the helper version is unknown", async
     installedCliSetup({
       installedVersion: null,
       versionStatus: "unknown",
+      meetsMinimum: null,
     }),
   );
   // When

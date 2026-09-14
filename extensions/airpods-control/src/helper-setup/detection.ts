@@ -1,10 +1,16 @@
 import { realpathSync } from "fs";
 import { join } from "path";
 import { findCliPath, getConfiguredCliPath } from "../cli/discovery";
-import { normalizeVersion, readInstalledVersion, resolveVersionStatus, type VersionStatus } from "../cli/version";
+import {
+  meetsMinimumVersion,
+  normalizeVersion,
+  readInstalledVersion,
+  resolveVersionStatus,
+  type VersionStatus,
+} from "../cli/version";
 import { findBrewCliPrefix, findBrewLatestVersion, findBrewPath } from "../homebrew/commands";
 import { isBrewOperationRunning } from "../homebrew/lock";
-import { CLI_VERSION } from "./constants";
+import { MIN_CLI_VERSION } from "./constants";
 import { detectDeveloperTools, type DeveloperToolsStatus } from "./developer-tools";
 import { fetchLatestGithubRelease } from "./latest-release";
 
@@ -20,7 +26,7 @@ export type CliSetupState =
 
 export type CliInstallationMethod = "homebrew" | "manual";
 
-export type LatestVersionSource = "homebrew" | "github" | "local";
+export type LatestVersionSource = "homebrew" | "github";
 
 export interface CliSetup {
   state: CliSetupState;
@@ -35,11 +41,12 @@ export interface CliSetup {
   liveCheckFailed: boolean;
   installationMethod: CliInstallationMethod | null;
   versionStatus: VersionStatus;
+  meetsMinimum: boolean | null;
 }
 
 interface LatestInfo {
   version: string | null;
-  source: LatestVersionSource;
+  source: LatestVersionSource | null;
   liveCheckFailed: boolean;
 }
 
@@ -50,7 +57,12 @@ const UNKNOWN_VERSION = {
   liveCheckFailed: false,
   installationMethod: null,
   versionStatus: "unknown",
+  meetsMinimum: null,
 } as const;
+
+export function setupNeedsUpdate(setup: CliSetup): boolean {
+  return setup.meetsMinimum === false || setup.versionStatus !== "up-to-date";
+}
 
 export async function detectCliSetup(): Promise<CliSetup> {
   const cliPath = findCliPath();
@@ -91,15 +103,15 @@ function isBrewManagedCli(cliPath: string, brewCliPrefix: string | null): boolea
   return Boolean(brewCliPrefix && sameFile(cliPath, join(brewCliPrefix, "bin", "airpods-control")));
 }
 
-function localLatest(): LatestInfo {
-  return { version: normalizeVersion(CLI_VERSION), source: "local", liveCheckFailed: true };
+function failedLatest(): LatestInfo {
+  return { version: null, source: null, liveCheckFailed: true };
 }
 
 async function homebrewLatest(brewPath: string): Promise<LatestInfo> {
   const raw = await findBrewLatestVersion(brewPath);
   const version = raw ? normalizeVersion(raw) : null;
   if (version) return { version, source: "homebrew", liveCheckFailed: false };
-  return localLatest();
+  return failedLatest();
 }
 
 async function githubLatest(): Promise<LatestInfo> {
@@ -112,7 +124,7 @@ async function withVersion(setup: CliSetup, latest: Promise<LatestInfo>): Promis
     latest,
   ]);
   const installedVersion = installedResult.status === "fulfilled" ? installedResult.value : null;
-  const resolvedLatest = latestResult.status === "fulfilled" ? latestResult.value : localLatest();
+  const resolvedLatest = latestResult.status === "fulfilled" ? latestResult.value : failedLatest();
   return {
     ...setup,
     installedVersion,
@@ -120,6 +132,7 @@ async function withVersion(setup: CliSetup, latest: Promise<LatestInfo>): Promis
     latestSource: resolvedLatest.source,
     liveCheckFailed: resolvedLatest.liveCheckFailed,
     versionStatus: resolveVersionStatus(installedVersion, resolvedLatest.version),
+    meetsMinimum: meetsMinimumVersion(installedVersion, MIN_CLI_VERSION),
   };
 }
 

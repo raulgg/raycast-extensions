@@ -1,5 +1,5 @@
 import { Action, Icon, openExtensionPreferences } from "@raycast/api";
-import { compareVersions } from "../cli/version";
+import { compareVersions, normalizeVersion } from "../cli/version";
 import {
   CLI_INSTALL_COMMAND,
   CLI_LINK_COMMAND,
@@ -8,8 +8,9 @@ import {
   DEVELOPER_TOOLS_DOWNLOAD_URL,
   DEVELOPER_TOOLS_INSTALL_COMMAND,
   HOMEBREW_INSTALL_COMMAND,
+  MIN_CLI_VERSION,
 } from "./constants";
-import type { CliSetup } from "./detection";
+import { setupNeedsUpdate, type CliSetup } from "./detection";
 
 function code(value: string): string {
   const fence = "`".repeat(Math.max(3, ...Array.from(value.matchAll(/`+/g), ([match]) => match.length + 1)));
@@ -33,23 +34,25 @@ function statusFacts(setup: CliSetup, includeLatest: boolean): string {
 }
 
 function statusNote(setup: CliSetup, includeLatest: boolean): string {
+  const notes: string[] = [];
   if (includeLatest && setup.versionStatus === "unknown") {
-    return "\n\nCould not determine the helper version.";
-  }
-  if (
+    notes.push("Could not determine the helper version.");
+  } else if (
     setup.installedVersion &&
     setup.latestVersion &&
     compareVersions(setup.installedVersion, setup.latestVersion) === 1
   ) {
-    return "\n\nThis install is newer than the known release.";
+    notes.push("This install is newer than the known release.");
+  } else if (setup.liveCheckFailed) {
+    notes.push("Could not confirm the latest release.");
+  } else if (setup.configuredCliPath) {
+    notes.push("Using the saved **CLI Path**.");
   }
-  if (setup.liveCheckFailed) {
-    return "\n\nCould not confirm the latest release.";
+  if (setup.meetsMinimum === false) {
+    const minimum = normalizeVersion(MIN_CLI_VERSION) ?? MIN_CLI_VERSION;
+    notes.push(`The helper is older than the minimum this extension requires (${minimum}).`);
   }
-  if (setup.configuredCliPath) {
-    return "\n\nUsing the saved **CLI Path**.";
-  }
-  return "";
+  return notes.length > 0 ? `\n\n${notes.join("\n\n")}` : "";
 }
 
 function helperStatusMarkdown(title: string, setup: CliSetup, includeLatest: boolean): string {
@@ -72,19 +75,19 @@ export function cliSetupMarkdown(setup: CliSetup): string {
     case "invalid-cli-path":
       return `# Fix CLI Path\n\nRaycast could not find the helper at the saved **CLI Path**.\n\n${code(setup.configuredCliPath ?? "")}\n\nClear or correct it in Extension Preferences.`;
     case "manual-cli":
-      if (setup.versionStatus === "up-to-date") {
-        return helperStatusMarkdown("AirPods Control Helper is up to date", setup, false);
+      if (setupNeedsUpdate(setup)) {
+        return helperStatusMarkdown("Update AirPods Control Helper", setup, true);
       }
-      return helperStatusMarkdown("Update AirPods Control Helper", setup, true);
+      return helperStatusMarkdown("AirPods Control Helper is up to date", setup, false);
     case "needs-link":
       return `# Finish setup\n\nHomebrew installed the helper, but Raycast cannot find it.\n\n${code(CLI_LINK_COMMAND)}`;
     case "install":
       return "# Install the helper\n\nHomebrew and Apple's developer tools are ready.";
     case "update":
-      if (setup.versionStatus === "up-to-date") {
-        return helperStatusMarkdown("AirPods Control Helper is Up to date", setup, false);
+      if (setupNeedsUpdate(setup)) {
+        return helperStatusMarkdown("Update the helper", setup, true);
       }
-      return helperStatusMarkdown("Update the helper", setup, true);
+      return helperStatusMarkdown("AirPods Control Helper is Up to date", setup, false);
   }
 }
 
@@ -111,7 +114,7 @@ export function CliSetupActions({ setup }: { setup: CliSetup }) {
     return <Action.CopyToClipboard title="Copy Homebrew Install Command" content={HOMEBREW_INSTALL_COMMAND} />;
   }
   if (setup.state === "manual-cli") return null;
-  if (setup.state === "update" && setup.versionStatus === "up-to-date") return null;
+  if (setup.state === "update" && !setupNeedsUpdate(setup)) return null;
   const commands = {
     install: { title: "Copy Install Command", content: CLI_INSTALL_COMMAND },
     update: { title: "Copy Update Command", content: CLI_MANUAL_UPDATE_COMMAND },

@@ -11,7 +11,7 @@ import { useEffect, useReducer } from "react";
 import { getErrorMessage } from "../feedback/error-actions";
 import { HOMEBREW_URL } from "../homebrew/constants";
 import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL, CLI_SOURCE_INSTALL_COMMAND } from "./constants";
-import { detectCliSetup } from "./detection";
+import { detectCliSetup, setupNeedsUpdate } from "./detection";
 import { runCliInstallation, type CliOperation } from "./installation";
 import { cliSetupLifecycleReducer, INITIAL_LIFECYCLE } from "./lifecycle";
 import { CliSetupActions, cliSetupMarkdown } from "./setup-content";
@@ -76,18 +76,13 @@ export default function Command() {
     markdown = "# AirPods Control Helper is ready!";
   }
   const idle = !isChecking && !operation;
+  const needsUpdate = setup ? setupNeedsUpdate(setup) : false;
   const availableOperation =
-    setup?.state === "install"
-      ? "install"
-      : setup?.state === "update" && setup.versionStatus !== "up-to-date"
-        ? "update"
-        : undefined;
+    setup?.state === "install" ? "install" : setup?.state === "update" && needsUpdate ? "update" : undefined;
   const canRun = idle && !error && !completed && availableOperation;
   const showAlternatives = idle && !error && !completed && setup && ["install", "needs-homebrew"].includes(setup.state);
-  const showManualUpdate =
-    idle && !error && !completed && setup?.state === "manual-cli" && setup.versionStatus !== "up-to-date";
-  const showUpdateInstructions =
-    (setup?.state === "update" || setup?.state === "manual-cli") && setup.versionStatus !== "up-to-date";
+  const showManualUpdate = idle && !error && !completed && setup?.state === "manual-cli" && needsUpdate;
+  const showUpdateInstructions = (setup?.state === "update" || setup?.state === "manual-cli") && needsUpdate;
   const showHomebrewHelp = setup?.brewPath === null;
 
   return (

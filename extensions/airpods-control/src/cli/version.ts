@@ -59,6 +59,13 @@ export function resolveVersionStatus(installed: string | null, latest: string | 
   return comparison < 0 ? "update-available" : "up-to-date";
 }
 
+export function meetsMinimumVersion(installed: string | null, minimum: string): boolean | null {
+  if (!installed) return null;
+  const comparison = compareVersions(installed, minimum);
+  if (comparison === null) return null;
+  return comparison >= 0;
+}
+
 function parseJsonVersion(stdout: string): string | null {
   try {
     const parsed: unknown = JSON.parse(stdout);
