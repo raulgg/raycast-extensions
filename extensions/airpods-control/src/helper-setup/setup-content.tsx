@@ -89,35 +89,51 @@ export function cliSetupMarkdown(setup: CliSetup): string {
   }
 }
 
+export function hasCliSetupActions(setup: CliSetup): boolean {
+  switch (setup.state) {
+    case "installing":
+      return false;
+    case "update":
+    case "manual-cli":
+      return setupNeedsUpdate(setup);
+    default:
+      return true;
+  }
+}
+
 export function CliSetupActions({ setup }: { setup: CliSetup }) {
-  if (setup.state === "installing") return null;
-  if (setup.state === "needs-developer-tools") {
-    return (
-      <>
+  if (!hasCliSetupActions(setup)) return null;
+  switch (setup.state) {
+    case "needs-developer-tools":
+      return (
         <Action.CopyToClipboard
           title="Copy Developer Tools Install Command"
           content={DEVELOPER_TOOLS_INSTALL_COMMAND}
         />
-        <Action.OpenInBrowser title="Open Apple Developer Downloads" url={DEVELOPER_TOOLS_DOWNLOAD_URL} />
-        <Action.OpenInBrowser title="Open Developer Tools Instructions" url={DEVELOPER_TOOLS_DOCS_URL} />
-      </>
-    );
+      );
+    case "invalid-cli-path":
+      return <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />;
+    case "needs-homebrew":
+      return (
+        <>
+          <Action.CopyToClipboard title="Copy Homebrew Install Command" content={HOMEBREW_INSTALL_COMMAND} />
+          <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />
+        </>
+      );
+    case "manual-cli":
+      return <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />;
+    case "install":
+      return (
+        <>
+          <Action.CopyToClipboard title="Copy Install Command" content={CLI_INSTALL_COMMAND} />
+          <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />
+        </>
+      );
+    case "update":
+      return <Action.CopyToClipboard title="Copy Update Command" content={CLI_MANUAL_UPDATE_COMMAND} />;
+    case "needs-link":
+      return <Action.CopyToClipboard title="Copy Link Command" content={CLI_LINK_COMMAND} />;
+    case "installing":
+      return null;
   }
-  if (setup.state === "invalid-cli-path") {
-    return <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />;
-  }
-  if (setup.state === "needs-homebrew") {
-    return <Action.CopyToClipboard title="Copy Homebrew Install Command" content={HOMEBREW_INSTALL_COMMAND} />;
-  }
-  if (setup.state === "manual-cli") {
-    if (!setupNeedsUpdate(setup)) return null;
-    return <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />;
-  }
-  if (setup.state === "update" && !setupNeedsUpdate(setup)) return null;
-  const commands = {
-    install: { title: "Copy Install Command", content: CLI_INSTALL_COMMAND },
-    update: { title: "Copy Update Command", content: CLI_MANUAL_UPDATE_COMMAND },
-    "needs-link": { title: "Copy Link Command", content: CLI_LINK_COMMAND },
-  };
-  return <Action.CopyToClipboard {...commands[setup.state]} />;
 }
