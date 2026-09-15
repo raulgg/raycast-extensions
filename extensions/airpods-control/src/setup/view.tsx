@@ -7,6 +7,16 @@ import { CliSetupActions, cliSetupMarkdown, hasCliSetupActions } from "./guidanc
 import { runCliInstallation, type CliOperation } from "./installation";
 import { cliSetupLifecycleReducer, INITIAL_LIFECYCLE } from "./lifecycle";
 
+function OpenCliRepoAction() {
+  return (
+    <Action.OpenInBrowser
+      title="Open AirPods Control on GitHub"
+      url={CLI_REPO_URL}
+      shortcut={Keyboard.Shortcut.Common.OpenWith}
+    />
+  );
+}
+
 export default function Command() {
   const [lifecycle, dispatch] = useReducer(cliSetupLifecycleReducer, INITIAL_LIFECYCLE);
 
@@ -100,6 +110,7 @@ export default function Command() {
       Boolean(error && !setup) ||
       (needsUpdate && (setup?.state === "update" || setup?.state === "manual-cli")));
   const showWork = Boolean(canRun || showStateActions || error);
+  const githubInDocs = idle && (showWork || showHelperDocs);
 
   return (
     <Detail
@@ -120,13 +131,16 @@ export default function Command() {
               {error && <Action.CopyToClipboard title="Copy Error" content={error} />}
             </ActionPanel.Section>
           )}
-          {showHelperDocs && (
+          {githubInDocs && (
             <ActionPanel.Section>
-              <Action.OpenInBrowser
-                title="Open Installation Instructions"
-                url={CLI_INSTALL_DOCS_URL}
-                shortcut={Keyboard.Shortcut.Common.Open}
-              />
+              {showHelperDocs && (
+                <Action.OpenInBrowser
+                  title="Open Installation Instructions"
+                  url={CLI_INSTALL_DOCS_URL}
+                  shortcut={Keyboard.Shortcut.Common.Open}
+                />
+              )}
+              {githubInDocs && <OpenCliRepoAction />}
             </ActionPanel.Section>
           )}
           {idle && (
@@ -137,11 +151,7 @@ export default function Command() {
                 shortcut={Keyboard.Shortcut.Common.Refresh}
                 onAction={check}
               />
-              <Action.OpenInBrowser
-                title="Open AirPods Control on GitHub"
-                url={CLI_REPO_URL}
-                shortcut={Keyboard.Shortcut.Common.OpenWith}
-              />
+              {!githubInDocs && <OpenCliRepoAction />}
             </ActionPanel.Section>
           )}
         </ActionPanel>

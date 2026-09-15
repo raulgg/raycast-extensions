@@ -66,7 +66,9 @@ function createSetupView() {
   return { render, action, click, markdown, actionGroups, container, unmount };
 }
 
-const refresh = {
+const refresh = { title: null, actions: ["Refresh"] } as const;
+const github = { title: null, actions: ["Open AirPods Control on GitHub"] } as const;
+const statusActions = {
   title: null,
   actions: ["Refresh", "Open AirPods Control on GitHub"],
 } as const;
@@ -186,7 +188,7 @@ test("shows a persistent installing state, prevents duplicate actions, and stays
   await act(async () => installation.resolve(installedCliSetup()));
   // Then
   expect(view.markdown()).toContain("# AirPods Control CLI is ready");
-  expect(view.actionGroups()).toEqual([refresh]);
+  expect(view.actionGroups()).toEqual([statusActions]);
   expect(runCliInstallation).toHaveBeenCalledExactlyOnceWith("install");
   expect(launchCommand).not.toHaveBeenCalled();
 });
@@ -275,7 +277,7 @@ test("keeps failure details visible until the user rechecks prerequisites", asyn
   expect(view.action("Install with Homebrew")).toBeNull();
   expect(view.actionGroups()).toEqual([
     { title: null, actions: ["Copy Error"] },
-    { title: null, actions: ["Open Installation Instructions"] },
+    { title: null, actions: ["Open Installation Instructions", "Open AirPods Control on GitHub"] },
     refresh,
   ]);
   // When
@@ -298,7 +300,7 @@ test("offers retry and instructions after a detection error", async () => {
   expect(view.markdown()).toContain("brew permissions");
   expect(view.actionGroups()).toEqual([
     { title: null, actions: ["Copy Error"] },
-    { title: null, actions: ["Open Installation Instructions"] },
+    { title: null, actions: ["Open Installation Instructions", "Open AirPods Control on GitHub"] },
     refresh,
   ]);
   // When
@@ -316,46 +318,46 @@ test.each([
         title: null,
         actions: ["Install with Homebrew", "Copy Install Command", "Copy Source Install Command"],
       },
-      { title: null, actions: ["Open Installation Instructions"] },
+      { title: null, actions: ["Open Installation Instructions", "Open AirPods Control on GitHub"] },
       refresh,
     ],
   },
   {
     name: "needs Homebrew",
     setup: cliSetup({ state: "needs-homebrew", brewPath: null }),
-    groups: [{ title: null, actions: ["Open Homebrew Installation Instructions"] }, refresh],
+    groups: [{ title: null, actions: ["Open Homebrew Installation Instructions"] }, github, refresh],
   },
   {
     name: "needs developer tools",
     setup: cliSetup({ state: "needs-developer-tools", developerTools: "unavailable" }),
-    groups: [{ title: null, actions: ["Open Apple's Installation Instructions"] }, refresh],
+    groups: [{ title: null, actions: ["Open Apple's Installation Instructions"] }, github, refresh],
   },
   {
     name: "invalid CLI Path",
     setup: cliSetup({ state: "invalid-cli-path", configuredCliPath: "/old/cli" }),
-    groups: [{ title: null, actions: ["Open Extension Preferences"] }, refresh],
+    groups: [{ title: null, actions: ["Open Extension Preferences"] }, github, refresh],
   },
   {
     name: "needs Homebrew link",
     setup: cliSetup({ state: "needs-link" }),
-    groups: [{ title: null, actions: ["Copy Link Command", "Open Extension Preferences"] }, refresh],
+    groups: [{ title: null, actions: ["Copy Link Command", "Open Extension Preferences"] }, github, refresh],
   },
   {
     name: "setup already running",
     setup: cliSetup({ state: "installing" }),
-    groups: [refresh],
+    groups: [statusActions],
   },
   {
     name: "Homebrew up to date",
     setup: installedCliSetup(),
-    groups: [refresh],
+    groups: [statusActions],
   },
   {
     name: "Homebrew update available",
     setup: outdatedCliSetup(),
     groups: [
       { title: null, actions: ["Update with Homebrew", "Copy Update Command"] },
-      { title: null, actions: ["Open Installation Instructions"] },
+      { title: null, actions: ["Open Installation Instructions", "Open AirPods Control on GitHub"] },
       refresh,
     ],
   },
@@ -372,7 +374,7 @@ test.each([
       versionStatus: "up-to-date",
       meetsMinimum: true,
     }),
-    groups: [refresh],
+    groups: [statusActions],
   },
   {
     name: "manual update available",
@@ -389,7 +391,7 @@ test.each([
     }),
     groups: [
       { title: null, actions: ["Copy Source Install Command"] },
-      { title: null, actions: ["Open Installation Instructions"] },
+      { title: null, actions: ["Open Installation Instructions", "Open AirPods Control on GitHub"] },
       refresh,
     ],
   },
@@ -417,7 +419,7 @@ test("shows progress for an already-running Homebrew install and refreshes when 
   await view.render();
   // Then
   expect(view.container.querySelector("[data-testid='detail']")?.getAttribute("data-loading")).toBe("true");
-  expect(view.actionGroups()).toEqual([refresh]);
+  expect(view.actionGroups()).toEqual([statusActions]);
   expect(detectCliSetup).toHaveBeenCalledOnce();
   // When
   await act(async () => {
@@ -426,9 +428,8 @@ test("shows progress for an already-running Homebrew install and refreshes when 
   // Then
   expect(detectCliSetup).toHaveBeenCalledTimes(2);
   expect(view.container.querySelector("[data-testid='detail']")?.getAttribute("data-loading")).toBe("false");
-  expect(view.actionGroups()).toEqual([refresh]);
+  expect(view.actionGroups()).toEqual([statusActions]);
 });
-
 
 test("hides Homebrew update actions when the helper is up to date", async () => {
   // Given
@@ -555,7 +556,6 @@ test("keeps Homebrew update available when the helper version is unknown", async
   expect(view.action("Copy Update Command")).not.toBeNull();
   expect(view.markdown()).toContain("**Latest:**");
 });
-
 
 test("does not navigate or start installation after leaving during detection", async () => {
   // Given

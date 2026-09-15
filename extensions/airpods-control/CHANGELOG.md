@@ -14,7 +14,7 @@
 - Report the installed CLI version and installation method, and offer updates only when a newer version is available.
 - Scope Manage CLI actions to the current setup state so Homebrew help, install docs, and source-install copy appear only on the matching recovery.
 - Keep Manage CLI actions in untitled next-step, docs, and utility groups instead of Setup, Alternative Methods, Help, and Preferences headings.
-- Put Refresh first when the CLI is already fine, keep Open AirPods Control on GitHub available in every Manage CLI view, hide command preferences during recovery, and keep one installation-docs action.
+- Put Refresh first when the CLI is already fine, keep Open AirPods Control on GitHub with installation docs during recovery and after Refresh when the CLI is already fine, hide command preferences during recovery, and keep one installation-docs action.
 - Open Homebrew's official site from the missing-Homebrew setup view instead of copying an install command.
 - Open Apple's official Command Line Tools page from the missing developer tools setup view instead of copying an install command.
 - Explain how to install the CLI when Homebrew and developer tools are already ready.
