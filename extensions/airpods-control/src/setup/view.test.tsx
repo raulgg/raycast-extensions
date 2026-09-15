@@ -68,10 +68,7 @@ function createSetupView() {
 
 const refresh = { title: null, actions: ["Refresh"] } as const;
 const github = { title: null, actions: ["Open AirPods Control on GitHub"] } as const;
-const statusActions = {
-  title: null,
-  actions: ["Refresh", "Open AirPods Control on GitHub"],
-} as const;
+const statusActions = [github, refresh] as const;
 
 test("guides Homebrew installation by opening the official instructions", async () => {
   // Given
@@ -188,7 +185,7 @@ test("shows a persistent installing state, prevents duplicate actions, and stays
   await act(async () => installation.resolve(installedCliSetup()));
   // Then
   expect(view.markdown()).toContain("# AirPods Control CLI is ready");
-  expect(view.actionGroups()).toEqual([statusActions]);
+  expect(view.actionGroups()).toEqual(statusActions);
   expect(runCliInstallation).toHaveBeenCalledExactlyOnceWith("install");
   expect(launchCommand).not.toHaveBeenCalled();
 });
@@ -345,12 +342,12 @@ test.each([
   {
     name: "setup already running",
     setup: cliSetup({ state: "installing" }),
-    groups: [statusActions],
+    groups: statusActions,
   },
   {
     name: "Homebrew up to date",
     setup: installedCliSetup(),
-    groups: [statusActions],
+    groups: statusActions,
   },
   {
     name: "Homebrew update available",
@@ -374,7 +371,7 @@ test.each([
       versionStatus: "up-to-date",
       meetsMinimum: true,
     }),
-    groups: [statusActions],
+    groups: statusActions,
   },
   {
     name: "manual update available",
@@ -419,7 +416,7 @@ test("shows progress for an already-running Homebrew install and refreshes when 
   await view.render();
   // Then
   expect(view.container.querySelector("[data-testid='detail']")?.getAttribute("data-loading")).toBe("true");
-  expect(view.actionGroups()).toEqual([statusActions]);
+  expect(view.actionGroups()).toEqual(statusActions);
   expect(detectCliSetup).toHaveBeenCalledOnce();
   // When
   await act(async () => {
@@ -428,7 +425,7 @@ test("shows progress for an already-running Homebrew install and refreshes when 
   // Then
   expect(detectCliSetup).toHaveBeenCalledTimes(2);
   expect(view.container.querySelector("[data-testid='detail']")?.getAttribute("data-loading")).toBe("false");
-  expect(view.actionGroups()).toEqual([statusActions]);
+  expect(view.actionGroups()).toEqual(statusActions);
 });
 
 test("hides Homebrew update actions when the helper is up to date", async () => {
@@ -437,9 +434,6 @@ test("hides Homebrew update actions when the helper is up to date", async () => 
   vi.mocked(detectCliSetup).mockResolvedValue(installedCliSetup());
   // When
   await view.render();
-  const actions = Array.from(view.container.querySelectorAll("[data-action-title]"), (element) =>
-    element.getAttribute("data-action-title"),
-  );
   // Then
   expect(view.action("Update with Homebrew")).toBeNull();
   expect(view.action("Copy Update Command")).toBeNull();
@@ -449,7 +443,7 @@ test("hides Homebrew update actions when the helper is up to date", async () => 
   expect(view.markdown()).toContain("0.4.0");
   expect(view.markdown()).toContain("Homebrew");
   expect(view.markdown()).not.toContain("**Latest:**");
-  expect(actions[0]).toBe("Refresh");
+  expect(view.actionGroups()).toEqual(statusActions);
 });
 
 test("hides manual update instructions when the helper is up to date", async () => {
@@ -470,9 +464,6 @@ test("hides manual update instructions when the helper is up to date", async () 
   );
   // When
   await view.render();
-  const actions = Array.from(view.container.querySelectorAll("[data-action-title]"), (element) =>
-    element.getAttribute("data-action-title"),
-  );
   // Then
   expect(view.action("Open Installation Instructions")).toBeNull();
   expect(view.action("Open Homebrew Installation Instructions")).toBeNull();
@@ -482,7 +473,7 @@ test("hides manual update instructions when the helper is up to date", async () 
   expect(view.markdown()).toContain("0.4.0");
   expect(view.markdown()).toContain("Manual");
   expect(view.markdown()).not.toContain("**Latest:**");
-  expect(actions[0]).toBe("Refresh");
+  expect(view.actionGroups()).toEqual(statusActions);
 });
 
 test("copies the source install command for a manual update without Homebrew help", async () => {

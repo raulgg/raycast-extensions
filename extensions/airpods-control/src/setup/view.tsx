@@ -110,7 +110,6 @@ export default function Command() {
       Boolean(error && !setup) ||
       (needsUpdate && (setup?.state === "update" || setup?.state === "manual-cli")));
   const showWork = Boolean(canRun || showStateActions || error);
-  const githubInDocs = idle && (showWork || showHelperDocs);
 
   return (
     <Detail
@@ -131,7 +130,7 @@ export default function Command() {
               {error && <Action.CopyToClipboard title="Copy Error" content={error} />}
             </ActionPanel.Section>
           )}
-          {githubInDocs && (
+          {idle && (
             <ActionPanel.Section>
               {showHelperDocs && (
                 <Action.OpenInBrowser
@@ -140,7 +139,7 @@ export default function Command() {
                   shortcut={Keyboard.Shortcut.Common.Open}
                 />
               )}
-              {githubInDocs && <OpenCliRepoAction />}
+              <OpenCliRepoAction />
             </ActionPanel.Section>
           )}
           {idle && (
@@ -151,7 +150,6 @@ export default function Command() {
                 shortcut={Keyboard.Shortcut.Common.Refresh}
                 onAction={check}
               />
-              {!githubInDocs && <OpenCliRepoAction />}
             </ActionPanel.Section>
           )}
         </ActionPanel>
