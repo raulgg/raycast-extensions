@@ -2,7 +2,7 @@
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "airpods-control",
   "title": "AirPods Control",
-  "description": "Control listening modes and Conversation Awareness on AirPods, and on Beats where macOS exposes those controls, from Raycast with the AirPods Control helper.",
+  "description": "Control listening modes and Conversation Awareness on AirPods, and on Beats where macOS exposes those controls, from Raycast with the AirPods Control CLI.",
   "icon": "airpods-control.png",
   "author": "raulg",
   "platforms": [
@@ -152,8 +152,8 @@
     },
     {
       "name": "update-airpods-control-cli",
-      "title": "Manage AirPods Control Helper",
-      "description": "Install, update, or fix the AirPods Control helper used by this extension.",
+      "title": "Manage AirPods Control CLI",
+      "description": "Install, update, or fix the AirPods Control CLI used by this extension.",
       "mode": "view",
       "keywords": [
         "airpods",
@@ -172,7 +172,7 @@
     {
       "name": "cliPath",
       "title": "CLI Path",
-      "description": "Full path to the helper binary. Leave empty to let Raycast find it automatically.",
+      "description": "Full path to the CLI. Leave empty to let Raycast find it automatically.",
       "type": "textfield",
       "placeholder": "/path/to/airpods-control",
       "required": false

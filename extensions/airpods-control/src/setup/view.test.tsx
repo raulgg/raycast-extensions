@@ -66,8 +66,7 @@ function createSetupView() {
   return { render, action, click, markdown, actionGroups, container, unmount };
 }
 
-const refresh = { title: null, actions: ["Refresh"] } as const;
-const statusActions = {
+const refresh = {
   title: null,
   actions: ["Refresh", "Open AirPods Control on GitHub"],
 } as const;
@@ -86,6 +85,10 @@ test("guides Homebrew installation by opening the official instructions", async 
   expect(view.markdown()).toContain("https://brew.sh");
   expect(open).toHaveBeenCalledWith("https://brew.sh");
   expect(Clipboard.copy).not.toHaveBeenCalled();
+  // When
+  await view.click("Open AirPods Control on GitHub");
+  // Then
+  expect(open).toHaveBeenCalledWith("https://github.com/raulgg/airpods-control");
   expect(view.action("Install with Homebrew")).toBeNull();
   expect(view.action("Copy Source Install Command")).toBeNull();
 });
@@ -175,15 +178,15 @@ test("shows a persistent installing state, prevents duplicate actions, and stays
     installAction?.click();
   });
   // Then
-  expect(view.markdown()).toContain("# Installing helper");
+  expect(view.markdown()).toContain("# Installing CLI");
   expect(view.action("Install with Homebrew")).toBeNull();
   expect(view.action("Refresh")).toBeNull();
   expect(view.actionGroups()).toEqual([]);
   // When
   await act(async () => installation.resolve(installedCliSetup()));
   // Then
-  expect(view.markdown()).toContain("# AirPods Control Helper is ready");
-  expect(view.actionGroups()).toEqual([statusActions]);
+  expect(view.markdown()).toContain("# AirPods Control CLI is ready");
+  expect(view.actionGroups()).toEqual([refresh]);
   expect(runCliInstallation).toHaveBeenCalledExactlyOnceWith("install");
   expect(launchCommand).not.toHaveBeenCalled();
 });
@@ -256,7 +259,7 @@ test.each([
   // When
   await act(async () => operation.resolve(installedCliSetup()));
   // Then
-  expect(view.markdown()).toContain("# AirPods Control Helper is ready");
+  expect(view.markdown()).toContain("# AirPods Control CLI is ready");
   expect(view.action("Open Installation Instructions")).toBeNull();
 });
 
@@ -340,12 +343,12 @@ test.each([
   {
     name: "setup already running",
     setup: cliSetup({ state: "installing" }),
-    groups: [statusActions],
+    groups: [refresh],
   },
   {
     name: "Homebrew up to date",
     setup: installedCliSetup(),
-    groups: [statusActions],
+    groups: [refresh],
   },
   {
     name: "Homebrew update available",
@@ -369,7 +372,7 @@ test.each([
       versionStatus: "up-to-date",
       meetsMinimum: true,
     }),
-    groups: [statusActions],
+    groups: [refresh],
   },
   {
     name: "manual update available",
@@ -400,6 +403,33 @@ test.each([
   expect(view.actionGroups()).toEqual(groups);
 });
 
+test("shows progress for an already-running Homebrew install and refreshes when it finishes", async () => {
+  // Given
+  const view = createSetupView();
+  vi.mocked(detectCliSetup)
+    .mockResolvedValueOnce(cliSetup({ state: "installing" }))
+    .mockResolvedValue(installedCliSetup());
+  vi.useFakeTimers();
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+  // When
+  await view.render();
+  // Then
+  expect(view.container.querySelector("[data-testid='detail']")?.getAttribute("data-loading")).toBe("true");
+  expect(view.actionGroups()).toEqual([refresh]);
+  expect(detectCliSetup).toHaveBeenCalledOnce();
+  // When
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3000);
+  });
+  // Then
+  expect(detectCliSetup).toHaveBeenCalledTimes(2);
+  expect(view.container.querySelector("[data-testid='detail']")?.getAttribute("data-loading")).toBe("false");
+  expect(view.actionGroups()).toEqual([refresh]);
+});
+
+
 test("hides Homebrew update actions when the helper is up to date", async () => {
   // Given
   const view = createSetupView();
@@ -414,7 +444,7 @@ test("hides Homebrew update actions when the helper is up to date", async () => 
   expect(view.action("Copy Update Command")).toBeNull();
   expect(view.action("Open Installation Instructions")).toBeNull();
   expect(view.action("Open Extension Preferences")).toBeNull();
-  expect(view.markdown()).toContain("# AirPods Control Helper is Up to date");
+  expect(view.markdown()).toContain("# AirPods Control CLI is up to date");
   expect(view.markdown()).toContain("0.4.0");
   expect(view.markdown()).toContain("Homebrew");
   expect(view.markdown()).not.toContain("**Latest:**");
@@ -447,7 +477,7 @@ test("hides manual update instructions when the helper is up to date", async () 
   expect(view.action("Open Homebrew Installation Instructions")).toBeNull();
   expect(view.action("Copy Source Install Command")).toBeNull();
   expect(view.action("Update with Homebrew")).toBeNull();
-  expect(view.markdown()).toContain("# AirPods Control Helper is up to date");
+  expect(view.markdown()).toContain("# AirPods Control CLI is up to date");
   expect(view.markdown()).toContain("0.4.0");
   expect(view.markdown()).toContain("Manual");
   expect(view.markdown()).not.toContain("**Latest:**");
@@ -525,6 +555,7 @@ test("keeps Homebrew update available when the helper version is unknown", async
   expect(view.action("Copy Update Command")).not.toBeNull();
   expect(view.markdown()).toContain("**Latest:**");
 });
+
 
 test("does not navigate or start installation after leaving during detection", async () => {
   // Given

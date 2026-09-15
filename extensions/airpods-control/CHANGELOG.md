@@ -8,14 +8,14 @@
 - Keep listening-mode and Conversation Awareness subtitles synchronized with the state confirmed by macOS readback
 - Refresh AirPods status manually or in the background about once a minute
 - Keep Raycast open for success toasts, with a HUD confirmation when the window is closed, and show matching listening-mode and Conversation Awareness symbols
-- Offer CLI installation through an alert when prerequisites are ready, or open the Manage AirPods Control Helper view for Homebrew, developer tools, and source-install instructions.
+- Offer CLI installation through an alert when prerequisites are ready, or open the Manage AirPods Control CLI view for Homebrew, developer tools, and source-install instructions.
 - Share installation and recovery across commands, keep progress visible through completion, and require users to run the original command again after setup.
 - Verify Homebrew ownership before updating the active CLI, prevent concurrent installations, and preserve complete Homebrew error instructions.
-- Report the installed helper version and installation method, and offer updates only when a newer version is available.
-- Scope Manage Helper actions to the current setup state so Homebrew help, install docs, and source-install copy appear only on the matching recovery.
-- Keep Manage Helper actions in untitled next-step, docs, and utility groups instead of Setup, Alternative Methods, Help, and Preferences headings.
-- Put Refresh first when the helper is already fine, hide GitHub and command preferences during recovery, and keep one installation-docs action.
+- Report the installed CLI version and installation method, and offer updates only when a newer version is available.
+- Scope Manage CLI actions to the current setup state so Homebrew help, install docs, and source-install copy appear only on the matching recovery.
+- Keep Manage CLI actions in untitled next-step, docs, and utility groups instead of Setup, Alternative Methods, Help, and Preferences headings.
+- Put Refresh first when the CLI is already fine, keep Open AirPods Control on GitHub available in every Manage CLI view, hide command preferences during recovery, and keep one installation-docs action.
 - Open Homebrew's official site from the missing-Homebrew setup view instead of copying an install command.
 - Open Apple's official Command Line Tools page from the missing developer tools setup view instead of copying an install command.
-- Explain how to install the helper when Homebrew and developer tools are already ready.
-- Explain how to link an installed Homebrew helper that Raycast cannot find, and how to set CLI Path if linking is not the issue.
+- Explain how to install the CLI when Homebrew and developer tools are already ready.
+- Explain how to link an installed Homebrew CLI that Raycast cannot find, and how to set CLI Path if linking is not the issue.

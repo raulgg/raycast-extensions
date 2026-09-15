@@ -83,7 +83,7 @@ async function runExclusiveBrewCommand(brewPath: string, args: string[], timeout
     } catch (error) {
       if ((error as { code?: number | string }).code === 75) {
         throw new Error(
-          "A helper installation or update is already running. Wait for it to finish, then choose the Refresh action.",
+          "A CLI installation or update is already running. Wait for it to finish, then choose the Refresh action.",
         );
       }
       throw error;

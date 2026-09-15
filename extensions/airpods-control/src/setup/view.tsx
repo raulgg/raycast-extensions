@@ -41,6 +41,26 @@ export default function Command() {
     };
   }, [lifecycle]);
 
+  const brewInProgress = lifecycle.status === "ready" && lifecycle.setup.state === "installing";
+
+  useEffect(() => {
+    if (!brewInProgress) return;
+    let active = true;
+    const timer = setInterval(() => {
+      void detectCliSetup()
+        .then((next) => {
+          if (active) dispatch({ type: "ready", setup: next });
+        })
+        .catch(() => {
+          // Keep the in-progress view. Refresh still rechecks.
+        });
+    }, 3000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [brewInProgress]);
+
   function check() {
     dispatch({ type: "check" });
   }
@@ -55,16 +75,16 @@ export default function Command() {
   const error = lifecycle.status === "failed" ? lifecycle.error : undefined;
   const completed = lifecycle.status === "completed";
 
-  let markdown = setup ? cliSetupMarkdown(setup) : "# AirPods Control Helper\n\nChecking your installation…";
+  let markdown = setup ? cliSetupMarkdown(setup) : "# AirPods Control CLI\n\nChecking your installation…";
   if (operation) {
-    markdown = `# ${operation === "install" ? "Installing" : "Updating"} helper…\n\nThis can take several minutes. Keep Raycast open until it finishes.`;
+    markdown = `# ${operation === "install" ? "Installing" : "Updating"} CLI…\n\nThis can take several minutes. Keep Raycast open until it finishes.`;
   } else if (error) {
-    markdown = `# AirPods Control Helper needs attention\n\n${error
+    markdown = `# AirPods Control CLI needs attention\n\n${error
       .split("\n")
       .map((line) => `    ${line}`)
       .join("\n")}`;
   } else if (completed) {
-    markdown = "# AirPods Control Helper is ready!";
+    markdown = "# AirPods Control CLI is ready!";
   }
   const idle = !isChecking && !operation;
   const needsUpdate = setup ? setupNeedsUpdate(setup) : false;
@@ -84,7 +104,7 @@ export default function Command() {
   return (
     <Detail
       markdown={markdown}
-      isLoading={isChecking || !!operation}
+      isLoading={isChecking || !!operation || brewInProgress}
       actions={
         <ActionPanel>
           {showWork && (
@@ -117,13 +137,11 @@ export default function Command() {
                 shortcut={Keyboard.Shortcut.Common.Refresh}
                 onAction={check}
               />
-              {!showWork && (
-                <Action.OpenInBrowser
-                  title="Open AirPods Control on GitHub"
-                  url={CLI_REPO_URL}
-                  shortcut={Keyboard.Shortcut.Common.OpenWith}
-                />
-              )}
+              <Action.OpenInBrowser
+                title="Open AirPods Control on GitHub"
+                url={CLI_REPO_URL}
+                shortcut={Keyboard.Shortcut.Common.OpenWith}
+              />
             </ActionPanel.Section>
           )}
         </ActionPanel>

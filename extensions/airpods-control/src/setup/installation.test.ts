@@ -475,7 +475,7 @@ test("requires the active CLI to resolve to the Homebrew installation after succ
     // When
     const result = runCliInstallation("install");
     // Then
-    await expect(result).rejects.toThrow("helper is not ready to use");
+    await expect(result).rejects.toThrow("CLI is not ready to use");
   } finally {
     vi.useRealTimers();
   }
