@@ -72,23 +72,22 @@ const statusActions = {
   actions: ["Refresh", "Open AirPods Control on GitHub"],
 } as const;
 
-test("guides Homebrew installation and copies the actual bootstrap command", async () => {
+test("guides Homebrew installation by opening the official instructions", async () => {
   // Given
   const view = createSetupView();
   vi.mocked(detectCliSetup).mockResolvedValue(cliSetup({ state: "needs-homebrew", brewPath: null }));
   // When
   await view.render();
-  // Then
-  expect(view.markdown()).toContain("https://brew.sh");
-  // When
-  await view.click("Copy Homebrew Install Command");
   await view.click("Open Homebrew Installation Instructions");
   // Then
-  expect(open).toHaveBeenCalledWith("https://brew.sh");
-  expect(Clipboard.copy).toHaveBeenCalledWith(
-    '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
+  expect(view.container.querySelector("[data-action-title]")?.getAttribute("data-action-title")).toBe(
+    "Open Homebrew Installation Instructions",
   );
+  expect(view.markdown()).toContain("https://brew.sh");
+  expect(open).toHaveBeenCalledWith("https://brew.sh");
+  expect(Clipboard.copy).not.toHaveBeenCalled();
   expect(view.action("Install with Homebrew")).toBeNull();
+  expect(view.action("Copy Source Install Command")).toBeNull();
 });
 
 test("moves from missing Homebrew to install after Refresh without automatically installing", async () => {
@@ -200,11 +199,11 @@ test("keeps a new setup view independent of an installation started in a closed 
   vi.mocked(detectCliSetup).mockResolvedValue(cliSetup({ state: "needs-homebrew", brewPath: null }));
   await newView.render();
   // Then
-  expect(newView.action("Copy Homebrew Install Command")).not.toBeNull();
+  expect(newView.action("Open Homebrew Installation Instructions")).not.toBeNull();
   // When
   await act(async () => installation.resolve(installedCliSetup()));
   // Then
-  expect(newView.action("Copy Homebrew Install Command")).not.toBeNull();
+  expect(newView.action("Open Homebrew Installation Instructions")).not.toBeNull();
   expect(newView.action("Install with Homebrew")).toBeNull();
   expect(oldView.container.childElementCount).toBe(0);
   expect(launchCommand).not.toHaveBeenCalled();
@@ -319,11 +318,7 @@ test.each([
   {
     name: "needs Homebrew",
     setup: cliSetup({ state: "needs-homebrew", brewPath: null }),
-    groups: [
-      { title: null, actions: ["Copy Homebrew Install Command", "Copy Source Install Command"] },
-      { title: null, actions: ["Open Homebrew Installation Instructions"] },
-      refresh,
-    ],
+    groups: [{ title: null, actions: ["Open Homebrew Installation Instructions"] }, refresh],
   },
   {
     name: "needs developer tools",

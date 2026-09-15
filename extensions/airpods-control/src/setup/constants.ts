@@ -21,9 +21,6 @@ export const CLI_SOURCE_INSTALL_COMMAND = [
   `curl -fsSL "$base/scripts/install-from-source.sh" | sh -s -- --version "$tag"`,
 ].join("\n");
 
-export const HOMEBREW_INSTALL_COMMAND =
-  '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"';
-
 export const DEVELOPER_TOOLS_INSTALL_COMMAND = "xcode-select --install";
 export const DEVELOPER_TOOLS_DOCS_URL =
   "https://developer.apple.com/documentation/xcode/installing-the-command-line-tools";

@@ -1,4 +1,4 @@
-import { Action, Icon, openExtensionPreferences } from "@raycast/api";
+import { Action, Icon, Keyboard, openExtensionPreferences } from "@raycast/api";
 import { compareVersions, normalizeVersion } from "../cli/version";
 import { HOMEBREW_URL } from "../homebrew/constants";
 import {
@@ -9,7 +9,6 @@ import {
   CLI_SOURCE_INSTALL_COMMAND,
   DEVELOPER_TOOLS_DOCS_URL,
   DEVELOPER_TOOLS_INSTALL_COMMAND,
-  HOMEBREW_INSTALL_COMMAND,
   MIN_CLI_VERSION,
 } from "./constants";
 import { setupNeedsUpdate, type CliSetup } from "./detection";
@@ -66,7 +65,7 @@ export function cliSetupMarkdown(setup: CliSetup): string {
     case "installing":
       return "# Setup is already running\n\nWait for it to finish, then Refresh.";
     case "needs-homebrew":
-      return `# Install Homebrew\n\nHomebrew is not installed.\n\nCopy the install command and run it in Terminal, then Refresh. Follow [Homebrew's installation instructions](${HOMEBREW_URL}).`;
+      return `# Install Homebrew\n\nHomebrew is not installed.\n\nFollow [Homebrew's official installation instructions](${HOMEBREW_URL}), then Refresh.`;
     case "needs-developer-tools":
       return `# Install Apple's developer tools\n\nApple's developer tools are needed to install or update the helper.\n\nCopy the install command and run it in Terminal. If that command is not available, or macOS says the tools are already installed, follow [Apple's installation instructions](${DEVELOPER_TOOLS_DOCS_URL}).`;
     case "invalid-cli-path":
@@ -114,10 +113,11 @@ export function CliSetupActions({ setup }: { setup: CliSetup }) {
       return <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />;
     case "needs-homebrew":
       return (
-        <>
-          <Action.CopyToClipboard title="Copy Homebrew Install Command" content={HOMEBREW_INSTALL_COMMAND} />
-          <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />
-        </>
+        <Action.OpenInBrowser
+          title="Open Homebrew Installation Instructions"
+          url={HOMEBREW_URL}
+          shortcut={Keyboard.Shortcut.Common.Open}
+        />
       );
     case "manual-cli":
       return <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />;
