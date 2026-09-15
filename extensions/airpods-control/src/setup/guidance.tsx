@@ -28,7 +28,7 @@ function statusFacts(setup: CliSetup, includeLatest: boolean): string {
   const lines = [
     `- **Version:** ${setup.installedVersion ?? "unknown"}`,
     includeLatest ? `- **Latest:** ${setup.latestVersion ?? "unknown"}` : undefined,
-    `- **Installed with:** ${methodLabel(setup)}`,
+    `- **Install method:** ${methodLabel(setup)}`,
     setup.cliPath ? `- **Path:** \`${setup.cliPath}\`` : undefined,
   ];
   return lines.filter((line) => line !== undefined).join("\n");
