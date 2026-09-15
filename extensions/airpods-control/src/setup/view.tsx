@@ -1,7 +1,7 @@
 import { Action, ActionPanel, Detail, Icon, Keyboard } from "@raycast/api";
 import { useEffect, useReducer } from "react";
 import { getErrorMessage } from "../feedback/error-actions";
-import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL, DEVELOPER_TOOLS_DOCS_URL } from "./constants";
+import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL } from "./constants";
 import { detectCliSetup, setupNeedsUpdate } from "./detection";
 import { CliSetupActions, cliSetupMarkdown, hasCliSetupActions } from "./guidance";
 import { runCliInstallation, type CliOperation } from "./installation";
@@ -73,7 +73,6 @@ export default function Command() {
   const canRun = idle && !error && !completed && availableOperation;
   const ready = idle && !error && !completed && setup;
   const showStateActions = Boolean(ready && setup && hasCliSetupActions(setup));
-  const showDeveloperToolsHelp = Boolean(ready && setup?.state === "needs-developer-tools");
   const showHelperDocs =
     idle &&
     !completed &&
@@ -81,7 +80,6 @@ export default function Command() {
       Boolean(error && !setup) ||
       (needsUpdate && (setup?.state === "update" || setup?.state === "manual-cli")));
   const showWork = Boolean(canRun || showStateActions || error);
-  const showDocs = Boolean(showDeveloperToolsHelp || showHelperDocs);
 
   return (
     <Detail
@@ -102,18 +100,13 @@ export default function Command() {
               {error && <Action.CopyToClipboard title="Copy Error" content={error} />}
             </ActionPanel.Section>
           )}
-          {showDocs && (
+          {showHelperDocs && (
             <ActionPanel.Section>
-              {showDeveloperToolsHelp && (
-                <Action.OpenInBrowser title="Open Apple's Installation Instructions" url={DEVELOPER_TOOLS_DOCS_URL} />
-              )}
-              {showHelperDocs && (
-                <Action.OpenInBrowser
-                  title="Open Installation Instructions"
-                  url={CLI_INSTALL_DOCS_URL}
-                  shortcut={Keyboard.Shortcut.Common.Open}
-                />
-              )}
+              <Action.OpenInBrowser
+                title="Open Installation Instructions"
+                url={CLI_INSTALL_DOCS_URL}
+                shortcut={Keyboard.Shortcut.Common.Open}
+              />
             </ActionPanel.Section>
           )}
           {idle && (

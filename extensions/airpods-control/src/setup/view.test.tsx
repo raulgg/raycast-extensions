@@ -103,7 +103,7 @@ test("moves from missing Homebrew to install after Refresh without automatically
   expect(launchCommand).not.toHaveBeenCalled();
 });
 
-test("provides developer tools recovery and then allows installation after rechecking", async () => {
+test("guides developer tools installation by opening Apple's official instructions", async () => {
   // Given
   const view = createSetupView();
   vi.mocked(detectCliSetup).mockResolvedValueOnce(
@@ -111,14 +111,16 @@ test("provides developer tools recovery and then allows installation after reche
   );
   // When
   await view.render();
-  await view.click("Copy Developer Tools Install Command");
   await view.click("Open Apple's Installation Instructions");
   // Then
+  expect(view.container.querySelector("[data-action-title]")?.getAttribute("data-action-title")).toBe(
+    "Open Apple's Installation Instructions",
+  );
   expect(view.markdown()).toContain(
     "https://developer.apple.com/documentation/xcode/installing-the-command-line-tools",
   );
   expect(view.markdown()).not.toContain("https://developer.apple.com/download/all/");
-  expect(Clipboard.copy).toHaveBeenCalledWith("xcode-select --install");
+  expect(Clipboard.copy).not.toHaveBeenCalled();
   expect(open).toHaveBeenCalledWith(
     "https://developer.apple.com/documentation/xcode/installing-the-command-line-tools",
   );
@@ -323,11 +325,7 @@ test.each([
   {
     name: "needs developer tools",
     setup: cliSetup({ state: "needs-developer-tools", developerTools: "unavailable" }),
-    groups: [
-      { title: null, actions: ["Copy Developer Tools Install Command"] },
-      { title: null, actions: ["Open Apple's Installation Instructions"] },
-      refresh,
-    ],
+    groups: [{ title: null, actions: ["Open Apple's Installation Instructions"] }, refresh],
   },
   {
     name: "invalid CLI Path",

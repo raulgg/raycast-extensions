@@ -8,7 +8,6 @@ import {
   CLI_MANUAL_UPDATE_COMMAND,
   CLI_SOURCE_INSTALL_COMMAND,
   DEVELOPER_TOOLS_DOCS_URL,
-  DEVELOPER_TOOLS_INSTALL_COMMAND,
   MIN_CLI_VERSION,
 } from "./constants";
 import { setupNeedsUpdate, type CliSetup } from "./detection";
@@ -63,11 +62,11 @@ function helperStatusMarkdown(title: string, setup: CliSetup, includeLatest: boo
 export function cliSetupMarkdown(setup: CliSetup): string {
   switch (setup.state) {
     case "installing":
-      return "# Setup is already running\n\nWait for it to finish, then Refresh.";
+      return "# Setup is already running\n\nWait for it to finish.";
     case "needs-homebrew":
-      return `# Install Homebrew\n\nHomebrew is not installed.\n\nFollow [Homebrew's official installation instructions](${HOMEBREW_URL}), then Refresh.`;
+      return `# Install Homebrew\n\nHomebrew is not installed.\n\nFollow [Homebrew's official installation instructions](${HOMEBREW_URL}).`;
     case "needs-developer-tools":
-      return `# Install Apple's developer tools\n\nApple's developer tools are needed to install or update the helper.\n\nCopy the install command and run it in Terminal. If that command is not available, or macOS says the tools are already installed, follow [Apple's installation instructions](${DEVELOPER_TOOLS_DOCS_URL}).`;
+      return `# Install Apple's developer tools\n\nApple's developer tools are needed to install or update the helper.\n\nFollow [Apple's official installation instructions](${DEVELOPER_TOOLS_DOCS_URL}).`;
     case "invalid-cli-path":
       return `# Fix CLI Path\n\nRaycast could not find the helper at the saved **CLI Path**.\n\n${code(setup.configuredCliPath ?? "")}\n\nClear or correct it in Extension Preferences.`;
     case "manual-cli":
@@ -104,9 +103,10 @@ export function CliSetupActions({ setup }: { setup: CliSetup }) {
   switch (setup.state) {
     case "needs-developer-tools":
       return (
-        <Action.CopyToClipboard
-          title="Copy Developer Tools Install Command"
-          content={DEVELOPER_TOOLS_INSTALL_COMMAND}
+        <Action.OpenInBrowser
+          title="Open Apple's Installation Instructions"
+          url={DEVELOPER_TOOLS_DOCS_URL}
+          shortcut={Keyboard.Shortcut.Common.Open}
         />
       );
     case "invalid-cli-path":
