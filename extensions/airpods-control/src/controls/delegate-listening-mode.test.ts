@@ -2,7 +2,7 @@ import { launchCommand, LaunchType } from "@raycast/api";
 import { expect, vi, test } from "vitest";
 import { isCliInstalled } from "../cli/discovery";
 import { CYCLE_LISTENING_MODE_COMMAND_NAME } from "../commands/names";
-import { promptForCliInstallation } from "../helper-setup/installation";
+import { promptForCliInstallation } from "../setup/installation";
 import { expectConsoleWarning } from "../test/console";
 import { setListeningMode } from "./delegate-listening-mode";
 import { runSetListeningModeCommand } from "./listening-mode";
@@ -13,7 +13,7 @@ vi.mock("./listening-mode", () => ({
 
 vi.mock("../cli/discovery", () => ({ isCliInstalled: vi.fn() }));
 
-vi.mock("../helper-setup/installation", () => ({ promptForCliInstallation: vi.fn() }));
+vi.mock("../setup/installation", () => ({ promptForCliInstallation: vi.fn() }));
 
 const mockLaunchCommand = vi.mocked(launchCommand);
 

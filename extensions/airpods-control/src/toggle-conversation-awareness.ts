@@ -5,7 +5,7 @@ import {
   type ConversationAwarenessSubtitleRefreshContext,
 } from "./commands/launch-context";
 import { runToggleConversationAwarenessCommand } from "./controls/conversation-awareness";
-import { runWithCliGuard } from "./helper-setup/guard";
+import { runWithCliGuard } from "./setup/guard";
 import { resetCommandSubtitle } from "./subtitles/coordination";
 import {
   publishConversationAwarenessSubtitle,

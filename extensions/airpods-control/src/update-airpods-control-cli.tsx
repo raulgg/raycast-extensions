@@ -1,1 +1,1 @@
-export { default } from "./helper-setup/setup-view";
+export { default } from "./setup/view";

@@ -1,5 +1,5 @@
 import { LaunchType, type LaunchProps } from "@raycast/api";
-import { runWithCliGuard } from "./helper-setup/guard";
+import { runWithCliGuard } from "./setup/guard";
 import { resetAirPodsStatusSubtitles, runAirPodsStatusRefresh } from "./status/refresh";
 
 export default async function main({ launchType }: LaunchProps) {

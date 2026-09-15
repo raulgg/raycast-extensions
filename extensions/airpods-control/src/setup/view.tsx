@@ -4,9 +4,9 @@ import { getErrorMessage } from "../feedback/error-actions";
 import { HOMEBREW_URL } from "../homebrew/constants";
 import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL, DEVELOPER_TOOLS_DOWNLOAD_URL } from "./constants";
 import { detectCliSetup, setupNeedsUpdate } from "./detection";
+import { CliSetupActions, cliSetupMarkdown, hasCliSetupActions } from "./guidance";
 import { runCliInstallation, type CliOperation } from "./installation";
 import { cliSetupLifecycleReducer, INITIAL_LIFECYCLE } from "./lifecycle";
-import { CliSetupActions, cliSetupMarkdown, hasCliSetupActions } from "./setup-content";
 
 export default function Command() {
   const [lifecycle, dispatch] = useReducer(cliSetupLifecycleReducer, INITIAL_LIFECYCLE);

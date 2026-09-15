@@ -1,16 +1,16 @@
 import { confirmAlert, launchCommand, showToast } from "@raycast/api";
 import { expect, vi, test } from "vitest";
 import { isCliInstalled } from "../../cli/discovery";
-import { detectCliSetup } from "../../helper-setup/detection";
-import { runWithCliGuard } from "../../helper-setup/guard";
 import { installCliWithBrew } from "../../homebrew/commands";
+import { detectCliSetup } from "../../setup/detection";
+import { runWithCliGuard } from "../../setup/guard";
 import { cliSetup, installedCliSetup } from "../fixtures/cli-setup";
 
 vi.mock("../../homebrew/commands", () => ({ installCliWithBrew: vi.fn() }));
 
 vi.mock("../../cli/discovery", () => ({ isCliInstalled: vi.fn() }));
 
-vi.mock("../../helper-setup/detection", () => ({ detectCliSetup: vi.fn() }));
+vi.mock("../../setup/detection", () => ({ detectCliSetup: vi.fn() }));
 
 test("opens the install alert when the CLI is missing and Homebrew is available", async () => {
   // Given

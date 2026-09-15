@@ -15,8 +15,8 @@ AirPods Control has eight Raycast command entrypoints. Keep those filenames and 
 | Inspect helper version comparison                     | `src/cli/version.ts`                                                                                     |
 | Inspect executable discovery                          | `src/cli/discovery.ts`                                                                                   |
 | Inspect JSON validation or error classification       | `src/cli/protocol.ts`, `src/cli/errors.ts`, `src/cli/transport.ts`                                       |
-| Change helper setup screens                           | `src/helper-setup/setup-view.tsx`, `setup-content.tsx`, `lifecycle.ts`                                   |
-| Understand setup detection or installation            | `src/helper-setup/detection.ts`, `installation.ts`                                                       |
+| Change CLI setup screens                              | `src/setup/view.tsx`, `guidance.tsx`, `lifecycle.ts`                                                     |
+| Understand setup detection or installation            | `src/setup/detection.ts`, `installation.ts`                                                              |
 | Understand Homebrew termination and locking           | `src/homebrew/commands.ts`, `lock.ts`, `process-lifetime.ts`                                             |
 | Change state labels or symbols                        | `src/airpods/presentation.ts`                                                                            |
 | Change control toasts or error actions                | `src/feedback/`                                                                                          |
@@ -65,7 +65,7 @@ flowchart TD
   Entry[Existing Raycast entrypoints] --> Contracts[commands: names and launch contexts]
   Entry --> Controls[controls: delegation, set, cycle, toggle]
   Entry --> Status[status: refresh and feedback]
-  Entry --> Setup[helper-setup: guard, detection, installation, view]
+  Entry --> Setup[setup: guard, detection, installation, view]
   Controls --> Setup
   Controls --> Subtitles[subtitles: feature publishing and coordination]
   Status --> Subtitles
@@ -98,7 +98,7 @@ Raycast metadata updates apply in the executing command's context. Fixed-mode co
 - `cli/` owns the external helper contract and execution. It never imports setup, control workflows, status, subtitles, or feedback.
 - `subtitles/` can read state through the CLI client and publish metadata. It never imports control or status workflows.
 - `controls/` and `status/` coordinate their own workflows. They communicate through Raycast launches, not direct imports of each other.
-- `helper-setup/` owns setup lifecycle and recovery. `homebrew/` owns command execution, OS locks, and supervisor cleanup.
+- `setup/` owns CLI detection, install, update, and recovery. `homebrew/` owns command execution, OS locks, and supervisor cleanup.
 - `feedback/` owns shared Raycast feedback primitives and has no feature dependencies.
 - Production modules never import tests or test helpers. Unit tests stay beside their modules; composed workflows, real-process tests, and macOS lock tests live in `src/test/integration/`. Follow [TESTING.md](TESTING.md) for Given/When/Then, fixture ownership, and suite selection.
 

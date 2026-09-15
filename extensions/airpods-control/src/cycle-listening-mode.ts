@@ -6,7 +6,7 @@ import {
   type ListeningModeSubtitleRefreshContext,
 } from "./commands/launch-context";
 import { runCycleListeningModeCommand, runSetListeningModeCommand } from "./controls/listening-mode";
-import { runWithCliGuard } from "./helper-setup/guard";
+import { runWithCliGuard } from "./setup/guard";
 import { resetCommandSubtitle } from "./subtitles/coordination";
 import { publishListeningModeSubtitle, refreshListeningModeSubtitle } from "./subtitles/feature-subtitles";
 

@@ -9,10 +9,10 @@ const dependencies = {
   airpods: [],
   commands: ["airpods"],
   cli: ["airpods"],
-  controls: ["airpods", "cli", "commands", "feedback", "helper-setup", "subtitles"],
+  controls: ["airpods", "cli", "commands", "feedback", "setup", "subtitles"],
   status: ["airpods", "cli", "commands", "feedback", "subtitles"],
   subtitles: ["airpods", "cli", "commands"],
-  "helper-setup": ["cli", "commands", "feedback", "homebrew"],
+  setup: ["cli", "commands", "feedback", "homebrew"],
   homebrew: [],
   feedback: [],
 };

@@ -53,7 +53,7 @@ Independent expected values. An assertion is tautological when it cannot fail un
 - Self-equality: `expect(equal(status, status)).toBe(true)`.
 - Echoing a production helper (`listeningModeSubtitle(mode)` on both sides).
 - `expect(exportedConstant).toBe(theSameLiteral)` on the export itself. If the value is a public contract, assert it where a caller observes it.
-- Pinning instructional copy: setup-view markdown, toast bodies, preference descriptions, action tooltips, HUD strings, usage hints (`Return here`, long Homebrew repair text). If the behavior matters, click the action or assert the structured contract.
+- Pinning instructional copy: setup guidance markdown, toast bodies, preference descriptions, action tooltips, HUD strings, usage hints (`Return here`, long Homebrew repair text). If the behavior matters, click the action or assert the structured contract.
 - A lone `not.toContain("Old Action")` after the name was deleted. Fine while deleting; do not commit it. Same for retired preference keys, command names, filenames, and selectors. Absence is useful when a live path could still show the thing: loading vs ready, connected vs not, enabled vs disabled.
 
 Do not retest what TypeScript already enforces. Boundary checks of untrusted launch context still matter; those values arrive at runtime.

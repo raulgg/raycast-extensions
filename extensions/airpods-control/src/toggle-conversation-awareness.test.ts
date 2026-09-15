@@ -1,7 +1,7 @@
 import { LaunchType, type LaunchProps } from "@raycast/api";
 import { expect, vi, test } from "vitest";
 import { runToggleConversationAwarenessCommand } from "./controls/conversation-awareness";
-import { runWithCliGuard } from "./helper-setup/guard";
+import { runWithCliGuard } from "./setup/guard";
 import { resetCommandSubtitle } from "./subtitles/coordination";
 import {
   publishConversationAwarenessSubtitle,
@@ -19,7 +19,7 @@ vi.mock("./controls/conversation-awareness", () => ({
   runToggleConversationAwarenessCommand: vi.fn(),
 }));
 
-vi.mock("./helper-setup/guard", () => ({
+vi.mock("./setup/guard", () => ({
   runWithCliGuard: vi.fn(async (perform: () => Promise<void>) => perform()),
 }));
 

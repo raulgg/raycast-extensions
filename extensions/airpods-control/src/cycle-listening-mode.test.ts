@@ -2,7 +2,7 @@ import { LaunchType, type LaunchProps } from "@raycast/api";
 import { expect, vi, test } from "vitest";
 import { runCycleListeningModeCommand, runSetListeningModeCommand } from "./controls/listening-mode";
 import main from "./cycle-listening-mode";
-import { runWithCliGuard } from "./helper-setup/guard";
+import { runWithCliGuard } from "./setup/guard";
 import { resetCommandSubtitle } from "./subtitles/coordination";
 import { publishListeningModeSubtitle, refreshListeningModeSubtitle } from "./subtitles/feature-subtitles";
 import type { SetListeningModeLaunchContext } from "./commands/launch-context";
@@ -18,7 +18,7 @@ vi.mock("./controls/listening-mode", () => ({
   runSetListeningModeCommand: vi.fn(),
 }));
 
-vi.mock("./helper-setup/guard", () => ({
+vi.mock("./setup/guard", () => ({
   runWithCliGuard: vi.fn(async (perform: () => Promise<void>) => perform()),
 }));
 
