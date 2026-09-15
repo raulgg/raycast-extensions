@@ -8,7 +8,6 @@ import {
   CLI_MANUAL_UPDATE_COMMAND,
   CLI_SOURCE_INSTALL_COMMAND,
   DEVELOPER_TOOLS_DOCS_URL,
-  DEVELOPER_TOOLS_DOWNLOAD_URL,
   DEVELOPER_TOOLS_INSTALL_COMMAND,
   HOMEBREW_INSTALL_COMMAND,
   MIN_CLI_VERSION,
@@ -69,7 +68,7 @@ export function cliSetupMarkdown(setup: CliSetup): string {
     case "needs-homebrew":
       return `# Install Homebrew\n\nHomebrew is not installed.\n\nCopy the install command and run it in Terminal, then Refresh. Follow [Homebrew's installation instructions](${HOMEBREW_URL}).`;
     case "needs-developer-tools":
-      return `# Install Apple's developer tools\n\nApple's developer tools are needed to install or update the helper.\n\nCopy the install command and run it in Terminal. If that command is not available, or macOS says the tools are already installed, download the Command Line Tools from [Apple Developer Downloads](${DEVELOPER_TOOLS_DOWNLOAD_URL}) and follow [Apple's installation instructions](${DEVELOPER_TOOLS_DOCS_URL}).`;
+      return `# Install Apple's developer tools\n\nApple's developer tools are needed to install or update the helper.\n\nCopy the install command and run it in Terminal. If that command is not available, or macOS says the tools are already installed, follow [Apple's installation instructions](${DEVELOPER_TOOLS_DOCS_URL}).`;
     case "invalid-cli-path":
       return `# Fix CLI Path\n\nRaycast could not find the helper at the saved **CLI Path**.\n\n${code(setup.configuredCliPath ?? "")}\n\nClear or correct it in Extension Preferences.`;
     case "manual-cli":

@@ -2,7 +2,7 @@ import { Action, ActionPanel, Detail, Icon, Keyboard } from "@raycast/api";
 import { useEffect, useReducer } from "react";
 import { getErrorMessage } from "../feedback/error-actions";
 import { HOMEBREW_URL } from "../homebrew/constants";
-import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL, DEVELOPER_TOOLS_DOWNLOAD_URL } from "./constants";
+import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL, DEVELOPER_TOOLS_DOCS_URL } from "./constants";
 import { detectCliSetup, setupNeedsUpdate } from "./detection";
 import { CliSetupActions, cliSetupMarkdown, hasCliSetupActions } from "./guidance";
 import { runCliInstallation, type CliOperation } from "./installation";
@@ -114,7 +114,7 @@ export default function Command() {
                 />
               )}
               {showDeveloperToolsHelp && (
-                <Action.OpenInBrowser title="Open Apple Developer Downloads" url={DEVELOPER_TOOLS_DOWNLOAD_URL} />
+                <Action.OpenInBrowser title="Open Apple's Installation Instructions" url={DEVELOPER_TOOLS_DOCS_URL} />
               )}
               {showHelperDocs && (
                 <Action.OpenInBrowser

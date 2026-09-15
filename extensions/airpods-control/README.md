@@ -28,7 +28,7 @@ If the helper is missing, control commands check setup before offering installat
 
 - With Homebrew and working developer tools, accept **Install with Homebrew** in the confirmation alert. Homebrew can take several minutes; keep Raycast open to see the progress toast.
 - Without Homebrew, **Manage AirPods Control Helper** opens setup instructions. Choose **Copy Homebrew Install Command**, paste it into Terminal, and run it. Follow the installer prompts, return to Raycast, and choose the **Refresh** action. Then choose **Install with Homebrew**. To install without Homebrew, choose **Copy Source Install Command** instead.
-- Without working developer tools, the view explains how to install Apple's Command Line Tools. If `xcode-select` is unavailable, use the Apple download link. A full Xcode installation also works. Complete this step, return to Raycast, and choose the **Refresh** action.
+- Without working developer tools, the view explains how to install Apple's Command Line Tools. If `xcode-select` is unavailable, follow [Apple's installation instructions](https://developer.apple.com/documentation/xcode/installing-the-command-line-tools). A full Xcode installation also works. Complete this step, return to Raycast, and choose the **Refresh** action.
 
 After installation, run an AirPods command again. Setup never changes an AirPods setting or resumes the original action. The setup view keeps its progress, success, or error message visible until you leave or check again. Concurrent Homebrew installations are prevented across command launches.
 

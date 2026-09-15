@@ -26,6 +26,5 @@ export const HOMEBREW_INSTALL_COMMAND =
 
 export const DEVELOPER_TOOLS_INSTALL_COMMAND = "xcode-select --install";
 export const DEVELOPER_TOOLS_DOCS_URL =
-  "https://developer.apple.com/documentation/xcode/installing-the-command-line-tools/";
-export const DEVELOPER_TOOLS_DOWNLOAD_URL = "https://developer.apple.com/download/all/";
+  "https://developer.apple.com/documentation/xcode/installing-the-command-line-tools";
 export const CLI_LINK_COMMAND = `brew link ${CLI_BREW_FORMULA}`;

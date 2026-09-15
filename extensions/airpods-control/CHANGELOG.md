@@ -16,4 +16,5 @@
 - Keep Manage Helper actions in untitled next-step, docs, and utility groups instead of Setup, Alternative Methods, Help, and Preferences headings.
 - Put Refresh first when the helper is already fine, hide GitHub and command preferences during recovery, and keep one installation-docs action.
 - Show Homebrew's installation instructions in the missing-Homebrew setup view.
+- Direct the missing developer tools setup to Apple's Command Line Tools installation instructions instead of the downloads catalog.
 - Explain how to install the helper when Homebrew and developer tools are already ready.

@@ -113,10 +113,16 @@ test("provides developer tools recovery and then allows installation after reche
   // When
   await view.render();
   await view.click("Copy Developer Tools Install Command");
-  await view.click("Open Apple Developer Downloads");
+  await view.click("Open Apple's Installation Instructions");
   // Then
+  expect(view.markdown()).toContain(
+    "https://developer.apple.com/documentation/xcode/installing-the-command-line-tools",
+  );
+  expect(view.markdown()).not.toContain("https://developer.apple.com/download/all/");
   expect(Clipboard.copy).toHaveBeenCalledWith("xcode-select --install");
-  expect(open).toHaveBeenCalledWith("https://developer.apple.com/download/all/");
+  expect(open).toHaveBeenCalledWith(
+    "https://developer.apple.com/documentation/xcode/installing-the-command-line-tools",
+  );
   expect(view.action("Install with Homebrew")).toBeNull();
   expect(view.action("Open Installation Instructions")).toBeNull();
   // When
@@ -324,7 +330,7 @@ test.each([
     setup: cliSetup({ state: "needs-developer-tools", developerTools: "unavailable" }),
     groups: [
       { title: null, actions: ["Copy Developer Tools Install Command"] },
-      { title: null, actions: ["Open Apple Developer Downloads"] },
+      { title: null, actions: ["Open Apple's Installation Instructions"] },
       refresh,
     ],
   },
