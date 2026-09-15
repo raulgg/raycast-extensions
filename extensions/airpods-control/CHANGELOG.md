@@ -13,3 +13,5 @@
 - Verify Homebrew ownership before updating the active CLI, prevent concurrent installations, and preserve complete Homebrew error instructions.
 - Report the installed helper version and installation method, and offer updates only when a newer version is available.
 - Scope Manage Helper actions to the current setup state so Homebrew help, install docs, and source-install copy appear only on the matching recovery.
+- Show Homebrew's installation instructions in the missing-Homebrew setup view.
+- Explain how to install the helper when Homebrew and developer tools are already ready.

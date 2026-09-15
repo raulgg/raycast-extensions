@@ -1,7 +1,9 @@
 import { Action, Icon, openExtensionPreferences } from "@raycast/api";
 import { compareVersions, normalizeVersion } from "../cli/version";
+import { HOMEBREW_URL } from "../homebrew/constants";
 import {
   CLI_INSTALL_COMMAND,
+  CLI_INSTALL_DOCS_URL,
   CLI_LINK_COMMAND,
   CLI_MANUAL_UPDATE_COMMAND,
   CLI_SOURCE_INSTALL_COMMAND,
@@ -65,7 +67,7 @@ export function cliSetupMarkdown(setup: CliSetup): string {
     case "installing":
       return "# Setup is already running\n\nWait for it to finish, then Refresh.";
     case "needs-homebrew":
-      return "# Install Homebrew\n\nHomebrew is not installed. Copy the install command, run it in Terminal, then Refresh.";
+      return `# Install Homebrew\n\nHomebrew is not installed.\n\nCopy the install command and run it in Terminal, then Refresh. Follow [Homebrew's installation instructions](${HOMEBREW_URL}).`;
     case "needs-developer-tools":
       return `# Install Apple's developer tools\n\nApple's developer tools are needed to install or update the helper.\n\nCopy the install command and run it in Terminal. If that command is not available, or macOS says the tools are already installed, download the Command Line Tools from [Apple Developer Downloads](${DEVELOPER_TOOLS_DOWNLOAD_URL}) and follow [Apple's installation instructions](${DEVELOPER_TOOLS_DOCS_URL}).`;
     case "invalid-cli-path":
@@ -78,7 +80,7 @@ export function cliSetupMarkdown(setup: CliSetup): string {
     case "needs-link":
       return `# Finish setup\n\nHomebrew installed the helper, but Raycast cannot find it.\n\n${code(CLI_LINK_COMMAND)}`;
     case "install":
-      return "# Install the helper\n\nHomebrew and Apple's developer tools are ready.";
+      return `# Install AirPods Control Helper\n\nThe helper is not installed. Homebrew and Apple's developer tools are ready.\n\nChoose **Install with Homebrew**, or copy the install command and run it in Terminal. Homebrew can take several minutes; keep Raycast open until it finishes. To install from source, follow the [installation instructions](${CLI_INSTALL_DOCS_URL}).`;
     case "update":
       if (setupNeedsUpdate(setup)) {
         return helperStatusMarkdown("Update the helper", setup, true);

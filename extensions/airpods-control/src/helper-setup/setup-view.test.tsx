@@ -63,6 +63,7 @@ test("guides Homebrew installation and copies the actual bootstrap command", asy
   // When
   await view.render();
   // Then
+  expect(view.markdown()).toContain("https://brew.sh");
   // When
   await view.click("Copy Homebrew Install Command");
   await view.click("Open Homebrew Installation Instructions");
@@ -195,6 +196,9 @@ test.each([
   await view.render();
   // Then
   expect(view.container.querySelector("[data-action-title]")?.getAttribute("data-action-title")).toBe(title);
+  if (state === "install") {
+    expect(view.markdown()).toContain("https://github.com/raulgg/airpods-control/blob/HEAD/README.md#install");
+  }
   // When
   await view.click(copyTitle);
   // Then
