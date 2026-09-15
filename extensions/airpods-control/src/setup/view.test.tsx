@@ -335,7 +335,7 @@ test.each([
   {
     name: "needs Homebrew link",
     setup: cliSetup({ state: "needs-link" }),
-    groups: [{ title: null, actions: ["Copy Link Command"] }, refresh],
+    groups: [{ title: null, actions: ["Copy Link Command", "Open Extension Preferences"] }, refresh],
   },
   {
     name: "setup already running",
