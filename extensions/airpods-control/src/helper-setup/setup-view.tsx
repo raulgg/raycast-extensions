@@ -1,12 +1,4 @@
-import {
-  Action,
-  ActionPanel,
-  Detail,
-  Icon,
-  Keyboard,
-  openCommandPreferences,
-  openExtensionPreferences,
-} from "@raycast/api";
+import { Action, ActionPanel, Detail, Icon, Keyboard, openCommandPreferences } from "@raycast/api";
 import { useEffect, useReducer } from "react";
 import { getErrorMessage } from "../feedback/error-actions";
 import { HOMEBREW_URL } from "../homebrew/constants";
@@ -80,10 +72,21 @@ export default function Command() {
   const availableOperation =
     setup?.state === "install" ? "install" : setup?.state === "update" && needsUpdate ? "update" : undefined;
   const canRun = idle && !error && !completed && availableOperation;
-  const showAlternatives = idle && !error && !completed && setup && ["install", "needs-homebrew"].includes(setup.state);
-  const showManualUpdate = idle && !error && !completed && setup?.state === "manual-cli" && needsUpdate;
-  const showUpdateInstructions = (setup?.state === "update" || setup?.state === "manual-cli") && needsUpdate;
-  const showHomebrewHelp = setup?.brewPath === null;
+  const ready = idle && !error && !completed && setup;
+  const showAlternatives = Boolean(ready && setup && ["install", "needs-homebrew"].includes(setup.state));
+  const showHomebrewHelp = Boolean(ready && setup?.state === "needs-homebrew");
+  const showInstallInstructions =
+    idle && !completed && (setup?.state === "install" || setup?.state === "needs-homebrew" || Boolean(error && !setup));
+  const showUpdateInstructions =
+    idle && !completed && needsUpdate && (setup?.state === "update" || setup?.state === "manual-cli");
+  const showSetupActions = Boolean(
+    ready &&
+    setup &&
+    (!canRun || setup.state === "update") &&
+    setup.state !== "installing" &&
+    (setup.state === "update" || setup.state === "manual-cli" ? needsUpdate : true),
+  );
+  const showSetupSection = idle && (canRun || showSetupActions || error);
 
   return (
     <Detail
@@ -91,15 +94,8 @@ export default function Command() {
       isLoading={isChecking || !!operation}
       actions={
         <ActionPanel>
-          {idle && (
+          {showSetupSection && (
             <ActionPanel.Section title="Setup">
-              {showManualUpdate && (
-                <Action.OpenInBrowser
-                  title="Open Update Instructions"
-                  url={CLI_INSTALL_DOCS_URL}
-                  shortcut={Keyboard.Shortcut.Common.Open}
-                />
-              )}
               {canRun && (
                 <Action
                   title={availableOperation === "install" ? "Install with Homebrew" : "Update with Homebrew"}
@@ -107,45 +103,51 @@ export default function Command() {
                   onAction={() => run(availableOperation)}
                 />
               )}
-              {(!canRun || setup?.state === "update") && !error && !completed && setup && (
-                <CliSetupActions setup={setup} />
-              )}
+              {showSetupActions && setup && <CliSetupActions setup={setup} />}
               {error && <Action.CopyToClipboard title="Copy Error" content={error} />}
             </ActionPanel.Section>
           )}
-          {showAlternatives && (
+          {showAlternatives && setup && (
             <ActionPanel.Section title="Alternative Methods">
               {canRun && <CliSetupActions setup={setup} />}
               <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />
             </ActionPanel.Section>
           )}
-          <ActionPanel.Section title="Help">
-            {showHomebrewHelp && (
+          {idle && (
+            <ActionPanel.Section title="Help">
+              {showHomebrewHelp && (
+                <Action.OpenInBrowser
+                  title="Open Homebrew Installation Instructions"
+                  url={HOMEBREW_URL}
+                  shortcut={Keyboard.Shortcut.Common.Open}
+                />
+              )}
+              {showInstallInstructions && (
+                <Action.OpenInBrowser
+                  title="Open Installation Instructions"
+                  url={CLI_INSTALL_DOCS_URL}
+                  shortcut={showHomebrewHelp ? { modifiers: ["cmd", "opt"], key: "o" } : Keyboard.Shortcut.Common.Open}
+                />
+              )}
+              {showUpdateInstructions && (
+                <Action.OpenInBrowser
+                  title="Open Update Instructions"
+                  url={CLI_INSTALL_DOCS_URL}
+                  shortcut={Keyboard.Shortcut.Common.Open}
+                />
+              )}
               <Action.OpenInBrowser
-                title="Open Homebrew Installation Instructions"
-                url={HOMEBREW_URL}
-                shortcut={showManualUpdate ? { modifiers: ["cmd", "opt"], key: "o" } : Keyboard.Shortcut.Common.Open}
+                title="Open AirPods Control on GitHub"
+                url={CLI_REPO_URL}
+                shortcut={Keyboard.Shortcut.Common.OpenWith}
               />
-            )}
-            {!showManualUpdate && (
-              <Action.OpenInBrowser
-                title={showUpdateInstructions ? "Open Update Instructions" : "Open Installation Instructions"}
-                url={CLI_INSTALL_DOCS_URL}
-                shortcut={showHomebrewHelp ? { modifiers: ["cmd", "opt"], key: "o" } : Keyboard.Shortcut.Common.Open}
-              />
-            )}
-            <Action.OpenInBrowser
-              title="Open AirPods Control on GitHub"
-              url={CLI_REPO_URL}
-              shortcut={Keyboard.Shortcut.Common.OpenWith}
-            />
-          </ActionPanel.Section>
-          <ActionPanel.Section title="Preferences">
-            {idle && (error || setup?.state !== "invalid-cli-path") && (
-              <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />
-            )}
-            <Action title="Open Command Preferences" icon={Icon.Gear} onAction={openCommandPreferences} />
-          </ActionPanel.Section>
+            </ActionPanel.Section>
+          )}
+          {idle && (
+            <ActionPanel.Section title="Preferences">
+              <Action title="Open Command Preferences" icon={Icon.Gear} onAction={openCommandPreferences} />
+            </ActionPanel.Section>
+          )}
           {idle && (
             <ActionPanel.Section>
               <Action

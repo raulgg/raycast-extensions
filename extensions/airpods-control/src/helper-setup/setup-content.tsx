@@ -4,6 +4,7 @@ import {
   CLI_INSTALL_COMMAND,
   CLI_LINK_COMMAND,
   CLI_MANUAL_UPDATE_COMMAND,
+  CLI_SOURCE_INSTALL_COMMAND,
   DEVELOPER_TOOLS_DOCS_URL,
   DEVELOPER_TOOLS_DOWNLOAD_URL,
   DEVELOPER_TOOLS_INSTALL_COMMAND,
@@ -106,7 +107,10 @@ export function CliSetupActions({ setup }: { setup: CliSetup }) {
   if (setup.state === "needs-homebrew") {
     return <Action.CopyToClipboard title="Copy Homebrew Install Command" content={HOMEBREW_INSTALL_COMMAND} />;
   }
-  if (setup.state === "manual-cli") return null;
+  if (setup.state === "manual-cli") {
+    if (!setupNeedsUpdate(setup)) return null;
+    return <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />;
+  }
   if (setup.state === "update" && !setupNeedsUpdate(setup)) return null;
   const commands = {
     install: { title: "Copy Install Command", content: CLI_INSTALL_COMMAND },

@@ -34,7 +34,7 @@ After installation, run an AirPods command again. Setup never changes an AirPods
 
 Raycast detects the helper automatically. For another location, set the full binary path in **CLI Path**. A custom path overrides automatic detection. An invalid custom path opens recovery instructions before attempting installation.
 
-This extension requires helper 0.4.0 or later. **Manage AirPods Control Helper** shows the installed helper version and whether it was installed with Homebrew or manually. It offers an update when Homebrew or GitHub reports a newer version, when the latest check fails, or when the installed helper is below that minimum. For a manual update, choose the **Copy Update Command** action, run both commands in Terminal, then return to Raycast and choose the **Refresh** action. When the helper is missing and prerequisites are ready, choose the **Install with Homebrew** action to install it directly.
+This extension requires helper 0.4.0 or later. **Manage AirPods Control Helper** shows the installed helper version and whether it was installed with Homebrew or manually. It offers an update when Homebrew or GitHub reports a newer version, when the latest check fails, or when the installed helper is below that minimum. For a Homebrew update, choose **Update with Homebrew**, or **Copy Update Command** to run the upgrade in Terminal. For a manual update, choose **Copy Source Install Command**, use the same installation method and location, then return to Raycast and choose the **Refresh** action. When the helper is missing and prerequisites are ready, choose the **Install with Homebrew** action to install it directly.
 
 To check or upgrade your installation in Terminal:
 
