@@ -1,9 +1,9 @@
 import { Action, ActionPanel, Detail, Icon, Keyboard } from "@raycast/api";
 import { useEffect, useReducer } from "react";
 import { getErrorMessage } from "../feedback/error-actions";
-import { CLI_INSTALL_DOCS_URL, CLI_REPO_URL } from "./constants";
+import { CLI_INSTALL_DOCS_URL, CLI_REPO_HOME_URL } from "./constants";
 import { detectCliSetup, setupNeedsUpdate } from "./detection";
-import { CliSetupActions, cliSetupMarkdown, hasCliSetupActions } from "./guidance";
+import { CliSetupActions, CliSetupDocActions, cliSetupMarkdown, hasCliSetupActions } from "./guidance";
 import { runCliInstallation, type CliOperation } from "./installation";
 import { cliSetupLifecycleReducer, INITIAL_LIFECYCLE } from "./lifecycle";
 
@@ -11,7 +11,7 @@ function OpenCliRepoAction() {
   return (
     <Action.OpenInBrowser
       title="Open AirPods Control on GitHub"
-      url={CLI_REPO_URL}
+      url={CLI_REPO_HOME_URL}
       shortcut={Keyboard.Shortcut.Common.OpenWith}
     />
   );
@@ -139,6 +139,7 @@ export default function Command() {
                   shortcut={Keyboard.Shortcut.Common.Open}
                 />
               )}
+              {ready && setup && <CliSetupDocActions setup={setup} />}
               <OpenCliRepoAction />
             </ActionPanel.Section>
           )}

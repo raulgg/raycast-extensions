@@ -17,6 +17,7 @@
 - Put Refresh first when the CLI is already fine, keep Open AirPods Control on GitHub with installation docs during recovery and after Refresh when the CLI is already fine, hide command preferences during recovery, and keep one installation-docs action.
 - Open Homebrew's official site from the missing-Homebrew setup view instead of copying an install command.
 - Open Apple's official Command Line Tools page from the missing developer tools setup view instead of copying an install command.
+- Keep every Manage CLI Open-in-browser action in the docs group, and open the CLI repository at its heading.
 - Explain how to install the CLI when Homebrew and developer tools are already ready.
 - Explain how to link an installed Homebrew CLI that Raycast cannot find, and how to set CLI Path if linking is not the issue.
 - Confirm the CLI inside the Homebrew keg and read Homebrew's own link status before recommending a fix, so an unlinked formula, an already-linked formula, and an incomplete install each get the command that applies.

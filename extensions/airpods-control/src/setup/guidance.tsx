@@ -119,6 +119,8 @@ export function cliSetupMarkdown(setup: CliSetup): string {
 export function hasCliSetupActions(setup: CliSetup): boolean {
   switch (setup.state) {
     case "installing":
+    case "needs-homebrew":
+    case "needs-developer-tools":
       return false;
     case "update":
     case "manual-cli":
@@ -128,8 +130,7 @@ export function hasCliSetupActions(setup: CliSetup): boolean {
   }
 }
 
-export function CliSetupActions({ setup }: { setup: CliSetup }) {
-  if (!hasCliSetupActions(setup)) return null;
+export function CliSetupDocActions({ setup }: { setup: CliSetup }) {
   switch (setup.state) {
     case "needs-developer-tools":
       return (
@@ -139,8 +140,6 @@ export function CliSetupActions({ setup }: { setup: CliSetup }) {
           shortcut={Keyboard.Shortcut.Common.Open}
         />
       );
-    case "invalid-cli-path":
-      return <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />;
     case "needs-homebrew":
       return (
         <Action.OpenInBrowser
@@ -149,6 +148,16 @@ export function CliSetupActions({ setup }: { setup: CliSetup }) {
           shortcut={Keyboard.Shortcut.Common.Open}
         />
       );
+    default:
+      return null;
+  }
+}
+
+export function CliSetupActions({ setup }: { setup: CliSetup }) {
+  if (!hasCliSetupActions(setup)) return null;
+  switch (setup.state) {
+    case "invalid-cli-path":
+      return <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />;
     case "manual-cli":
       return <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />;
     case "install":
@@ -164,6 +173,8 @@ export function CliSetupActions({ setup }: { setup: CliSetup }) {
       );
     case "needs-reinstall":
       return <Action.CopyToClipboard title="Copy Reinstall Command" content={CLI_REINSTALL_COMMAND} />;
+    case "needs-homebrew":
+    case "needs-developer-tools":
     case "installing":
       return null;
   }

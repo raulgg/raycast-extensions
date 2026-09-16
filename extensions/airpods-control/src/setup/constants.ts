@@ -4,6 +4,8 @@ export const MIN_CLI_VERSION = "v0.4.0";
 
 export const CLI_REPO_URL = "https://github.com/raulgg/airpods-control";
 
+export const CLI_REPO_HOME_URL = `${CLI_REPO_URL}#airpods-control`;
+
 export const CLI_GITHUB_RELEASES_LATEST_URL = "https://api.github.com/repos/raulgg/airpods-control/releases/latest";
 
 export const CLI_INSTALL_DOCS_URL = `${CLI_REPO_URL}/blob/HEAD/README.md#install`;

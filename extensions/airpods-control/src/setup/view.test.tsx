@@ -87,7 +87,7 @@ test("guides Homebrew installation by opening the official instructions", async 
   // When
   await view.click("Open AirPods Control on GitHub");
   // Then
-  expect(open).toHaveBeenCalledWith("https://github.com/raulgg/airpods-control");
+  expect(open).toHaveBeenCalledWith("https://github.com/raulgg/airpods-control#airpods-control");
   expect(view.action("Install with Homebrew")).toBeNull();
   expect(view.action("Copy Source Install Command")).toBeNull();
 });
@@ -350,12 +350,18 @@ test.each([
   {
     name: "needs Homebrew",
     setup: cliSetup({ state: "needs-homebrew", brewPath: null }),
-    groups: [{ title: null, actions: ["Open Homebrew Installation Instructions"] }, github, refresh],
+    groups: [
+      { title: null, actions: ["Open Homebrew Installation Instructions", "Open AirPods Control on GitHub"] },
+      refresh,
+    ],
   },
   {
     name: "needs developer tools",
     setup: cliSetup({ state: "needs-developer-tools", developerTools: "unavailable" }),
-    groups: [{ title: null, actions: ["Open Apple's Installation Instructions"] }, github, refresh],
+    groups: [
+      { title: null, actions: ["Open Apple's Installation Instructions", "Open AirPods Control on GitHub"] },
+      refresh,
+    ],
   },
   {
     name: "invalid CLI Path",
