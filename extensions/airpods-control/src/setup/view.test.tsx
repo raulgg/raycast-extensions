@@ -149,7 +149,7 @@ test.each(["installing", "manual-cli", "invalid-cli-path", "needs-link", "needs-
   },
 );
 
-test("shows a persistent installing state, prevents duplicate actions, and stays on success", async () => {
+test("shows a persistent installing state, prevents duplicate actions, and then shows installation details", async () => {
   // Given
   const view = createSetupView();
   const detection = deferred<ReturnType<typeof cliSetup>>();
@@ -184,7 +184,11 @@ test("shows a persistent installing state, prevents duplicate actions, and stays
   // When
   await act(async () => installation.resolve(installedCliSetup()));
   // Then
-  expect(view.markdown()).toContain("# AirPods Control CLI is ready");
+  expect(view.markdown()).toContain("# AirPods Control CLI is up to date");
+  expect(view.markdown()).toContain("0.4.0");
+  expect(view.markdown()).toContain("Homebrew");
+  expect(view.markdown()).toContain("/opt/homebrew/bin/airpods-control");
+  expect(view.markdown()).not.toContain("**Latest:**");
   expect(view.actionGroups()).toEqual(statusActions);
   expect(runCliInstallation).toHaveBeenCalledExactlyOnceWith("install");
   expect(launchCommand).not.toHaveBeenCalled();
@@ -251,7 +255,11 @@ test.each([
   // When
   await act(async () => operation.resolve(installedCliSetup()));
   // Then
-  expect(view.markdown()).toContain("# AirPods Control CLI is ready");
+  expect(view.markdown()).toContain("# AirPods Control CLI is up to date");
+  expect(view.markdown()).toContain("0.4.0");
+  expect(view.markdown()).toContain("Homebrew");
+  expect(view.markdown()).toContain("/opt/homebrew/bin/airpods-control");
+  expect(view.markdown()).not.toContain("**Latest:**");
   expect(view.action("Open Installation Instructions")).toBeNull();
 });
 

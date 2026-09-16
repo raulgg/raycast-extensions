@@ -12,6 +12,7 @@
 - Share installation and recovery across commands, keep progress visible through completion, and require users to run the original command again after setup.
 - Verify Homebrew ownership before updating the active CLI, prevent concurrent installations, and preserve complete Homebrew error instructions.
 - Report the installed CLI version and installation method, and offer updates only when a newer version is available.
+- After a Homebrew install or update, show those same CLI details instead of a separate ready screen.
 - Scope Manage CLI actions to the current setup state so Homebrew help and install docs appear only on the matching recovery. Offer the source-install copy only for a manual helper that needs an update.
 - Keep Manage CLI actions in untitled next-step, docs, and utility groups instead of Setup, Alternative Methods, Help, and Preferences headings.
 - Put Refresh first when the CLI is already fine, keep Open AirPods Control on GitHub with installation docs during recovery and after Refresh when the CLI is already fine, hide command preferences during recovery, and keep one installation-docs action.

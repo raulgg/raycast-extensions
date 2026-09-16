@@ -75,7 +75,7 @@ const SETUP_SCREENS: Record<SetupScreenKind, (setup: CliSetup) => SetupScreen> =
   installing: () =>
     screen({
       title: "Installing or updating CLI…",
-      body: "Homebrew already has an install or update in progress. This can take several minutes. Keep Raycast open until it finishes.",
+      body: "Homebrew already has an install or update in progress. This can take several minutes. Keep Raycast running until it finishes.",
       actions: [[GITHUB], [REFRESH]],
       isLoading: true,
     }),
@@ -120,7 +120,7 @@ const SETUP_SCREENS: Record<SetupScreenKind, (setup: CliSetup) => SetupScreen> =
   install: () =>
     screen({
       title: "Install AirPods Control CLI",
-      body: `The CLI is not installed. Homebrew and Apple's developer tools are ready.\n\nChoose **Install with Homebrew**, or copy the install command and run it in Terminal. Homebrew can take several minutes; keep Raycast open until it finishes.\n\nTo install from source, follow the [installation instructions](${CLI_INSTALL_DOCS_URL}).`,
+      body: `The CLI is not installed. Homebrew and Apple's developer tools are ready.\n\nChoose **Install with Homebrew**, or copy the install command and run it in Terminal. Homebrew can take several minutes; keep Raycast running until it finishes.\n\nTo install from source, follow the [installation instructions](${CLI_INSTALL_DOCS_URL}).`,
       actions: [
         [
           { type: "run", title: "Install with Homebrew", operation: "install" },
@@ -170,7 +170,7 @@ const LIFECYCLE_SCREENS: {
   running: ({ operation }) =>
     screen({
       title: `${OPERATION_PROGRESS[operation]} CLI…`,
-      body: "This can take several minutes. Keep Raycast open until it finishes.",
+      body: "This can take several minutes. Keep Raycast running until it finishes.",
       actions: [],
       isLoading: true,
     }),
@@ -180,7 +180,6 @@ const LIFECYCLE_SCREENS: {
       body: indent(error),
       actions: [[{ type: "copy", title: "Copy Error", content: error }], [INSTALL_DOCS, GITHUB], [REFRESH]],
     }),
-  completed: () => screen({ title: "AirPods Control CLI is ready!", body: "", actions: [[GITHUB], [REFRESH]] }),
 };
 
 export function lifecycleScreen(lifecycle: CliSetupLifecycle): SetupScreen {

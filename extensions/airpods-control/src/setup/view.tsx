@@ -58,7 +58,7 @@ export default function Command() {
     let active = true;
     void runCliInstallation(operation)
       .then((setup) => {
-        if (active) dispatch({ type: "completed", setup });
+        if (active) dispatch({ type: "ready", setup });
       })
       .catch((error: unknown) => {
         if (active) dispatch({ type: "failed", error: getErrorMessage(error) });

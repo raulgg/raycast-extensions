@@ -5,15 +5,13 @@ export type CliSetupLifecycle =
   | { status: "checking" }
   | { status: "ready"; setup: CliSetup }
   | { status: "running"; setup: CliSetup; operation: CliOperation }
-  | { status: "failed"; setup?: CliSetup; error: string }
-  | { status: "completed"; setup: CliSetup };
+  | { status: "failed"; setup?: CliSetup; error: string };
 
 export type CliSetupLifecycleAction =
   | { type: "check" }
   | { type: "ready"; setup: CliSetup }
   | { type: "run"; operation: CliOperation }
-  | { type: "failed"; error: string }
-  | { type: "completed"; setup: CliSetup };
+  | { type: "failed"; error: string };
 
 export function cliSetupLifecycleReducer(state: CliSetupLifecycle, action: CliSetupLifecycleAction): CliSetupLifecycle {
   switch (action.type) {
@@ -29,8 +27,6 @@ export function cliSetupLifecycleReducer(state: CliSetupLifecycle, action: CliSe
         setup: state.status === "running" || state.status === "ready" ? state.setup : undefined,
         error: action.error,
       };
-    case "completed":
-      return { status: "completed", setup: action.setup };
   }
 }
 

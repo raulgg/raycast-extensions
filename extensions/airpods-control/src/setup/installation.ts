@@ -50,8 +50,8 @@ async function performInstallation(operation: CliOperation): Promise<CliSetup> {
     }
     toast = await showToast({
       style: Toast.Style.Animated,
-      title: operation === "install" ? "Installing CLI…" : "Updating CLI…",
-      message: "This can take several minutes. Keep Raycast open until it finishes.",
+      title: operation === "install" ? "Installing AirPods Control CLI…" : "Updating AirPods Control CLI…",
+      message: "This can take several minutes. Keep Raycast running until it finishes.",
     });
     const after = await runBrewOperationWithProgress(toast, async () => {
       await (operation === "install" ? installCliWithBrew() : updateCliWithBrew());
@@ -69,9 +69,9 @@ async function performInstallation(operation: CliOperation): Promise<CliSetup> {
     const message = getErrorMessage(error);
     const options: Toast.Options = {
       style: Toast.Style.Failure,
-      title: operation === "install" ? "CLI installation failed" : "CLI update failed",
+      title: operation === "install" ? "AirPods Control CLI installation failed" : "AirPods Control CLI update failed",
       message,
-      primaryAction: { title: "Open CLI Setup", onAction: openCliSetup },
+      primaryAction: { title: "Open AirPods Control CLI Setup", onAction: openCliSetup },
       secondaryAction: createCopyErrorAction(message),
     };
     if (toast) {
