@@ -172,7 +172,7 @@
     {
       "name": "cliPath",
       "title": "CLI Path",
-      "description": "Full path to the CLI. Leave empty to let Raycast find it automatically.",
+      "description": "Full path to the CLI binary. Leave empty to let Raycast find it automatically.",
       "type": "textfield",
       "placeholder": "/path/to/airpods-control",
       "required": false

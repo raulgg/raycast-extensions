@@ -1,20 +1,23 @@
-import { Action, ActionPanel, Detail, Icon, Keyboard } from "@raycast/api";
+import { Action, ActionPanel, Detail, Icon, Keyboard, openExtensionPreferences } from "@raycast/api";
 import { useEffect, useReducer } from "react";
 import { getErrorMessage } from "../feedback/error-actions";
-import { CLI_INSTALL_DOCS_URL, CLI_REPO_HOME_URL } from "./constants";
-import { detectCliSetup, setupNeedsUpdate } from "./detection";
-import { CliSetupActions, CliSetupDocActions, cliSetupMarkdown, hasCliSetupActions } from "./guidance";
+import { CLI_REPO_HOME_URL } from "./constants";
+import { detectCliSetup } from "./detection";
 import { runCliInstallation, type CliOperation } from "./installation";
 import { cliSetupLifecycleReducer, INITIAL_LIFECYCLE } from "./lifecycle";
+import { lifecycleScreen, screenMarkdown, type SetupAction } from "./screens";
 
-function OpenCliRepoAction() {
-  return (
-    <Action.OpenInBrowser
-      title="Open AirPods Control on GitHub"
-      url={CLI_REPO_HOME_URL}
-      shortcut={Keyboard.Shortcut.Common.OpenWith}
-    />
-  );
+function SetupActionItem({ action, onRun }: { action: SetupAction; onRun: (operation: CliOperation) => void }) {
+  switch (action.type) {
+    case "run":
+      return <Action title={action.title} icon={Icon.Download} onAction={() => onRun(action.operation)} />;
+    case "copy":
+      return <Action.CopyToClipboard title={action.title} content={action.content} />;
+    case "open":
+      return <Action.OpenInBrowser title={action.title} url={action.url} shortcut={Keyboard.Shortcut.Common.Open} />;
+    case "preferences":
+      return <Action title={action.title} icon={Icon.Gear} onAction={openExtensionPreferences} />;
+  }
 }
 
 export default function Command() {
@@ -79,71 +82,34 @@ export default function Command() {
     dispatch({ type: "run", operation });
   }
 
-  const isChecking = lifecycle.status === "checking";
-  const operation = lifecycle.status === "running" ? lifecycle.operation : undefined;
-  const setup = "setup" in lifecycle ? lifecycle.setup : undefined;
-  const error = lifecycle.status === "failed" ? lifecycle.error : undefined;
-  const completed = lifecycle.status === "completed";
-
-  let markdown = setup ? cliSetupMarkdown(setup) : "# AirPods Control CLI\n\nChecking your installation…";
-  if (operation) {
-    markdown = `# ${operation === "install" ? "Installing" : "Updating"} CLI…\n\nThis can take several minutes. Keep Raycast open until it finishes.`;
-  } else if (error) {
-    markdown = `# AirPods Control CLI needs attention\n\n${error
-      .split("\n")
-      .map((line) => `    ${line}`)
-      .join("\n")}`;
-  } else if (completed) {
-    markdown = "# AirPods Control CLI is ready!";
-  }
-  const idle = !isChecking && !operation;
-  const needsUpdate = setup ? setupNeedsUpdate(setup) : false;
-  const availableOperation =
-    setup?.state === "install" ? "install" : setup?.state === "update" && needsUpdate ? "update" : undefined;
-  const canRun = idle && !error && !completed && availableOperation;
-  const ready = idle && !error && !completed && setup;
-  const showStateActions = Boolean(ready && setup && hasCliSetupActions(setup));
-  const showHelperDocs =
-    idle &&
-    !completed &&
-    (setup?.state === "install" ||
-      Boolean(error && !setup) ||
-      (needsUpdate && (setup?.state === "update" || setup?.state === "manual-cli")));
-  const showWork = Boolean(canRun || showStateActions || error);
+  const screen = lifecycleScreen(lifecycle);
 
   return (
     <Detail
-      markdown={markdown}
-      isLoading={isChecking || !!operation || brewInProgress}
+      markdown={screenMarkdown(screen)}
+      isLoading={screen.isLoading}
       actions={
         <ActionPanel>
-          {showWork && (
+          {screen.actions.length > 0 && (
             <ActionPanel.Section>
-              {canRun && (
-                <Action
-                  title={availableOperation === "install" ? "Install with Homebrew" : "Update with Homebrew"}
-                  icon={Icon.Download}
-                  onAction={() => run(availableOperation)}
-                />
-              )}
-              {showStateActions && setup && <CliSetupActions setup={setup} />}
-              {error && <Action.CopyToClipboard title="Copy Error" content={error} />}
+              {screen.actions.map((action) => (
+                <SetupActionItem key={action.title} action={action} onRun={run} />
+              ))}
             </ActionPanel.Section>
           )}
-          {idle && (
+          {screen.idle && (
             <ActionPanel.Section>
-              {showHelperDocs && (
-                <Action.OpenInBrowser
-                  title="Open Installation Instructions"
-                  url={CLI_INSTALL_DOCS_URL}
-                  shortcut={Keyboard.Shortcut.Common.Open}
-                />
-              )}
-              {ready && setup && <CliSetupDocActions setup={setup} />}
-              <OpenCliRepoAction />
+              {screen.links.map((action) => (
+                <SetupActionItem key={action.title} action={action} onRun={run} />
+              ))}
+              <Action.OpenInBrowser
+                title="Open AirPods Control on GitHub"
+                url={CLI_REPO_HOME_URL}
+                shortcut={Keyboard.Shortcut.Common.OpenWith}
+              />
             </ActionPanel.Section>
           )}
-          {idle && (
+          {screen.idle && (
             <ActionPanel.Section>
               <Action
                 title="Refresh"
