@@ -79,7 +79,7 @@ export default function Command() {
           if (active) dispatch({ type: "ready", setup: next });
         })
         .catch(() => {
-          // Keep the in-progress view. Refresh still rechecks.
+          // Keep the in-progress view; the next poll rechecks.
         });
     }, 3000);
     return () => {

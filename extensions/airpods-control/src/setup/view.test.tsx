@@ -68,7 +68,7 @@ function createSetupView() {
 
 const refresh = { title: null, actions: ["Refresh"] } as const;
 const github = { title: null, actions: ["Open AirPods Control on GitHub"] } as const;
-const statusActions = [github, refresh] as const;
+const statusActions = [github] as const;
 
 test("guides Homebrew installation by opening the official instructions", async () => {
   // Given
@@ -134,7 +134,7 @@ test("guides developer tools installation by opening Apple's official instructio
   expect(view.action("Install with Homebrew")).not.toBeNull();
 });
 
-test.each(["installing", "manual-cli", "invalid-cli-path", "needs-link", "needs-reinstall"] as const)(
+test.each(["manual-cli", "invalid-cli-path", "needs-link", "needs-reinstall"] as const)(
   "offers recovery instead of install or upgrade for %s",
   async (state) => {
     // Given

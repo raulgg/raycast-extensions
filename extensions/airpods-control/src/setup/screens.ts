@@ -130,7 +130,7 @@ const SETUP_SCREENS: Record<SetupScreenKind, (setup: CliSetup) => SetupScreen> =
       body: [
         "Homebrew already has an install or update in progress. This can take several minutes. Keep Raycast running until it finishes.",
       ],
-      actions: [[GITHUB], [REFRESH]],
+      actions: [[GITHUB]],
       isLoading: true,
     }),
   "needs-homebrew": () =>
@@ -242,7 +242,7 @@ const SETUP_SCREENS: Record<SetupScreenKind, (setup: CliSetup) => SetupScreen> =
     screen({
       title: "AirPods Control CLI is up to date",
       body: [installedFacts(setup), firstNote(STATUS_NOTES, setup), minimumVersionNote(setup)],
-      actions: [[GITHUB], [REFRESH]],
+      actions: [[GITHUB]],
     }),
 };
 
