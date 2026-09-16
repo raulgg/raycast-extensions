@@ -22,7 +22,7 @@ brew install raulgg/tap/airpods-control
 
 ### Install without Homebrew
 
-If you do not use Homebrew, follow the CLI's [installation instructions](https://github.com/raulgg/airpods-control/blob/HEAD/README.md#install). **Manage AirPods Control CLI** opens those instructions and offers a source-install command when the CLI is missing. For an existing source installation, use the same installation method and location when updating it. After a manual installation, return to Raycast and choose the **Refresh** action, then run an AirPods command again.
+If you do not use Homebrew, follow the CLI's [installation instructions](https://github.com/raulgg/airpods-control/blob/HEAD/README.md#install). **Manage AirPods Control CLI** opens those instructions. For an existing source installation, use the same installation method and location when updating it. After a manual installation, return to Raycast and choose the **Refresh** action, then run an AirPods command again.
 
 If the CLI is missing, control commands check setup before offering installation:
 

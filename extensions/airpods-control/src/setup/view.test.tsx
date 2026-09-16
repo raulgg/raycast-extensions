@@ -235,18 +235,8 @@ test.each([
   // When
   if (state === "install") {
     expect(view.action("Open Installation Instructions")).not.toBeNull();
-    await view.click("Copy Source Install Command");
-    expect(Clipboard.copy).toHaveBeenCalledWith(
-      [
-        "tag=$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/raulgg/airpods-control/releases/latest)",
-        "tag=${tag##*/}",
-        "base=https://raw.githubusercontent.com/raulgg/airpods-control/$tag",
-        'curl -fsSL "$base/scripts/install-from-source.sh" | sh -s -- --version "$tag"',
-      ].join("\n"),
-    );
-  } else {
-    expect(view.action("Copy Source Install Command")).toBeNull();
   }
+  expect(view.action("Copy Source Install Command")).toBeNull();
   const operation = deferred<ReturnType<typeof cliSetup>>();
   vi.mocked(runCliInstallation).mockReturnValue(operation.promise);
   await view.click(title);
@@ -351,7 +341,7 @@ test.each([
     groups: [
       {
         title: null,
-        actions: ["Install with Homebrew", "Copy Install Command", "Copy Source Install Command"],
+        actions: ["Install with Homebrew", "Copy Install Command"],
       },
       { title: null, actions: ["Open Installation Instructions", "Open AirPods Control on GitHub"] },
       refresh,

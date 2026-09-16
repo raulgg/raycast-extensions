@@ -107,7 +107,7 @@ export function cliSetupMarkdown(setup: CliSetup): string {
     case "needs-reinstall":
       return needsReinstallMarkdown(setup);
     case "install":
-      return `# Install AirPods Control CLI\n\nThe CLI is not installed. Homebrew and Apple's developer tools are ready.\n\nChoose **Install with Homebrew**, or copy the install command and run it in Terminal. Homebrew can take several minutes; keep Raycast open until it finishes. To install from source, follow the [installation instructions](${CLI_INSTALL_DOCS_URL}).`;
+      return `# Install AirPods Control CLI\n\nThe CLI is not installed. Homebrew and Apple's developer tools are ready.\n\nChoose **Install with Homebrew**, or copy the install command and run it in Terminal. Homebrew can take several minutes; keep Raycast open until it finishes.\n\nTo install from source, follow the [installation instructions](${CLI_INSTALL_DOCS_URL}).`;
     case "update":
       if (setupNeedsUpdate(setup)) {
         return helperStatusMarkdown("Update AirPods Control CLI", setup, true);
@@ -152,12 +152,7 @@ export function CliSetupActions({ setup }: { setup: CliSetup }) {
     case "manual-cli":
       return <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />;
     case "install":
-      return (
-        <>
-          <Action.CopyToClipboard title="Copy Install Command" content={CLI_INSTALL_COMMAND} />
-          <Action.CopyToClipboard title="Copy Source Install Command" content={CLI_SOURCE_INSTALL_COMMAND} />
-        </>
-      );
+      return <Action.CopyToClipboard title="Copy Install Command" content={CLI_INSTALL_COMMAND} />;
     case "update":
       return <Action.CopyToClipboard title="Copy Update Command" content={CLI_MANUAL_UPDATE_COMMAND} />;
     case "needs-link":
