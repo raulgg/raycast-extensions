@@ -1,3 +1,4 @@
+import { Keyboard } from "@raycast/api";
 import { brewPrefixCliPath } from "../cli/discovery";
 import { CLI_BINARY_NAME, CLI_SEARCH_PATHS } from "../cli/preferences";
 import { compareVersions, normalizeVersion } from "../cli/version";
@@ -9,6 +10,7 @@ import {
   CLI_MANUAL_UPDATE_COMMAND,
   CLI_REINSTALL_COMMAND,
   CLI_RELINK_COMMAND,
+  CLI_REPO_HOME_URL,
   CLI_SOURCE_INSTALL_COMMAND,
   DEVELOPER_TOOLS_DOCS_URL,
   MIN_CLI_VERSION,
@@ -20,31 +22,52 @@ import type { CliSetupLifecycle } from "./lifecycle";
 export type SetupAction =
   | { type: "run"; title: string; operation: CliOperation }
   | { type: "copy"; title: string; content: string }
-  | { type: "open"; title: string; url: string }
-  | { type: "preferences"; title: string };
+  | { type: "open"; title: string; url: string; shortcut?: Keyboard.Shortcut }
+  | { type: "preferences"; title: string }
+  | { type: "refresh"; title: string };
 
 export interface SetupScreen {
   title: string;
   body: string;
-  /** Next steps the user can take from this screen. */
-  actions: SetupAction[];
-  /** Documentation links, shown before the GitHub link. */
-  links: SetupAction[];
-  /** Whether Refresh and the GitHub link are available. */
-  idle: boolean;
+  /** Action groups in panel order. Each group renders as one section. */
+  actions: SetupAction[][];
   isLoading: boolean;
 }
 
 /** `update` and `manual-cli` each split into an update screen and a shared up-to-date screen. */
 type SetupScreenKind = Exclude<CliSetupState, "manual-cli"> | "manual-update" | "up-to-date";
 
-const INSTALL_DOCS_LINK: SetupAction = {
+const INSTALL_DOCS: SetupAction = {
   type: "open",
   title: "Open Installation Instructions",
   url: CLI_INSTALL_DOCS_URL,
+  shortcut: Keyboard.Shortcut.Common.Open,
 };
 
-const PREFERENCES_ACTION: SetupAction = { type: "preferences", title: "Open Extension Preferences" };
+const HOMEBREW_DOCS: SetupAction = {
+  type: "open",
+  title: "Open Homebrew Installation Instructions",
+  url: HOMEBREW_URL,
+  shortcut: Keyboard.Shortcut.Common.Open,
+};
+
+const DEVELOPER_TOOLS_DOCS: SetupAction = {
+  type: "open",
+  title: "Open Apple's Installation Instructions",
+  url: DEVELOPER_TOOLS_DOCS_URL,
+  shortcut: Keyboard.Shortcut.Common.Open,
+};
+
+const GITHUB: SetupAction = {
+  type: "open",
+  title: "Open AirPods Control on GitHub",
+  url: CLI_REPO_HOME_URL,
+  shortcut: Keyboard.Shortcut.Common.OpenWith,
+};
+
+const PREFERENCES: SetupAction = { type: "preferences", title: "Open Extension Preferences" };
+
+const REFRESH: SetupAction = { type: "refresh", title: "Refresh" };
 
 const OPERATION_PROGRESS: Record<CliOperation, string> = { install: "Installing", update: "Updating" };
 
@@ -53,69 +76,88 @@ const SETUP_SCREENS: Record<SetupScreenKind, (setup: CliSetup) => SetupScreen> =
     screen({
       title: "Installing or updating CLI…",
       body: "Homebrew already has an install or update in progress. This can take several minutes. Keep Raycast open until it finishes.",
+      actions: [[GITHUB], [REFRESH]],
       isLoading: true,
     }),
   "needs-homebrew": () =>
     screen({
       title: "Install Homebrew",
       body: `Homebrew is not installed.\n\nFollow [Homebrew's official installation instructions](${HOMEBREW_URL}).`,
-      links: [{ type: "open", title: "Open Homebrew Installation Instructions", url: HOMEBREW_URL }],
+      actions: [[HOMEBREW_DOCS, GITHUB], [REFRESH]],
     }),
   "needs-developer-tools": () =>
     screen({
       title: "Install Apple's developer tools",
       body: `Apple's developer tools are needed to install or update the CLI.\n\nFollow [Apple's official installation instructions](${DEVELOPER_TOOLS_DOCS_URL}).`,
-      links: [{ type: "open", title: "Open Apple's Installation Instructions", url: DEVELOPER_TOOLS_DOCS_URL }],
+      actions: [[DEVELOPER_TOOLS_DOCS, GITHUB], [REFRESH]],
     }),
   "invalid-cli-path": (setup) =>
     screen({
       title: "Fix CLI Path",
       body: `Raycast could not find the CLI at the saved **CLI Path**.\n\n${code(setup.configuredCliPath ?? "")}\n\nClear or correct it in Extension Preferences.`,
-      actions: [PREFERENCES_ACTION],
+      actions: [[PREFERENCES], [GITHUB], [REFRESH]],
     }),
   "needs-link": (setup) =>
     screen({
       title: "Finish AirPods Control CLI setup",
       body: needsLinkBody(setup),
-      actions: [{ type: "copy", title: "Copy Link Command", content: cliLinkCommand(setup) }, PREFERENCES_ACTION],
+      actions: [
+        [{ type: "copy", title: "Copy Link Command", content: cliLinkCommand(setup) }, PREFERENCES],
+        [GITHUB],
+        [REFRESH],
+      ],
     }),
   "needs-reinstall": (setup) =>
     screen({
       title: "Repair AirPods Control CLI",
       body: `Homebrew lists the formula, but there is no usable \`${CLI_BINARY_NAME}\` binary at ${kegCliLabel(setup)}. The install is incomplete, so linking cannot fix it.\n\nCopy the command and run it in Terminal. Homebrew builds from source, so this can take several minutes.\n\n${code(CLI_REINSTALL_COMMAND)}`,
-      actions: [{ type: "copy", title: "Copy Reinstall Command", content: CLI_REINSTALL_COMMAND }],
+      actions: [
+        [{ type: "copy", title: "Copy Reinstall Command", content: CLI_REINSTALL_COMMAND }],
+        [GITHUB],
+        [REFRESH],
+      ],
     }),
   install: () =>
     screen({
       title: "Install AirPods Control CLI",
       body: `The CLI is not installed. Homebrew and Apple's developer tools are ready.\n\nChoose **Install with Homebrew**, or copy the install command and run it in Terminal. Homebrew can take several minutes; keep Raycast open until it finishes.\n\nTo install from source, follow the [installation instructions](${CLI_INSTALL_DOCS_URL}).`,
       actions: [
-        { type: "run", title: "Install with Homebrew", operation: "install" },
-        { type: "copy", title: "Copy Install Command", content: CLI_INSTALL_COMMAND },
+        [
+          { type: "run", title: "Install with Homebrew", operation: "install" },
+          { type: "copy", title: "Copy Install Command", content: CLI_INSTALL_COMMAND },
+        ],
+        [INSTALL_DOCS, GITHUB],
+        [REFRESH],
       ],
-      links: [INSTALL_DOCS_LINK],
     }),
   update: (setup) =>
     screen({
       title: "Update AirPods Control CLI",
       body: statusBody(setup, true),
       actions: [
-        { type: "run", title: "Update with Homebrew", operation: "update" },
-        { type: "copy", title: "Copy Update Command", content: CLI_MANUAL_UPDATE_COMMAND },
+        [
+          { type: "run", title: "Update with Homebrew", operation: "update" },
+          { type: "copy", title: "Copy Update Command", content: CLI_MANUAL_UPDATE_COMMAND },
+        ],
+        [INSTALL_DOCS, GITHUB],
+        [REFRESH],
       ],
-      links: [INSTALL_DOCS_LINK],
     }),
   "manual-update": (setup) =>
     screen({
       title: "Update AirPods Control CLI",
       body: statusBody(setup, true),
-      actions: [{ type: "copy", title: "Copy Source Install Command", content: CLI_SOURCE_INSTALL_COMMAND }],
-      links: [INSTALL_DOCS_LINK],
+      actions: [
+        [{ type: "copy", title: "Copy Source Install Command", content: CLI_SOURCE_INSTALL_COMMAND }],
+        [INSTALL_DOCS, GITHUB],
+        [REFRESH],
+      ],
     }),
   "up-to-date": (setup) =>
     screen({
       title: "AirPods Control CLI is up to date",
       body: statusBody(setup, false),
+      actions: [[GITHUB], [REFRESH]],
     }),
 };
 
@@ -123,23 +165,22 @@ const LIFECYCLE_SCREENS: {
   [S in CliSetupLifecycle["status"]]: (lifecycle: Extract<CliSetupLifecycle, { status: S }>) => SetupScreen;
 } = {
   checking: () =>
-    screen({ title: "AirPods Control CLI", body: "Checking your installation…", idle: false, isLoading: true }),
+    screen({ title: "AirPods Control CLI", body: "Checking your installation…", actions: [], isLoading: true }),
   ready: ({ setup }) => setupScreen(setup),
   running: ({ operation }) =>
     screen({
       title: `${OPERATION_PROGRESS[operation]} CLI…`,
       body: "This can take several minutes. Keep Raycast open until it finishes.",
-      idle: false,
+      actions: [],
       isLoading: true,
     }),
   failed: ({ error }) =>
     screen({
       title: "AirPods Control CLI needs attention",
       body: indent(error),
-      actions: [{ type: "copy", title: "Copy Error", content: error }],
-      links: [INSTALL_DOCS_LINK],
+      actions: [[{ type: "copy", title: "Copy Error", content: error }], [INSTALL_DOCS, GITHUB], [REFRESH]],
     }),
-  completed: () => screen({ title: "AirPods Control CLI is ready!", body: "" }),
+  completed: () => screen({ title: "AirPods Control CLI is ready!", body: "", actions: [[GITHUB], [REFRESH]] }),
 };
 
 export function lifecycleScreen(lifecycle: CliSetupLifecycle): SetupScreen {
@@ -162,8 +203,8 @@ function setupScreenKind(setup: CliSetup): SetupScreenKind {
   return setup.state;
 }
 
-function screen(content: Pick<SetupScreen, "title" | "body"> & Partial<SetupScreen>): SetupScreen {
-  return { actions: [], links: [], idle: true, isLoading: false, ...content };
+function screen(content: Omit<SetupScreen, "isLoading"> & Partial<Pick<SetupScreen, "isLoading">>): SetupScreen {
+  return { isLoading: false, ...content };
 }
 
 function code(value: string): string {
