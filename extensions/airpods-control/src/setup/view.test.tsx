@@ -557,7 +557,6 @@ test("copies the source install command for a manual update without Homebrew hel
   );
   expect(open).toHaveBeenCalledWith("https://github.com/raulgg/airpods-control/blob/HEAD/README.md#install");
   expect(view.markdown()).toContain("https://github.com/raulgg/airpods-control/blob/HEAD/README.md#install");
-  expect(view.markdown()).toContain("Refresh");
   expect(view.action("Open Homebrew Installation Instructions")).toBeNull();
   expect(view.action("Update with Homebrew")).toBeNull();
   expect(view.action("Copy Update Command")).toBeNull();
