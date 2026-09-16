@@ -74,7 +74,7 @@ const OPERATION_PROGRESS: Record<CliOperation, string> = { install: "Installing"
 const SETUP_SCREENS: Record<SetupScreenKind, (setup: CliSetup) => SetupScreen> = {
   installing: () =>
     screen({
-      title: "Installing or updating CLI…",
+      title: "Installing AirPods Control CLI…",
       body: "Homebrew already has an install or update in progress. This can take several minutes. Keep Raycast running until it finishes.",
       actions: [[GITHUB], [REFRESH]],
       isLoading: true,
@@ -88,13 +88,13 @@ const SETUP_SCREENS: Record<SetupScreenKind, (setup: CliSetup) => SetupScreen> =
   "needs-developer-tools": () =>
     screen({
       title: "Install Apple's developer tools",
-      body: `Apple's developer tools are needed to install or update the CLI.\n\nFollow [Apple's official installation instructions](${DEVELOPER_TOOLS_DOCS_URL}).`,
+      body: `Apple's developer tools are needed to install the AirPods Control CLI.\n\nFollow [Apple's official installation instructions](${DEVELOPER_TOOLS_DOCS_URL}).`,
       actions: [[DEVELOPER_TOOLS_DOCS, GITHUB], [REFRESH]],
     }),
   "invalid-cli-path": (setup) =>
     screen({
-      title: "Fix CLI Path",
-      body: `Raycast could not find the CLI at the saved **CLI Path**.\n\n${code(setup.configuredCliPath ?? "")}\n\nClear or correct it in Extension Preferences.`,
+      title: "Fix AirPods Control CLI Path",
+      body: `Raycast could not find the AirPods Control CLI at the saved **CLI Path**.\n\n${code(setup.configuredCliPath ?? "")}\n\nClear or correct it in Extension Preferences.`,
       actions: [[PREFERENCES], [GITHUB], [REFRESH]],
     }),
   "needs-link": (setup) =>
@@ -120,7 +120,7 @@ const SETUP_SCREENS: Record<SetupScreenKind, (setup: CliSetup) => SetupScreen> =
   install: () =>
     screen({
       title: "Install AirPods Control CLI",
-      body: `The CLI is not installed. Homebrew and Apple's developer tools are ready.\n\nChoose **Install with Homebrew**, or copy the install command and run it in Terminal. Homebrew can take several minutes; keep Raycast running until it finishes.\n\nTo install from source, follow the [installation instructions](${CLI_INSTALL_DOCS_URL}).`,
+      body: `The AirPods Control CLI is not installed. Homebrew and Apple's developer tools are ready.\n\nChoose **Install with Homebrew**, or copy the install command and run it in Terminal. Homebrew can take several minutes; keep Raycast running until it finishes.\n\nTo install from source, follow the [installation instructions](${CLI_INSTALL_DOCS_URL}).`,
       actions: [
         [
           { type: "run", title: "Install with Homebrew", operation: "install" },
