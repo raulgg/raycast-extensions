@@ -19,5 +19,6 @@
 - Open Apple's official Command Line Tools page from the missing developer tools setup view instead of copying an install command.
 - Keep every Manage CLI Open-in-browser action in the docs group, and open the CLI repository at its heading.
 - Explain how to install the CLI when Homebrew and developer tools are already ready.
+- Explain how to update a Homebrew or manually installed CLI from the Manage CLI update views.
 - Explain how to link an installed Homebrew CLI that Raycast cannot find, and how to set CLI Path if linking is not the issue.
 - Confirm the CLI inside the Homebrew keg and read Homebrew's own link status before recommending a fix, so an unlinked formula, an already-linked formula, and an incomplete install each get the command that applies.

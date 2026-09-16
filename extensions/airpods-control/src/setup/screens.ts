@@ -133,7 +133,7 @@ const SETUP_SCREENS: Record<SetupScreenKind, (setup: CliSetup) => SetupScreen> =
   update: (setup) =>
     screen({
       title: "Update AirPods Control CLI",
-      body: statusBody(setup, true),
+      body: updateBody(setup, "homebrew"),
       actions: [
         [
           { type: "run", title: "Update with Homebrew", operation: "update" },
@@ -146,7 +146,7 @@ const SETUP_SCREENS: Record<SetupScreenKind, (setup: CliSetup) => SetupScreen> =
   "manual-update": (setup) =>
     screen({
       title: "Update AirPods Control CLI",
-      body: statusBody(setup, true),
+      body: updateBody(setup, "manual"),
       actions: [
         [{ type: "copy", title: "Copy Source Install Command", content: CLI_SOURCE_INSTALL_COMMAND }],
         [INSTALL_DOCS, GITHUB],
@@ -259,6 +259,14 @@ function statusNote(setup: CliSetup, includeLatest: boolean): string {
 
 function statusBody(setup: CliSetup, includeLatest: boolean): string {
   return `${statusFacts(setup, includeLatest)}${statusNote(setup, includeLatest)}`;
+}
+
+function updateBody(setup: CliSetup, method: "homebrew" | "manual"): string {
+  const process =
+    method === "homebrew"
+      ? "Choose **Update with Homebrew** to install the latest version, or copy the update command and run it in your Terminal.\n\nHomebrew can take several minutes to install the update; keep Raycast running until it finishes."
+      : `Copy the source install command and run it in your Terminal. Use the same installation method and location.\n\nFor the full source-install steps, follow the [installation instructions](${CLI_INSTALL_DOCS_URL}).`;
+  return `${statusBody(setup, true)}\n\n${process}`;
 }
 
 function kegCliLabel(setup: CliSetup): string {

@@ -226,6 +226,9 @@ test.each([
   expect(view.container.querySelector("[data-action-title]")?.getAttribute("data-action-title")).toBe(title);
   if (state === "install") {
     expect(view.markdown()).toContain("https://github.com/raulgg/airpods-control/blob/HEAD/README.md#install");
+  } else {
+    expect(view.markdown()).toContain("**Latest:**");
+    expect(view.markdown()).toContain("Update with Homebrew");
   }
   // When
   await view.click(copyTitle);
@@ -545,6 +548,8 @@ test("copies the source install command for a manual update without Homebrew hel
     ].join("\n"),
   );
   expect(open).toHaveBeenCalledWith("https://github.com/raulgg/airpods-control/blob/HEAD/README.md#install");
+  expect(view.markdown()).toContain("https://github.com/raulgg/airpods-control/blob/HEAD/README.md#install");
+  expect(view.markdown()).toContain("Refresh");
   expect(view.action("Open Homebrew Installation Instructions")).toBeNull();
   expect(view.action("Update with Homebrew")).toBeNull();
   expect(view.action("Copy Update Command")).toBeNull();
