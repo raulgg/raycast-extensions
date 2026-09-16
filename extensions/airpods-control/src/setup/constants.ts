@@ -24,3 +24,7 @@ export const CLI_SOURCE_INSTALL_COMMAND = [
 export const DEVELOPER_TOOLS_DOCS_URL =
   "https://developer.apple.com/documentation/xcode/installing-the-command-line-tools";
 export const CLI_LINK_COMMAND = `brew link ${CLI_BREW_FORMULA}`;
+
+export const CLI_RELINK_COMMAND = `brew link --overwrite ${CLI_BREW_FORMULA}`;
+
+export const CLI_REINSTALL_COMMAND = `brew reinstall ${CLI_BREW_FORMULA}`;

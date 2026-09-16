@@ -4,6 +4,7 @@ import { expect, vi, type Mock, test } from "vitest";
 import {
   findBrewCliPrefix,
   findBrewLatestVersion,
+  findBrewLinkedKeg,
   findBrewPath,
   installCliWithBrew,
   updateCliWithBrew,
@@ -264,6 +265,56 @@ test("returns null when brew info cannot run", async () => {
   const result = findBrewLatestVersion("/opt/homebrew/bin/brew");
   // Then
   await expect(result).resolves.toBeNull();
+});
+
+test.each([
+  { name: "a linked keg", linkedKeg: "0.4.0", expected: true },
+  { name: "an unlinked keg", linkedKeg: null, expected: false },
+] as const)("reports $name from brew info JSON", async ({ linkedKeg, expected }) => {
+  // Given
+  mockBrewAt();
+  mockAcquireBrewLock.mockResolvedValue(undefined);
+  mockProcessResult();
+  mockExecFileResult(
+    null,
+    "",
+    JSON.stringify({
+      formulae: [
+        { full_name: "other/tap/airpods-control", linked_keg: "9.9.9" },
+        { full_name: "raulgg/tap/airpods-control", linked_keg: linkedKeg },
+      ],
+    }),
+  );
+  // When
+  const result = await findBrewLinkedKeg("/opt/homebrew/bin/brew");
+  // Then
+  expect(result).toBe(expected);
+  expect(mockExecFile).toHaveBeenCalledWith(
+    "/opt/homebrew/bin/brew",
+    ["info", "--json=v2", "raulgg/tap/airpods-control"],
+    expect.anything(),
+    expect.any(Function),
+  );
+});
+
+test.each([
+  { name: "brew info cannot run", error: new Error("brew info failed"), stdout: "" },
+  {
+    name: "the formula carries no link status",
+    error: null,
+    stdout: JSON.stringify({ formulae: [{ full_name: "raulgg/tap/airpods-control" }] }),
+  },
+  { name: "the output is not brew info JSON", error: null, stdout: "{not json" },
+])("leaves the link status unknown when $name", async ({ error, stdout }) => {
+  // Given
+  mockBrewAt();
+  mockAcquireBrewLock.mockResolvedValue(undefined);
+  mockProcessResult();
+  mockExecFileResult(error, error ? "Error: failed" : "", stdout);
+  // When
+  const result = await findBrewLinkedKeg("/opt/homebrew/bin/brew");
+  // Then
+  expect(result).toBeNull();
 });
 
 test("returns null when brew info JSON has no stable version", async () => {

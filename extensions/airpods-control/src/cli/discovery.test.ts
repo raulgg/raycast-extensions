@@ -1,7 +1,7 @@
 import { accessSync, statSync } from "fs";
 import { getPreferenceValues } from "@raycast/api";
 import { expect, vi, test } from "vitest";
-import { findCliPath, isCliInstalled } from "./discovery";
+import { findBrewPrefixCli, findCliPath, isCliInstalled } from "./discovery";
 import type * as Fs from "fs";
 
 vi.mock("fs", async (importOriginal) => {
@@ -114,6 +114,37 @@ test("ignores a whitespace-only CLI Path preference", () => {
   const result = findCliPath();
   // Then
   expect(result).toBe("/opt/homebrew/bin/airpods-control");
+});
+
+test("finds the CLI inside a Homebrew keg that no search path exposes", () => {
+  // Given
+  mockGetPreferenceValues.mockReturnValue({} as never);
+  mockStatSync.mockReturnValue({ isFile: () => true } as never);
+  mockInstalledAt("/opt/homebrew/opt/airpods-control/bin/airpods-control");
+  // When
+  const result = findBrewPrefixCli("/opt/homebrew/opt/airpods-control");
+  // Then
+  expect(result).toBe("/opt/homebrew/opt/airpods-control/bin/airpods-control");
+  // Then the keg stays out of automatic discovery.
+  expect(findCliPath()).toBeNull();
+});
+
+test.each([
+  { name: "the keg holds no executable", installed: [] as string[], isFile: true },
+  {
+    name: "the keg path is a directory",
+    installed: ["/opt/homebrew/opt/airpods-control/bin/airpods-control"],
+    isFile: false,
+  },
+])("reports no keg CLI when $name", ({ installed, isFile }) => {
+  // Given
+  mockGetPreferenceValues.mockReturnValue({} as never);
+  mockStatSync.mockReturnValue({ isFile: () => isFile } as never);
+  mockInstalledAt(...installed);
+  // When
+  const result = findBrewPrefixCli("/opt/homebrew/opt/airpods-control");
+  // Then
+  expect(result).toBeNull();
 });
 
 test("mirrors findCliPath", () => {

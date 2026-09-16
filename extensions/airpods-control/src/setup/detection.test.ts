@@ -1,12 +1,13 @@
 import { realpathSync } from "fs";
 import { expect, vi, test } from "vitest";
-import { findCliPath, getConfiguredCliPath } from "../cli/discovery";
+import { findBrewPrefixCli, findCliPath, getConfiguredCliPath } from "../cli/discovery";
 import { readInstalledVersion } from "../cli/version";
-import { findBrewCliPrefix, findBrewLatestVersion, findBrewPath } from "../homebrew/commands";
+import { findBrewCliPrefix, findBrewLatestVersion, findBrewLinkedKeg, findBrewPath } from "../homebrew/commands";
 import { isBrewOperationRunning } from "../homebrew/lock";
 import { detectCliSetup } from "./detection";
 import { detectDeveloperTools } from "./developer-tools";
 import { fetchLatestGithubRelease } from "./latest-release";
+import type * as CliDiscovery from "../cli/discovery";
 import type * as CliVersion from "../cli/version";
 
 vi.mock("../homebrew/lock", () => ({ isBrewOperationRunning: vi.fn(async () => false) }));
@@ -16,10 +17,14 @@ vi.mock("fs", () => ({ realpathSync: vi.fn() }));
 vi.mock("../homebrew/commands", () => ({
   findBrewCliPrefix: vi.fn(),
   findBrewLatestVersion: vi.fn(async () => null),
+  findBrewLinkedKeg: vi.fn(async () => null),
   findBrewPath: vi.fn(),
 }));
 
-vi.mock("../cli/discovery", () => ({ findCliPath: vi.fn(), getConfiguredCliPath: vi.fn() }));
+vi.mock("../cli/discovery", async (importOriginal) => {
+  const actual = await importOriginal<typeof CliDiscovery>();
+  return { ...actual, findBrewPrefixCli: vi.fn(), findCliPath: vi.fn(), getConfiguredCliPath: vi.fn() };
+});
 
 vi.mock("../cli/version", async (importOriginal) => {
   const actual = await importOriginal<typeof CliVersion>();
@@ -130,19 +135,41 @@ test("reports a stale custom path before offering any installation", async () =>
   expect(result).toBe("invalid-cli-path");
 });
 
-test("offers linking instructions when the formula exists but the CLI is missing", async () => {
+test.each([
+  { name: "an unlinked formula", linked: false },
+  { name: "a formula Homebrew already reports as linked", linked: true },
+  { name: "a link status Homebrew cannot report", linked: null },
+] as const)("offers linking when the keg CLI exists behind $name", async ({ linked }) => {
   // Given
   vi.mocked(findCliPath).mockReturnValue(null);
   vi.mocked(getConfiguredCliPath).mockReturnValue(null);
   vi.mocked(findBrewPath).mockReturnValue("/opt/homebrew/bin/brew");
-  vi.mocked(findBrewCliPrefix).mockResolvedValue(null);
   vi.mocked(detectDeveloperTools).mockResolvedValue("ready");
   vi.mocked(realpathSync).mockImplementation((path) => String(path));
   vi.mocked(findBrewCliPrefix).mockResolvedValue("/opt/homebrew/opt/airpods-control");
+  vi.mocked(findBrewPrefixCli).mockReturnValue("/opt/homebrew/opt/airpods-control/bin/airpods-control");
+  vi.mocked(findBrewLinkedKeg).mockResolvedValue(linked);
   // When
-  const result = (await detectCliSetup()).state;
+  const result = await detectCliSetup();
   // Then
-  expect(result).toBe("needs-link");
+  expect(result).toMatchObject({ state: "needs-link", brewLinked: linked });
+  expect(findBrewPrefixCli).toHaveBeenCalledWith("/opt/homebrew/opt/airpods-control");
+});
+
+test("asks for a reinstall when the Homebrew keg has no usable CLI", async () => {
+  // Given
+  vi.mocked(findCliPath).mockReturnValue(null);
+  vi.mocked(getConfiguredCliPath).mockReturnValue(null);
+  vi.mocked(findBrewPath).mockReturnValue("/opt/homebrew/bin/brew");
+  vi.mocked(detectDeveloperTools).mockResolvedValue("ready");
+  vi.mocked(realpathSync).mockImplementation((path) => String(path));
+  vi.mocked(findBrewCliPrefix).mockResolvedValue("/opt/homebrew/opt/airpods-control");
+  vi.mocked(findBrewPrefixCli).mockReturnValue(null);
+  // When
+  const result = await detectCliSetup();
+  // Then
+  expect(result).toMatchObject({ state: "needs-reinstall", brewLinked: null });
+  expect(findBrewLinkedKeg).not.toHaveBeenCalled();
 });
 
 test("surfaces broken Homebrew instead of treating it as a missing formula", async () => {
@@ -213,6 +240,7 @@ test("does not query helper versions when the CLI still needs installation", asy
   expect(readInstalledVersion).not.toHaveBeenCalled();
   expect(findBrewLatestVersion).not.toHaveBeenCalled();
   expect(fetchLatestGithubRelease).not.toHaveBeenCalled();
+  expect(findBrewLinkedKeg).not.toHaveBeenCalled();
 });
 
 test("reports a Homebrew helper as up to date when it matches the tap version", async () => {
@@ -239,6 +267,8 @@ test("reports a Homebrew helper as up to date when it matches the tap version", 
     meetsMinimum: true,
   });
   expect(fetchLatestGithubRelease).not.toHaveBeenCalled();
+  // A usable CLI needs no link diagnosis, so Homebrew is not asked for one.
+  expect(findBrewLinkedKeg).not.toHaveBeenCalled();
 });
 
 test("reports a Homebrew helper update when the installed version is older than the tap", async () => {

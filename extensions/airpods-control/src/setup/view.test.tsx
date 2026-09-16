@@ -134,7 +134,7 @@ test("guides developer tools installation by opening Apple's official instructio
   expect(view.action("Install with Homebrew")).not.toBeNull();
 });
 
-test.each(["installing", "manual-cli", "invalid-cli-path", "needs-link"] as const)(
+test.each(["installing", "manual-cli", "invalid-cli-path", "needs-link", "needs-reinstall"] as const)(
   "offers recovery instead of install or upgrade for %s",
   async (state) => {
     // Given
@@ -262,6 +262,44 @@ test.each([
   expect(view.action("Open Installation Instructions")).toBeNull();
 });
 
+test.each([
+  { name: "Homebrew has not linked the keg", brewLinked: false, command: "brew link raulgg/tap/airpods-control" },
+  {
+    name: "Homebrew already reports the keg as linked",
+    brewLinked: true,
+    command: "brew link --overwrite raulgg/tap/airpods-control",
+  },
+  { name: "the link status is unknown", brewLinked: null, command: "brew link raulgg/tap/airpods-control" },
+] as const)("copies the link command that applies when $name", async ({ brewLinked, command }) => {
+  // Given
+  const view = createSetupView();
+  vi.mocked(detectCliSetup).mockResolvedValue(
+    cliSetup({ state: "needs-link", brewCliPrefix: "/opt/homebrew/opt/airpods-control", brewLinked }),
+  );
+  // When
+  await view.render();
+  await view.click("Copy Link Command");
+  // Then
+  expect(Clipboard.copy).toHaveBeenCalledWith(command);
+  expect(view.markdown()).toContain("/opt/homebrew/opt/airpods-control/bin/airpods-control");
+  expect(view.action("Copy Reinstall Command")).toBeNull();
+});
+
+test("offers a reinstall when the Homebrew keg holds no usable CLI", async () => {
+  // Given
+  const view = createSetupView();
+  vi.mocked(detectCliSetup).mockResolvedValue(
+    cliSetup({ state: "needs-reinstall", brewCliPrefix: "/opt/homebrew/opt/airpods-control" }),
+  );
+  // When
+  await view.render();
+  await view.click("Copy Reinstall Command");
+  // Then
+  expect(Clipboard.copy).toHaveBeenCalledWith("brew reinstall raulgg/tap/airpods-control");
+  expect(view.markdown()).toContain("/opt/homebrew/opt/airpods-control/bin/airpods-control");
+  expect(view.action("Copy Link Command")).toBeNull();
+});
+
 test("keeps failure details visible until the user rechecks prerequisites", async () => {
   // Given
   const view = createSetupView();
@@ -338,6 +376,11 @@ test.each([
     name: "needs Homebrew link",
     setup: cliSetup({ state: "needs-link" }),
     groups: [{ title: null, actions: ["Copy Link Command", "Open Extension Preferences"] }, github, refresh],
+  },
+  {
+    name: "needs Homebrew reinstall",
+    setup: cliSetup({ state: "needs-reinstall", brewCliPrefix: "/opt/homebrew/opt/airpods-control" }),
+    groups: [{ title: null, actions: ["Copy Reinstall Command"] }, github, refresh],
   },
   {
     name: "setup already running",

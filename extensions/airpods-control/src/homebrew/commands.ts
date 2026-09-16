@@ -30,15 +30,43 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function brewStableVersion(value: unknown): string | null {
+function brewFormula(value: unknown): Record<string, unknown> | null {
   if (!isRecord(value) || !Array.isArray(value.formulae)) return null;
   const formulae = value.formulae.filter(isRecord);
-  const formula =
+  return (
     formulae.find((candidate) => candidate.full_name === CLI_BREW_FORMULA) ??
-    (formulae.length === 1 ? formulae[0] : undefined);
+    (formulae.length === 1 ? formulae[0] : null)
+  );
+}
+
+function brewStableVersion(value: unknown): string | null {
+  const formula = brewFormula(value);
   if (!formula || !isRecord(formula.versions) || typeof formula.versions.stable !== "string") return null;
   const stable = formula.versions.stable.trim();
   return stable || null;
+}
+
+function brewLinkedKeg(value: unknown): boolean | null {
+  const formula = brewFormula(value);
+  if (!formula || !("linked_keg" in formula)) return null;
+  const linked = formula.linked_keg;
+  if (linked === null) return false;
+  if (typeof linked !== "string") return null;
+  return linked.trim().length > 0;
+}
+
+/**
+ * Report whether Homebrew has the formula linked into its prefix.
+ * Null means Homebrew could not answer; callers keep their filesystem evidence.
+ */
+export async function findBrewLinkedKeg(brewPath: string): Promise<boolean | null> {
+  try {
+    const stdout = await runBrewCommand(brewPath, ["info", "--json=v2", CLI_BREW_FORMULA]);
+    const parsed: unknown = JSON.parse(stdout);
+    return brewLinkedKeg(parsed);
+  } catch {
+    return null;
+  }
 }
 
 /**

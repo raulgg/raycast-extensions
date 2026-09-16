@@ -1,5 +1,6 @@
 import { Action, Icon, Keyboard, openExtensionPreferences } from "@raycast/api";
-import { CLI_SEARCH_PATHS } from "../cli/preferences";
+import { brewPrefixCliPath } from "../cli/discovery";
+import { CLI_BINARY_NAME, CLI_SEARCH_PATHS } from "../cli/preferences";
 import { compareVersions, normalizeVersion } from "../cli/version";
 import { HOMEBREW_URL } from "../homebrew/constants";
 import {
@@ -7,6 +8,8 @@ import {
   CLI_INSTALL_DOCS_URL,
   CLI_LINK_COMMAND,
   CLI_MANUAL_UPDATE_COMMAND,
+  CLI_REINSTALL_COMMAND,
+  CLI_RELINK_COMMAND,
   CLI_SOURCE_INSTALL_COMMAND,
   DEVELOPER_TOOLS_DOCS_URL,
   MIN_CLI_VERSION,
@@ -60,6 +63,30 @@ function helperStatusMarkdown(title: string, setup: CliSetup, includeLatest: boo
   return `# ${title}\n\n${statusFacts(setup, includeLatest)}${statusNote(setup, includeLatest)}\n`;
 }
 
+function kegCliLabel(setup: CliSetup): string {
+  return setup.brewCliPrefix ? `\`${brewPrefixCliPath(setup.brewCliPrefix)}\`` : "its Homebrew prefix";
+}
+
+/** Homebrew's own link status decides whether a plain link can succeed. */
+function cliLinkCommand(setup: CliSetup): string {
+  return setup.brewLinked === true ? CLI_RELINK_COMMAND : CLI_LINK_COMMAND;
+}
+
+function needsLinkMarkdown(setup: CliSetup): string {
+  const searched = CLI_SEARCH_PATHS.map((path) => `\`${path}\``).join(" or ");
+  const cause =
+    setup.brewLinked === true
+      ? "Homebrew reports the formula as already linked, so the link is broken or something else owns that path."
+      : setup.brewLinked === false
+        ? `Homebrew has not linked the formula, so the \`${CLI_BINARY_NAME}\` command does not exist yet.`
+        : "Homebrew could not report whether the formula is linked. An unlinked formula is the usual cause.";
+  return `# Finish AirPods Control CLI setup\n\nHomebrew installed the CLI at ${kegCliLabel(setup)}, but Raycast needs it at ${searched}.\n\n${cause}\n\nCopy the command and run it in Terminal.\n\n${code(cliLinkCommand(setup))}\n\nIf that does not help, set **CLI Path** in Extension Preferences to ${kegCliLabel(setup)}.`;
+}
+
+function needsReinstallMarkdown(setup: CliSetup): string {
+  return `# Repair AirPods Control CLI\n\nHomebrew lists the formula, but there is no usable \`${CLI_BINARY_NAME}\` binary at ${kegCliLabel(setup)}. The install is incomplete, so linking cannot fix it.\n\nCopy the command and run it in Terminal. Homebrew builds from source, so this can take several minutes.\n\n${code(CLI_REINSTALL_COMMAND)}`;
+}
+
 export function cliSetupMarkdown(setup: CliSetup): string {
   switch (setup.state) {
     case "installing":
@@ -75,11 +102,10 @@ export function cliSetupMarkdown(setup: CliSetup): string {
         return helperStatusMarkdown("Update AirPods Control CLI", setup, true);
       }
       return helperStatusMarkdown("AirPods Control CLI is up to date", setup, false);
-    case "needs-link": {
-      const searched = CLI_SEARCH_PATHS.map((path) => `\`${path}\``).join(" or ");
-      const location = setup.brewCliPrefix ? `Homebrew reports the install at \`${setup.brewCliPrefix}\`. ` : "";
-      return `# Finish AirPods Control CLI setup\n\nHomebrew has the CLI installed, but Raycast cannot find the \`airpods-control\` command.\n\n${location}Raycast looks for an executable at ${searched}. That gap usually means the formula is not linked.\n\nCopy the command, run it in Terminal, then return here and choose **Refresh**.\n\n${code(CLI_LINK_COMMAND)}\n\nIf \`brew link\` says the formula is already linked, or the CLI is somewhere else, set **CLI Path** in Extension Preferences to the \`airpods-control\` binary.`;
-    }
+    case "needs-link":
+      return needsLinkMarkdown(setup);
+    case "needs-reinstall":
+      return needsReinstallMarkdown(setup);
     case "install":
       return `# Install AirPods Control CLI\n\nThe CLI is not installed. Homebrew and Apple's developer tools are ready.\n\nChoose **Install with Homebrew**, or copy the install command and run it in Terminal. Homebrew can take several minutes; keep Raycast open until it finishes. To install from source, follow the [installation instructions](${CLI_INSTALL_DOCS_URL}).`;
     case "update":
@@ -137,10 +163,12 @@ export function CliSetupActions({ setup }: { setup: CliSetup }) {
     case "needs-link":
       return (
         <>
-          <Action.CopyToClipboard title="Copy Link Command" content={CLI_LINK_COMMAND} />
+          <Action.CopyToClipboard title="Copy Link Command" content={cliLinkCommand(setup)} />
           <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />
         </>
       );
+    case "needs-reinstall":
+      return <Action.CopyToClipboard title="Copy Reinstall Command" content={CLI_REINSTALL_COMMAND} />;
     case "installing":
       return null;
   }

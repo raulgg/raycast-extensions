@@ -1,6 +1,5 @@
 import { realpathSync } from "fs";
-import { join } from "path";
-import { findCliPath, getConfiguredCliPath } from "../cli/discovery";
+import { brewPrefixCliPath, findBrewPrefixCli, findCliPath, getConfiguredCliPath } from "../cli/discovery";
 import {
   meetsMinimumVersion,
   normalizeVersion,
@@ -8,7 +7,7 @@ import {
   resolveVersionStatus,
   type VersionStatus,
 } from "../cli/version";
-import { findBrewCliPrefix, findBrewLatestVersion, findBrewPath } from "../homebrew/commands";
+import { findBrewCliPrefix, findBrewLatestVersion, findBrewLinkedKeg, findBrewPath } from "../homebrew/commands";
 import { isBrewOperationRunning } from "../homebrew/lock";
 import { MIN_CLI_VERSION } from "./constants";
 import { detectDeveloperTools, type DeveloperToolsStatus } from "./developer-tools";
@@ -21,6 +20,7 @@ export type CliSetupState =
   | "invalid-cli-path"
   | "manual-cli"
   | "needs-link"
+  | "needs-reinstall"
   | "install"
   | "update";
 
@@ -33,6 +33,7 @@ export interface CliSetup {
   cliPath: string | null;
   brewPath: string | null;
   brewCliPrefix: string | null;
+  brewLinked: boolean | null;
   configuredCliPath: string | null;
   developerTools: DeveloperToolsStatus | null;
   installedVersion: string | null;
@@ -75,6 +76,7 @@ export async function detectCliSetup(): Promise<CliSetup> {
       configuredCliPath,
       brewPath,
       brewCliPrefix: null,
+      brewLinked: null,
       developerTools: null,
       ...UNKNOWN_VERSION,
     };
@@ -82,7 +84,15 @@ export async function detectCliSetup(): Promise<CliSetup> {
   const developerTools = await detectDeveloperTools();
   // Missing tools have their own recovery screen, including when brew cannot run yet.
   const brewCliPrefix = brewPath && developerTools === "ready" ? await findBrewCliPrefix(brewPath) : null;
-  const details = { cliPath, configuredCliPath, brewPath, developerTools, brewCliPrefix, ...UNKNOWN_VERSION };
+  const details = {
+    cliPath,
+    configuredCliPath,
+    brewPath,
+    developerTools,
+    brewCliPrefix,
+    brewLinked: null,
+    ...UNKNOWN_VERSION,
+  };
   if (configuredCliPath && !cliPath) return { ...details, state: "invalid-cli-path" };
   if (developerTools !== "ready") return { ...details, state: "needs-developer-tools" };
   if (!brewPath) {
@@ -96,11 +106,14 @@ export async function detectCliSetup(): Promise<CliSetup> {
     }
     return withVersion({ ...details, state: "manual-cli", installationMethod: "manual" }, githubLatest());
   }
-  return { ...details, state: brewCliPrefix ? "needs-link" : "install" };
+  if (!brewCliPrefix) return { ...details, state: "install" };
+  // A keg without a usable binary cannot be repaired by linking.
+  if (!findBrewPrefixCli(brewCliPrefix)) return { ...details, state: "needs-reinstall" };
+  return { ...details, state: "needs-link", brewLinked: await findBrewLinkedKeg(brewPath) };
 }
 
 function isBrewManagedCli(cliPath: string, brewCliPrefix: string | null): boolean {
-  return Boolean(brewCliPrefix && sameFile(cliPath, join(brewCliPrefix, "bin", "airpods-control")));
+  return Boolean(brewCliPrefix && sameFile(cliPath, brewPrefixCliPath(brewCliPrefix)));
 }
 
 function failedLatest(): LatestInfo {

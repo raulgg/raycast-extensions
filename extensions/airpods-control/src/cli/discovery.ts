@@ -1,10 +1,22 @@
 import { accessSync, constants, statSync } from "fs";
+import { join } from "path";
 import { getPreferenceValues } from "@raycast/api";
-import { CLI_SEARCH_PATHS, type ExtensionPreferences } from "./preferences";
+import { CLI_BINARY_NAME, CLI_SEARCH_PATHS, type ExtensionPreferences } from "./preferences";
 
 export function getConfiguredCliPath(): string | null {
   const preferences = getPreferenceValues<ExtensionPreferences>();
   return preferences.cliPath?.trim() || null;
+}
+
+function isExecutableFile(path: string): boolean {
+  try {
+    accessSync(path, constants.X_OK);
+    // Directories also pass the X_OK check; only accept regular files.
+    return statSync(path).isFile();
+  } catch {
+    // Missing or not executable.
+    return false;
+  }
 }
 
 export function findCliPath(): string | null {
@@ -12,17 +24,19 @@ export function findCliPath(): string | null {
   const candidates = customPath ? [customPath] : CLI_SEARCH_PATHS;
 
   for (const candidate of candidates) {
-    try {
-      accessSync(candidate, constants.X_OK);
-      // Directories also pass the X_OK check; only accept regular files.
-      if (statSync(candidate).isFile()) {
-        return candidate;
-      }
-    } catch {
-      // Missing or not executable; try the next candidate.
-    }
+    if (isExecutableFile(candidate)) return candidate;
   }
   return null;
+}
+
+/** The CLI inside a Homebrew keg. Discovery deliberately does not search this path. */
+export function brewPrefixCliPath(prefix: string): string {
+  return join(prefix, "bin", CLI_BINARY_NAME);
+}
+
+export function findBrewPrefixCli(prefix: string): string | null {
+  const path = brewPrefixCliPath(prefix);
+  return isExecutableFile(path) ? path : null;
 }
 
 export function isCliInstalled(): boolean {

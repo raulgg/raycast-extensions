@@ -6,6 +6,7 @@ export function cliSetup(overrides: Partial<CliSetup> = {}): CliSetup {
     cliPath: null,
     brewPath: "/opt/homebrew/bin/brew",
     brewCliPrefix: null,
+    brewLinked: null,
     configuredCliPath: null,
     developerTools: "ready",
     installedVersion: null,
