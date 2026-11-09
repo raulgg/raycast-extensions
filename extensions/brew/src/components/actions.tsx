@@ -724,6 +724,22 @@ async function upgradeChecked(
     : { outcome: "upgraded", ok: result };
 }
 
+/**
+ * Upgrade the one package a menu-bar row names.
+ *
+ * Same path as Upgrade on Search and Show Installed: the pin directory is
+ * read first, and a pin is lifted because the click has no other way to say
+ * "upgrade this anyway". Feedback is that path's own HUD. Returns whether the
+ * caller's outdated list should be re-read.
+ */
+export async function upgradeOnePackage(item: Cask | Nameable): Promise<boolean> {
+  const result = await upgradeChecked(item, { allowUnpin: true });
+  if (result.outcome === "upgraded") {
+    return result.ok;
+  }
+  return result.outcome === "skipped" && result.refresh === true;
+}
+
 async function upgradeAll(): Promise<boolean> {
   const handle = showActionToast({
     title: "Upgrading all packages",

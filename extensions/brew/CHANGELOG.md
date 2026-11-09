@@ -2,7 +2,7 @@
 
 ## [Unreleased] - Brew Menu Bar upgrade count
 
-- **Brew Menu Bar** (the menu bar command, formerly Services Menu Bar) shows how many packages can be upgraded next to the number of running services. Services come first, then Upgrades. Open Manage Services, Open Show Upgrades, and Refresh share the last group, with Refresh last. Start All, Stop All, and Restart All are named with Services. The check is reused for about 6 hours. This is the menu bar count only — it does not send a notification. Turn "Show upgrade count" off to keep the services menu as it was
+- **Brew Menu Bar** (the menu bar command, formerly Services Menu Bar) shows how many packages can be upgraded next to the number of running services. Services come first, then Upgrades. When packages can be upgraded, their names are a submenu that upgrades each one and opens Show Upgrades. At zero that row reads Up to date. Open Manage Services, Open Show Upgrades, and Refresh share the last group, with Refresh last. Start All, Stop All, and Restart All are named with Services. The check is reused for about 6 hours. This is the menu bar count only — it does not send a notification. Turn "Show upgrade count" off to keep the services menu as it was
 
 ## [CLI search keywords] - {PR_MERGE_DATE}
 

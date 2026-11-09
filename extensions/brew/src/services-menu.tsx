@@ -21,16 +21,21 @@ import {
   brewServiceIsRunning,
   ensureError,
   getErrorMessage,
+  formatCount,
   isBrewLockError,
+  markOutdatedSnapshotDirty,
   outdatedFetchFailureCopy,
   runServiceCommand,
   SERVICE_ACTION_COPY,
+  type OutdatedCask,
+  type OutdatedFormula,
   type OutdatedResults,
   type Service,
   type ServiceAction,
 } from "./utils";
 import { useBrewServices } from "./hooks/useBrewServices";
 import { useMenuBarUpgrades } from "./hooks/useMenuBarUpgrades";
+import { upgradeOnePackage } from "./components/actions";
 import { serviceStatusIcon, type ServicesMutate } from "./components/serviceActions";
 import { ERROR_ICON, UP_TO_DATE_ICON, WARNING_ICON } from "./components/palette";
 import {
@@ -38,7 +43,6 @@ import {
   menuBarTitle,
   menuBarTooltip,
   menuBarUpgradeCount,
-  menuBarUpgradeNames,
   menuBarUpgradesSectionTitle,
 } from "./utils/menu-bar-upgrades";
 
@@ -73,6 +77,7 @@ export default function Command() {
   // Unknown (still loading, failed with nothing cached, or the preference is
   // off) leaves the title as the service count alone. Zero is a real count.
   const upgradeCount = showUpgradeCount && upgrades.data ? menuBarUpgradeCount(upgrades.data) : undefined;
+  const upgradesPending = upgradeCount !== undefined && upgradeCount > 0;
 
   return (
     <MenuBarExtra
@@ -129,7 +134,7 @@ export default function Command() {
           icon={Icon.AppWindowList}
           onAction={() => launchCommand({ name: "manage-services", type: LaunchType.UserInitiated })}
         />
-        {showUpgradeCount && (
+        {showUpgradeCount && !upgradesPending && (
           <MenuBarExtra.Item
             title="Open Show Upgrades"
             icon={Icon.AppWindowList}
@@ -158,13 +163,10 @@ function UpgradesSection(props: {
   onRefresh: () => void;
 }) {
   const count = props.results ? menuBarUpgradeCount(props.results) : 0;
-  const names = props.results && count > 0 ? menuBarUpgradeNames(props.results) : [];
 
   return (
     <MenuBarExtra.Section title={props.results ? menuBarUpgradesSectionTitle(count) : "Upgrades"}>
-      {names.map((name, index) => (
-        <MenuBarExtra.Item key={`${index}:${name}`} title={name} />
-      ))}
+      {props.results && count > 0 && <UpgradesSubmenu results={props.results} onReload={props.onRefresh} />}
       {props.results && count === 0 && !props.error && <MenuBarExtra.Item title="Up to date" icon={UP_TO_DATE_ICON} />}
       {count > 0 && (
         <MenuBarExtra.Item title="Refresh upgrades" icon={Icon.ArrowClockwise} onAction={props.onRefresh} />
@@ -173,6 +175,43 @@ function UpgradesSection(props: {
       {!props.results && !props.error && props.isLoading && <MenuBarExtra.Item title="Checking upgrades…" />}
     </MenuBarExtra.Section>
   );
+}
+
+function UpgradesSubmenu(props: { results: OutdatedResults; onReload: () => void }) {
+  const packages = [
+    ...props.results.formulae.map((formula) => ({ key: `formula:${formula.name}`, item: formula })),
+    ...props.results.casks.map((cask) => ({ key: `cask:${cask.name}`, item: cask })),
+  ];
+
+  return (
+    <MenuBarExtra.Submenu title={formatCount(packages.length, "upgrade")}>
+      <MenuBarExtra.Section>
+        {packages.map((pkg) => (
+          <MenuBarExtra.Item
+            key={pkg.key}
+            title={pkg.item.name}
+            onAction={() => void upgradePackage(pkg.item, props.onReload)}
+          />
+        ))}
+      </MenuBarExtra.Section>
+      <MenuBarExtra.Section>
+        <MenuBarExtra.Item
+          title="Show Upgrades"
+          icon={Icon.AppWindowList}
+          onAction={() => launchCommand({ name: "outdated", type: LaunchType.UserInitiated })}
+        />
+      </MenuBarExtra.Section>
+    </MenuBarExtra.Submenu>
+  );
+}
+
+async function upgradePackage(item: OutdatedFormula | OutdatedCask, onReload: () => void) {
+  const reload = await upgradeOnePackage(item);
+  if (!reload) {
+    return;
+  }
+  markOutdatedSnapshotDirty();
+  onReload();
 }
 
 function UpgradeFailureItem(props: { error: Error; onRefresh: () => void }) {
