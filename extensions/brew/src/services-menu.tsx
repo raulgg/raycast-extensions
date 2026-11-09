@@ -7,8 +7,9 @@
  * after each action. Upgrades are not polled that often: the list is cached
  * for about 6 hours (`menu-bar-upgrades`), and "Refresh upgrades" fetches
  * immediately. Neither path runs `brew update`. Services come first, then
- * Upgrades, then Refresh, then the Open commands. Turning the upgrade count
- * off drops the Upgrades section and Open Show Upgrades.
+ * Upgrades. Open Manage Services, Open Show Upgrades, and Refresh share the
+ * last group, with Refresh last. Turning the upgrade count off drops the
+ * Upgrades section and Open Show Upgrades.
  *
  * Always render the extra. Returning null removes the services icon.
  */
@@ -97,17 +98,17 @@ export default function Command() {
 
       <MenuBarExtra.Section>
         <MenuBarExtra.Item
-          title="Start All"
+          title="Start All Services"
           icon={ACTION_ICONS.start}
           onAction={() => handleAction("start", ALL_SERVICES, mutate)}
         />
         <MenuBarExtra.Item
-          title="Stop All"
+          title="Stop All Services"
           icon={ACTION_ICONS.stop}
           onAction={() => handleAction("stop", ALL_SERVICES, mutate)}
         />
         <MenuBarExtra.Item
-          title="Restart All"
+          title="Restart All Services"
           icon={ACTION_ICONS.restart}
           onAction={() => handleAction("restart", ALL_SERVICES, mutate)}
         />
@@ -124,19 +125,6 @@ export default function Command() {
 
       <MenuBarExtra.Section>
         <MenuBarExtra.Item
-          title="Refresh"
-          icon={Icon.ArrowClockwise}
-          onAction={() => {
-            revalidate();
-            if (showUpgradeCount) {
-              void upgrades.refresh();
-            }
-          }}
-        />
-      </MenuBarExtra.Section>
-
-      <MenuBarExtra.Section>
-        <MenuBarExtra.Item
           title="Open Manage Services"
           icon={Icon.AppWindowList}
           onAction={() => launchCommand({ name: "manage-services", type: LaunchType.UserInitiated })}
@@ -148,6 +136,16 @@ export default function Command() {
             onAction={() => launchCommand({ name: "outdated", type: LaunchType.UserInitiated })}
           />
         )}
+        <MenuBarExtra.Item
+          title="Refresh"
+          icon={Icon.ArrowClockwise}
+          onAction={() => {
+            revalidate();
+            if (showUpgradeCount) {
+              void upgrades.refresh();
+            }
+          }}
+        />
       </MenuBarExtra.Section>
     </MenuBarExtra>
   );
