@@ -6,8 +6,9 @@
  * stay on the command's one-minute `interval`, with an optimistic `mutate`
  * after each action. Upgrades are not polled that often: the list is cached
  * for about 6 hours (`menu-bar-upgrades`), and "Refresh upgrades" fetches
- * immediately. Neither path runs `brew update`. The menu is two sections,
- * Upgrades then Services. Turning the upgrade count off drops the first.
+ * immediately. Neither path runs `brew update`. The menu is Upgrades, then
+ * Services, then a separated Refresh for the whole bar. Turning the upgrade
+ * count off drops the Upgrades section.
  *
  * Always render the extra. Returning null removes the services icon.
  */
@@ -121,7 +122,19 @@ export default function Command() {
           icon={Icon.AppWindowList}
           onAction={() => launchCommand({ name: "manage-services", type: LaunchType.UserInitiated })}
         />
-        <MenuBarExtra.Item title="Refresh" icon={Icon.ArrowClockwise} onAction={() => revalidate()} />
+      </MenuBarExtra.Section>
+
+      <MenuBarExtra.Section>
+        <MenuBarExtra.Item
+          title="Refresh"
+          icon={Icon.ArrowClockwise}
+          onAction={() => {
+            revalidate();
+            if (showUpgradeCount) {
+              void upgrades.refresh();
+            }
+          }}
+        />
       </MenuBarExtra.Section>
     </MenuBarExtra>
   );
@@ -141,17 +154,15 @@ function UpgradesSection(props: {
       {names.map((name, index) => (
         <MenuBarExtra.Item key={`${index}:${name}`} title={name} />
       ))}
-      {count > 0 && (
-        <MenuBarExtra.Item
-          title="Open Show Upgrades"
-          icon={Icon.AppWindowList}
-          onAction={() => launchCommand({ name: "outdated", type: LaunchType.UserInitiated })}
-        />
-      )}
+      {props.results && count === 0 && !props.error && <MenuBarExtra.Item title="Up to date" icon={UP_TO_DATE_ICON} />}
+      <MenuBarExtra.Item
+        title="Open Show Upgrades"
+        icon={Icon.AppWindowList}
+        onAction={() => launchCommand({ name: "outdated", type: LaunchType.UserInitiated })}
+      />
       {count > 0 && (
         <MenuBarExtra.Item title="Refresh upgrades" icon={Icon.ArrowClockwise} onAction={props.onRefresh} />
       )}
-      {props.results && count === 0 && !props.error && <MenuBarExtra.Item title="Up to date" icon={UP_TO_DATE_ICON} />}
       {props.error && <UpgradeFailureItem error={props.error} onRefresh={props.onRefresh} />}
       {!props.results && !props.error && props.isLoading && <MenuBarExtra.Item title="Checking upgrades…" />}
     </MenuBarExtra.Section>
