@@ -88,6 +88,56 @@ export function getPreferenceValues<T = Record<string, unknown>>(): T {
 
 export const environment = { assetsPath: "/tmp/assets", supportPath: "/tmp/support" };
 
+/**
+ * In-memory stand-in for Raycast's on-disk `Cache`. Instances that share a
+ * namespace share storage, matching the real class, so a test can seed or
+ * clear the snapshot the module under test already holds.
+ */
+const cacheStores = new Map<string, Map<string, string>>();
+
+export class Cache {
+  private readonly store: Map<string, string>;
+
+  constructor(options?: { namespace?: string; capacity?: number }) {
+    const namespace = options?.namespace ?? "";
+    const existing = cacheStores.get(namespace);
+    if (existing) {
+      this.store = existing;
+      return;
+    }
+    this.store = new Map();
+    cacheStores.set(namespace, this.store);
+  }
+
+  get(key: string): string | undefined {
+    return this.store.get(key);
+  }
+
+  has(key: string): boolean {
+    return this.store.has(key);
+  }
+
+  set(key: string, data: string): void {
+    this.store.set(key, data);
+  }
+
+  remove(key: string): boolean {
+    return this.store.delete(key);
+  }
+
+  clear(): void {
+    this.store.clear();
+  }
+
+  get isEmpty(): boolean {
+    return this.store.size === 0;
+  }
+
+  subscribe(): () => void {
+    return () => {};
+  }
+}
+
 export const Color = {
   Green: "green",
   Yellow: "yellow",

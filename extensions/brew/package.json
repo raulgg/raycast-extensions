@@ -145,12 +145,23 @@
     },
     {
       "name": "services-menu",
-      "title": "Services Menu Bar",
+      "title": "Brew Menu Bar",
       "subtitle": "Brew",
-      "description": "Control Homebrew services from the menu bar",
+      "description": "Control Homebrew services from the menu bar and see available upgrades",
       "mode": "menu-bar",
       "interval": "1m",
-      "keywords": ["homebrew"]
+      "keywords": ["services", "homebrew"],
+      "preferences": [
+        {
+          "name": "showUpgradeCount",
+          "title": "Menu Bar",
+          "label": "Show upgrade count",
+          "description": "Show how many packages can be upgraded next to the running services, and list them in the menu. Uses the Greedy Upgrades setting, and checks about every 6 hours.",
+          "type": "checkbox",
+          "required": false,
+          "default": true
+        }
+      ]
     },
     {
       "name": "clean-up",

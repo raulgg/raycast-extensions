@@ -13,7 +13,7 @@ Search and manage your brew casks and formulae from [Raycast](https://raycast.co
 - **Adopt Apps** — find apps already in your Applications folder that Homebrew has a cask for, and hand them to Homebrew with `brew install --adopt` so they upgrade with everything else. Matches are grouped by what vouches for them: **Ready to Adopt** (the cask's bundle identifier matches, or Homebrew will compare the app itself), **Likely Adoptable** (name and version agree, nothing else checks), and **Unlikely Adoptions**; an app Homebrew would refuse to adopt as it stands is listed under **Can't Adopt**. Anything not ready goes through **Preview Adoption** (⌘⇧I) first. Ignore a wrong match with ⌘⇧H; the filter above the list shows ignored apps and restores them
 - **Manage Taps** — add, trust and remove third-party taps, and browse the formulae and casks each one provides. On Homebrew 7, packages from a tap that is not trusted ask before Homebrew trusts them, and trusting a whole tap is one action on any of its rows. Pasting `user/repo/name` into Search installs from a tap you have not added yet
 - **Manage Services** — start, stop & restart Homebrew services
-- **Services Menu Bar** — control Homebrew services from the menu bar
+- **Brew Menu Bar** — control Homebrew services from the menu bar, and see how many packages can be upgraded
 - **Clean up** — clean files and packages from the cache that are older than 120 days
 - **Clear Cache** — clear the cached formulae, casks, and installed packages files
 
