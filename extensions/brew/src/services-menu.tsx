@@ -6,9 +6,9 @@
  * stay on the command's one-minute `interval`, with an optimistic `mutate`
  * after each action. Upgrades are not polled that often: the list is cached
  * for about 6 hours (`menu-bar-upgrades`), and "Refresh upgrades" fetches
- * immediately. Neither path runs `brew update`. The menu is Upgrades, then
- * Services, then a separated Refresh for the whole bar. Turning the upgrade
- * count off drops the Upgrades section.
+ * immediately. Neither path runs `brew update`. Services come first, then
+ * Upgrades, then Refresh, then the Open commands. Turning the upgrade count
+ * off drops the Upgrades section and Open Show Upgrades.
  *
  * Always render the extra. Returning null removes the services icon.
  */
@@ -80,15 +80,6 @@ export default function Command() {
       tooltip={menuBarTooltip(running.length, upgradeCount)}
       isLoading={isLoading || upgrades.isLoading}
     >
-      {showUpgradeCount && (
-        <UpgradesSection
-          results={upgrades.data}
-          error={upgrades.error}
-          isLoading={upgrades.isLoading}
-          onRefresh={() => upgrades.refresh()}
-        />
-      )}
-
       <MenuBarExtra.Section title={menuBarServicesSectionTitle(running.length)}>
         {services.map((service) => (
           <ServiceSubmenu key={service.name} service={service} mutate={mutate} />
@@ -120,12 +111,16 @@ export default function Command() {
           icon={ACTION_ICONS.restart}
           onAction={() => handleAction("restart", ALL_SERVICES, mutate)}
         />
-        <MenuBarExtra.Item
-          title="Open Manage Services"
-          icon={Icon.AppWindowList}
-          onAction={() => launchCommand({ name: "manage-services", type: LaunchType.UserInitiated })}
-        />
       </MenuBarExtra.Section>
+
+      {showUpgradeCount && (
+        <UpgradesSection
+          results={upgrades.data}
+          error={upgrades.error}
+          isLoading={upgrades.isLoading}
+          onRefresh={() => upgrades.refresh()}
+        />
+      )}
 
       <MenuBarExtra.Section>
         <MenuBarExtra.Item
@@ -138,6 +133,21 @@ export default function Command() {
             }
           }}
         />
+      </MenuBarExtra.Section>
+
+      <MenuBarExtra.Section>
+        <MenuBarExtra.Item
+          title="Open Manage Services"
+          icon={Icon.AppWindowList}
+          onAction={() => launchCommand({ name: "manage-services", type: LaunchType.UserInitiated })}
+        />
+        {showUpgradeCount && (
+          <MenuBarExtra.Item
+            title="Open Show Upgrades"
+            icon={Icon.AppWindowList}
+            onAction={() => launchCommand({ name: "outdated", type: LaunchType.UserInitiated })}
+          />
+        )}
       </MenuBarExtra.Section>
     </MenuBarExtra>
   );
@@ -158,11 +168,6 @@ function UpgradesSection(props: {
         <MenuBarExtra.Item key={`${index}:${name}`} title={name} />
       ))}
       {props.results && count === 0 && !props.error && <MenuBarExtra.Item title="Up to date" icon={UP_TO_DATE_ICON} />}
-      <MenuBarExtra.Item
-        title="Open Show Upgrades"
-        icon={Icon.AppWindowList}
-        onAction={() => launchCommand({ name: "outdated", type: LaunchType.UserInitiated })}
-      />
       {count > 0 && (
         <MenuBarExtra.Item title="Refresh upgrades" icon={Icon.ArrowClockwise} onAction={props.onRefresh} />
       )}
