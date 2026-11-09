@@ -102,6 +102,9 @@ export default function Command() {
           />
         )}
         {!isLoading && !error && services.length === 0 && <MenuBarExtra.Item title="No services found" />}
+      </MenuBarExtra.Section>
+
+      <MenuBarExtra.Section>
         <MenuBarExtra.Item
           title="Start All"
           icon={ACTION_ICONS.start}
