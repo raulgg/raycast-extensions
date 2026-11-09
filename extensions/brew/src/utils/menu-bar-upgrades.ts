@@ -87,12 +87,24 @@ export function menuBarTooltip(runningServices: number, upgradeCount: number | u
   return `${formatCount(runningServices, "service")} running \u00b7 ${formatCount(upgradeCount, "upgrade")}`;
 }
 
-/** Submenu row. At zero this is "Up to date" and the menu lists no packages. */
-export function menuBarUpgradesLabel(upgradeCount: number): string {
+/**
+ * Upgrades section title. The count is on the title when it is above zero
+ * (`Upgrades · 3`). At zero the title is just `Upgrades` and the section's
+ * only row is "Up to date".
+ */
+export function menuBarUpgradesSectionTitle(upgradeCount: number): string {
   if (upgradeCount <= 0) {
-    return "Up to date";
+    return "Upgrades";
   }
-  return formatCount(upgradeCount, "upgrade");
+  return `Upgrades \u00b7 ${upgradeCount}`;
+}
+
+/** Services section title. `Services · 2 running` when any are running. */
+export function menuBarServicesSectionTitle(runningServices: number): string {
+  if (runningServices <= 0) {
+    return "Services";
+  }
+  return `Services \u00b7 ${runningServices} running`;
 }
 
 export function menuBarUpgradeCount(results: OutdatedResults): number {

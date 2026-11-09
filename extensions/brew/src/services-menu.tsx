@@ -6,7 +6,8 @@
  * stay on the command's one-minute `interval`, with an optimistic `mutate`
  * after each action. Upgrades are not polled that often: the list is cached
  * for about 6 hours (`menu-bar-upgrades`), and "Refresh upgrades" fetches
- * immediately. Neither path runs `brew update`.
+ * immediately. Neither path runs `brew update`. The menu is two sections,
+ * Upgrades then Services. Turning the upgrade count off drops the first.
  *
  * Always render the extra. Returning null removes the services icon.
  */
@@ -29,13 +30,14 @@ import {
 import { useBrewServices } from "./hooks/useBrewServices";
 import { useMenuBarUpgrades } from "./hooks/useMenuBarUpgrades";
 import { serviceStatusIcon, type ServicesMutate } from "./components/serviceActions";
-import { ERROR_ICON, UPDATE_AVAILABLE_ICON, UP_TO_DATE_ICON, WARNING_ICON } from "./components/palette";
+import { ERROR_ICON, UP_TO_DATE_ICON, WARNING_ICON } from "./components/palette";
 import {
+  menuBarServicesSectionTitle,
   menuBarTitle,
   menuBarTooltip,
   menuBarUpgradeCount,
   menuBarUpgradeNames,
-  menuBarUpgradesLabel,
+  menuBarUpgradesSectionTitle,
 } from "./utils/menu-bar-upgrades";
 
 const MENU_ICON = { source: "services-menubar.svg", tintColor: Color.PrimaryText };
@@ -77,7 +79,28 @@ export default function Command() {
       tooltip={menuBarTooltip(running.length, upgradeCount)}
       isLoading={isLoading || upgrades.isLoading}
     >
-      <MenuBarExtra.Section title="All Services">
+      {showUpgradeCount && (
+        <UpgradesSection
+          results={upgrades.data}
+          error={upgrades.error}
+          isLoading={upgrades.isLoading}
+          onRefresh={() => upgrades.refresh()}
+        />
+      )}
+
+      <MenuBarExtra.Section title={menuBarServicesSectionTitle(running.length)}>
+        {services.map((service) => (
+          <ServiceSubmenu key={service.name} service={service} mutate={mutate} />
+        ))}
+        {error && (
+          <MenuBarExtra.Item
+            title={isBrewLockError(error) ? "Brew is Busy" : "Failed to fetch services"}
+            tooltip={getErrorMessage(error)}
+            icon={isBrewLockError(error) ? WARNING_ICON : ERROR_ICON}
+            onAction={() => revalidate()}
+          />
+        )}
+        {!isLoading && !error && services.length === 0 && <MenuBarExtra.Item title="No services found" />}
         <MenuBarExtra.Item
           title="Start All"
           icon={ACTION_ICONS.start}
@@ -93,33 +116,6 @@ export default function Command() {
           icon={ACTION_ICONS.restart}
           onAction={() => handleAction("restart", ALL_SERVICES, mutate)}
         />
-      </MenuBarExtra.Section>
-
-      <MenuBarExtra.Section title="Services">
-        {services.map((service) => (
-          <ServiceSubmenu key={service.name} service={service} mutate={mutate} />
-        ))}
-        {error && (
-          <MenuBarExtra.Item
-            title={isBrewLockError(error) ? "Brew is Busy" : "Failed to fetch services"}
-            tooltip={getErrorMessage(error)}
-            icon={isBrewLockError(error) ? WARNING_ICON : ERROR_ICON}
-            onAction={() => revalidate()}
-          />
-        )}
-        {!isLoading && !error && services.length === 0 && <MenuBarExtra.Item title="No services found" />}
-      </MenuBarExtra.Section>
-
-      <MenuBarExtra.Section>
-        {showUpgradeCount && upgrades.data && (
-          <UpgradesSubmenu results={upgrades.data} onRefresh={() => upgrades.refresh()} />
-        )}
-        {showUpgradeCount && upgrades.error && (
-          <UpgradeFailureItem error={upgrades.error} onRefresh={() => upgrades.refresh()} />
-        )}
-        {showUpgradeCount && !upgrades.data && !upgrades.error && upgrades.isLoading && (
-          <MenuBarExtra.Item title="Checking upgrades…" />
-        )}
         <MenuBarExtra.Item
           title="Open Manage Services"
           icon={Icon.AppWindowList}
@@ -131,25 +127,34 @@ export default function Command() {
   );
 }
 
-function UpgradesSubmenu(props: { results: OutdatedResults; onRefresh: () => void }) {
-  const count = menuBarUpgradeCount(props.results);
-  const names = count > 0 ? menuBarUpgradeNames(props.results) : [];
+function UpgradesSection(props: {
+  results: OutdatedResults | undefined;
+  error: Error | undefined;
+  isLoading: boolean;
+  onRefresh: () => void;
+}) {
+  const count = props.results ? menuBarUpgradeCount(props.results) : 0;
+  const names = props.results && count > 0 ? menuBarUpgradeNames(props.results) : [];
 
   return (
-    <MenuBarExtra.Submenu
-      title={menuBarUpgradesLabel(count)}
-      icon={count > 0 ? UPDATE_AVAILABLE_ICON : UP_TO_DATE_ICON}
-    >
+    <MenuBarExtra.Section title={props.results ? menuBarUpgradesSectionTitle(count) : "Upgrades"}>
       {names.map((name, index) => (
         <MenuBarExtra.Item key={`${index}:${name}`} title={name} />
       ))}
-      <MenuBarExtra.Item
-        title="Open Show Upgrades"
-        icon={Icon.AppWindowList}
-        onAction={() => launchCommand({ name: "outdated", type: LaunchType.UserInitiated })}
-      />
-      <MenuBarExtra.Item title="Refresh upgrades" icon={Icon.ArrowClockwise} onAction={props.onRefresh} />
-    </MenuBarExtra.Submenu>
+      {count > 0 && (
+        <MenuBarExtra.Item
+          title="Open Show Upgrades"
+          icon={Icon.AppWindowList}
+          onAction={() => launchCommand({ name: "outdated", type: LaunchType.UserInitiated })}
+        />
+      )}
+      {count > 0 && (
+        <MenuBarExtra.Item title="Refresh upgrades" icon={Icon.ArrowClockwise} onAction={props.onRefresh} />
+      )}
+      {props.results && count === 0 && !props.error && <MenuBarExtra.Item title="Up to date" icon={UP_TO_DATE_ICON} />}
+      {props.error && <UpgradeFailureItem error={props.error} onRefresh={props.onRefresh} />}
+      {!props.results && !props.error && props.isLoading && <MenuBarExtra.Item title="Checking upgrades…" />}
+    </MenuBarExtra.Section>
   );
 }
 

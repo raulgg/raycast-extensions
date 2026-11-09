@@ -18,8 +18,9 @@ const {
   menuBarTitle,
   menuBarTooltip,
   menuBarUpgradeCount,
+  menuBarServicesSectionTitle,
   menuBarUpgradeNames,
-  menuBarUpgradesLabel,
+  menuBarUpgradesSectionTitle,
 } = await import("./menu-bar-upgrades");
 
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
@@ -69,10 +70,16 @@ describe("menu bar title", () => {
     expect(menuBarTooltip(0, 3)).toBe("0 services running \u00b7 3 upgrades");
   });
 
-  it("reads Up to date at zero and names the count otherwise", () => {
-    expect(menuBarUpgradesLabel(0)).toBe("Up to date");
-    expect(menuBarUpgradesLabel(1)).toBe("1 upgrade");
-    expect(menuBarUpgradesLabel(3)).toBe("3 upgrades");
+  it("puts the upgrade count on the section title and leaves it plain at zero", () => {
+    expect(menuBarUpgradesSectionTitle(0)).toBe("Upgrades");
+    expect(menuBarUpgradesSectionTitle(1)).toBe("Upgrades \u00b7 1");
+    expect(menuBarUpgradesSectionTitle(3)).toBe("Upgrades \u00b7 3");
+  });
+
+  it("puts the running count on the services section title", () => {
+    expect(menuBarServicesSectionTitle(0)).toBe("Services");
+    expect(menuBarServicesSectionTitle(1)).toBe("Services \u00b7 1 running");
+    expect(menuBarServicesSectionTitle(2)).toBe("Services \u00b7 2 running");
   });
 });
 
@@ -161,7 +168,7 @@ describe("menu bar upgrade fetch", () => {
     expect(execBrew).toHaveBeenCalledTimes(1);
     if (refreshed.status === "fetched") {
       expect(menuBarUpgradeCount(refreshed.results)).toBe(0);
-      expect(menuBarUpgradesLabel(menuBarUpgradeCount(refreshed.results))).toBe("Up to date");
+      expect(menuBarUpgradesSectionTitle(menuBarUpgradeCount(refreshed.results))).toBe("Upgrades");
     }
   });
 
@@ -191,8 +198,8 @@ describe("menu bar upgrade fetch", () => {
         "openssl@3",
         "visual-studio-code",
       ]);
-      expect(menuBarUpgradesLabel(menuBarUpgradeCount(failed.results ?? { formulae: [], casks: [] }))).not.toBe(
-        "Up to date",
+      expect(menuBarUpgradesSectionTitle(menuBarUpgradeCount(failed.results ?? { formulae: [], casks: [] }))).toBe(
+        "Upgrades \u00b7 3",
       );
     }
     execBrew.mockClear();
