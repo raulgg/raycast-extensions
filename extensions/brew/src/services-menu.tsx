@@ -10,9 +10,10 @@
  * first screen. Start, Stop, Restart, and Manage Services live in All
  * Services. Pending packages share one Upgrades section: Formulae and Casks
  * are headings, each name upgrades that package, and All Upgrades holds
- * Upgrade All and Show Upgrades. At zero the section is Upgrades and the only
- * row is Up to date. Refresh stays alone in the footer when upgrades are
- * pending. Turning the upgrade count off drops the Upgrades section.
+ * Upgrade All and Preview Upgrades, then Show Upgrades below the line. At
+ * zero the section is Upgrades and the only row is Up to date. Refresh stays
+ * alone in the footer when upgrades are pending. Turning the upgrade count
+ * off drops the Upgrades section.
  *
  * Always render the extra. Returning null removes the services icon.
  */
@@ -188,6 +189,17 @@ function UpgradesSection(props: {
             title="Upgrade All"
             icon={Icon.ArrowUpCircle}
             onAction={() => void upgradeEverything(props.onReload)}
+          />
+          <MenuBarExtra.Item
+            title="Preview Upgrades"
+            icon={Icon.Eye}
+            onAction={() =>
+              launchCommand({
+                name: "outdated",
+                type: LaunchType.UserInitiated,
+                context: { previewUpgrades: props.results },
+              })
+            }
           />
           <MenuBarExtra.Section>
             <MenuBarExtra.Item

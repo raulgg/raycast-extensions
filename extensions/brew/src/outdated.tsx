@@ -555,8 +555,37 @@ function PreviewHandoff(props: { target: OutdatedFormula | OutdatedCask; onShowL
 }
 
 export default function Main(
-  props: LaunchProps<{ launchContext?: { previewUpgrade?: OutdatedFormula | OutdatedCask } }>,
+  props: LaunchProps<{
+    launchContext?: {
+      previewUpgrade?: OutdatedFormula | OutdatedCask;
+      /** Menu-bar Preview Upgrades. The same `UpgradePreview` Show Upgrades pushes, with no single package. */
+      previewUpgrades?: OutdatedResults;
+    };
+  }>,
 ) {
   const target = props.launchContext?.previewUpgrade;
-  return <ErrorBoundary>{target ? <MenuBarUpgradePreview target={target} /> : <ShowUpgradesContent />}</ErrorBoundary>;
+  const upgrades = props.launchContext?.previewUpgrades;
+  if (target) {
+    return (
+      <ErrorBoundary>
+        <MenuBarUpgradePreview target={target} />
+      </ErrorBoundary>
+    );
+  }
+  // All-packages preview. No trust gate: an unnamed `brew upgrade --dry-run`
+  // skips untrusted taps instead of trusting them, which is why Show Upgrades
+  // pushes this view directly. It is the root here so Show Upgrades does not
+  // mount and start its own `brew update` under the dry run.
+  if (upgrades) {
+    return (
+      <ErrorBoundary>
+        <UpgradePreview outdated={upgrades} onAction={() => markOutdatedSnapshotDirty()} />
+      </ErrorBoundary>
+    );
+  }
+  return (
+    <ErrorBoundary>
+      <ShowUpgradesContent />
+    </ErrorBoundary>
+  );
 }
