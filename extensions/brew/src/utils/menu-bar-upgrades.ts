@@ -67,14 +67,14 @@ const inflight = new Map<string, Promise<MenuBarUpgradesLoad>>();
 
 /**
  * The running-service count stays a plain number. The upgrade count is the one
- * with the arrow, and only when it is above zero: `2  ↑3`. At zero upgrades
+ * with the arrow, and only when it is above zero: `2 ↑3`. At zero upgrades
  * the title is just the service count, and at zero services it stays empty —
  * unless upgrades are waiting, in which case the service count is shown as 0
  * so the arrow is never the only number.
  */
 export function menuBarTitle(runningServices: number, upgradeCount: number | undefined): string | undefined {
   if (upgradeCount !== undefined && upgradeCount > 0) {
-    return `${runningServices}  \u2191${upgradeCount}`;
+    return `${runningServices} \u2191${upgradeCount}`;
   }
   return runningServices > 0 ? `${runningServices}` : undefined;
 }
@@ -89,14 +89,14 @@ export function menuBarTooltip(runningServices: number, upgradeCount: number | u
 
 /**
  * Upgrades section title. The count is on the title when it is above zero
- * (`Upgrades · 3`). At zero the title is just `Upgrades` and the section's
+ * (`Upgrades · 3 outdated`). At zero the title is just `Upgrades` and the section's
  * only row is "Up to date".
  */
 export function menuBarUpgradesSectionTitle(upgradeCount: number): string {
   if (upgradeCount <= 0) {
     return "Upgrades";
   }
-  return `Upgrades \u00b7 ${upgradeCount}`;
+  return `Upgrades \u00b7 ${upgradeCount} outdated`;
 }
 
 /** Services section title. `Services · 2 running` when any are running. */

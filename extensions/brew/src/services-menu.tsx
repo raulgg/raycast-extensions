@@ -8,9 +8,11 @@
  * for about 6 hours (`menu-bar-upgrades`), and "Refresh upgrades" fetches
  * immediately. Neither path runs `brew update`. Service names stay on the
  * first screen. Start, Stop, Restart, and Manage Services live in All
- * Services. Pending formulae and casks are listed on the menu, with Upgrade
- * All and Show Upgrades under All Upgrades. Refresh stays in the footer.
- * Turning the upgrade count off drops those rows and Open Show Upgrades.
+ * Services. Pending packages share one Upgrades section: Formulae and Casks
+ * are headings, each name upgrades that package, and All Upgrades holds
+ * Upgrade All and Show Upgrades. At zero the section is Upgrades and the only
+ * row is Up to date. Refresh stays alone in the footer when upgrades are
+ * pending. Turning the upgrade count off drops the Upgrades section.
  *
  * Always render the extra. Returning null removes the services icon.
  */
@@ -29,6 +31,7 @@ import {
   SERVICE_ACTION_COPY,
   type OutdatedCask,
   type OutdatedFormula,
+  type OutdatedResults,
   type Service,
   type ServiceAction,
 } from "./utils";
@@ -42,6 +45,7 @@ import {
   menuBarTitle,
   menuBarTooltip,
   menuBarUpgradeCount,
+  menuBarUpgradesSectionTitle,
 } from "./utils/menu-bar-upgrades";
 
 const MENU_ICON = { source: "services-menubar.svg", tintColor: Color.PrimaryText };
@@ -124,52 +128,13 @@ export default function Command() {
         </MenuBarExtra.Section>
       </MenuBarExtra.Submenu>
 
-      {showUpgradeCount && upgrades.data && upgrades.data.formulae.length > 0 && (
-        <MenuBarExtra.Section title="Formulae">
-          {upgrades.data.formulae.map((formula) => (
-            <MenuBarExtra.Item
-              key={`formula:${formula.name}`}
-              title={formula.name}
-              onAction={() => void upgradePackage(formula, upgrades.refresh)}
-            />
-          ))}
-        </MenuBarExtra.Section>
-      )}
-      {showUpgradeCount && upgrades.data && upgrades.data.casks.length > 0 && (
-        <MenuBarExtra.Section title="Casks">
-          {upgrades.data.casks.map((cask) => (
-            <MenuBarExtra.Item
-              key={`cask:${cask.name}`}
-              title={cask.name}
-              onAction={() => void upgradePackage(cask, upgrades.refresh)}
-            />
-          ))}
-        </MenuBarExtra.Section>
-      )}
-      {upgradesPending && (
-        <MenuBarExtra.Submenu title="All Upgrades">
-          <MenuBarExtra.Item
-            title="Upgrade All"
-            icon={Icon.ArrowUpCircle}
-            onAction={() => void upgradeEverything(upgrades.refresh)}
-          />
-          <MenuBarExtra.Section>
-            <MenuBarExtra.Item
-              title="Show Upgrades"
-              icon={Icon.AppWindowList}
-              onAction={() => launchCommand({ name: "outdated", type: LaunchType.UserInitiated })}
-            />
-          </MenuBarExtra.Section>
-        </MenuBarExtra.Submenu>
-      )}
-      {showUpgradeCount && upgrades.data && !upgrades.error && upgradeCount === 0 && (
-        <MenuBarExtra.Item title="Up to date" icon={UP_TO_DATE_ICON} />
-      )}
-      {showUpgradeCount && upgrades.error && !upgradesPending && (
-        <UpgradeFailureItem error={upgrades.error} onRefresh={() => upgrades.refresh()} />
-      )}
-      {showUpgradeCount && !upgrades.data && !upgrades.error && upgrades.isLoading && (
-        <MenuBarExtra.Item title="Checking upgrades…" />
+      {showUpgradeCount && (
+        <UpgradesSection
+          results={upgrades.data}
+          error={upgrades.error}
+          isLoading={upgrades.isLoading}
+          onReload={() => upgrades.refresh()}
+        />
       )}
 
       <MenuBarExtra.Section>
@@ -192,6 +157,65 @@ export default function Command() {
         />
       </MenuBarExtra.Section>
     </MenuBarExtra>
+  );
+}
+
+function UpgradesSection(props: {
+  results: OutdatedResults | undefined;
+  error: Error | undefined;
+  isLoading: boolean;
+  onReload: () => void;
+}) {
+  const count = props.results ? menuBarUpgradeCount(props.results) : 0;
+  if (props.results && count > 0) {
+    const { formulae, casks } = props.results;
+    return (
+      <MenuBarExtra.Section title={menuBarUpgradesSectionTitle(count)}>
+        {formulae.length > 0 && <MenuBarExtra.Item title="Formulae" />}
+        {formulae.map((formula) => (
+          <MenuBarExtra.Item
+            key={`formula:${formula.name}`}
+            title={formula.name}
+            onAction={() => void upgradePackage(formula, props.onReload)}
+          />
+        ))}
+        {casks.length > 0 && <MenuBarExtra.Item title="Casks" />}
+        {casks.map((cask) => (
+          <MenuBarExtra.Item
+            key={`cask:${cask.name}`}
+            title={cask.name}
+            onAction={() => void upgradePackage(cask, props.onReload)}
+          />
+        ))}
+        <MenuBarExtra.Submenu title="All Upgrades">
+          <MenuBarExtra.Item
+            title="Upgrade All"
+            icon={Icon.ArrowUpCircle}
+            onAction={() => void upgradeEverything(props.onReload)}
+          />
+          <MenuBarExtra.Section>
+            <MenuBarExtra.Item
+              title="Show Upgrades"
+              icon={Icon.AppWindowList}
+              onAction={() => launchCommand({ name: "outdated", type: LaunchType.UserInitiated })}
+            />
+          </MenuBarExtra.Section>
+        </MenuBarExtra.Submenu>
+      </MenuBarExtra.Section>
+    );
+  }
+  const upToDate = Boolean(props.results && !props.error);
+  const failed = Boolean(props.error);
+  const checking = !props.results && !props.error && props.isLoading;
+  if (!upToDate && !failed && !checking) {
+    return null;
+  }
+  return (
+    <MenuBarExtra.Section title="Upgrades">
+      {upToDate && <MenuBarExtra.Item title="Up to date" icon={UP_TO_DATE_ICON} />}
+      {failed && props.error && <UpgradeFailureItem error={props.error} onRefresh={props.onReload} />}
+      {checking && <MenuBarExtra.Item title="Checking upgrades…" />}
+    </MenuBarExtra.Section>
   );
 }
 

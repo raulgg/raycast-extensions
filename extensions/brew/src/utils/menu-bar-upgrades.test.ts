@@ -63,8 +63,8 @@ describe("menu bar title", () => {
   });
 
   it("appends the upgrade count with an arrow", () => {
-    expect(menuBarTitle(2, 3)).toBe("2  \u21913");
-    expect(menuBarTitle(0, 3)).toBe("0  \u21913");
+    expect(menuBarTitle(2, 3)).toBe("2 \u21913");
+    expect(menuBarTitle(0, 3)).toBe("0 \u21913");
     expect(menuBarTooltip(2, 3)).toBe("2 services running \u00b7 3 upgrades");
     expect(menuBarTooltip(1, 1)).toBe("1 service running \u00b7 1 upgrade");
     expect(menuBarTooltip(0, 3)).toBe("0 services running \u00b7 3 upgrades");
@@ -72,8 +72,8 @@ describe("menu bar title", () => {
 
   it("puts the upgrade count on the section title and leaves it plain at zero", () => {
     expect(menuBarUpgradesSectionTitle(0)).toBe("Upgrades");
-    expect(menuBarUpgradesSectionTitle(1)).toBe("Upgrades \u00b7 1");
-    expect(menuBarUpgradesSectionTitle(3)).toBe("Upgrades \u00b7 3");
+    expect(menuBarUpgradesSectionTitle(1)).toBe("Upgrades \u00b7 1 outdated");
+    expect(menuBarUpgradesSectionTitle(3)).toBe("Upgrades \u00b7 3 outdated");
   });
 
   it("puts the running count on the services section title", () => {
@@ -199,7 +199,7 @@ describe("menu bar upgrade fetch", () => {
         "visual-studio-code",
       ]);
       expect(menuBarUpgradesSectionTitle(menuBarUpgradeCount(failed.results ?? { formulae: [], casks: [] }))).toBe(
-        "Upgrades \u00b7 3",
+        "Upgrades \u00b7 3 outdated",
       );
     }
     execBrew.mockClear();
