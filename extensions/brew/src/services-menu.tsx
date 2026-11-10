@@ -148,11 +148,15 @@ export default function Command() {
         <MenuBarExtra.Item
           title="Refresh"
           icon={Icon.ArrowClockwise}
-          onAction={() => {
-            revalidate();
+          onAction={async () => {
+            // Return the promise. A click closes the menu and unloads the
+            // command; without the await the outdated fetch dies and the
+            // six-hour snapshot stays on screen. Services run after, so the
+            // two brew processes do not take Homebrew's lock from each other.
             if (showUpgradeCount) {
-              void upgrades.refresh();
+              await upgrades.refresh();
             }
+            await revalidate();
           }}
         />
       </MenuBarExtra.Section>

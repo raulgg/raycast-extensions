@@ -156,6 +156,31 @@ describe("menu bar upgrade fetch", () => {
     expect(execBrew).toHaveBeenCalledWith("outdated --json=v2", NO_UPDATE);
   });
 
+  it("replaces a fresh empty list when Refresh asks and brew now reports a package", async () => {
+    execBrew.mockResolvedValue(emptyResult());
+    await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
+    execBrew.mockClear();
+    execBrew.mockResolvedValue({
+      stdout: JSON.stringify({
+        formulae: [{ name: "wget", pinned: false, current_version: "1.25.0", installed_versions: ["1.24.5"] }],
+        casks: [],
+      }),
+      stderr: "",
+    });
+
+    const refreshed = await loadMenuBarUpgrades({ enabled: true, greedy: false, force: true, now: 2_000 });
+    execBrew.mockClear();
+    const shown = await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 3_000 });
+
+    expect(refreshed.status).toBe("fetched");
+    expect(shown.status).toBe("cached");
+    if (shown.status === "cached") {
+      expect(menuBarUpgradeNames(shown.results)).toEqual(["wget"]);
+      expect(menuBarTitle(2, menuBarUpgradeCount(shown.results))).toBe("2 \u21911");
+    }
+    expect(execBrew).not.toHaveBeenCalled();
+  });
+
   it("fetches immediately when Refresh upgrades asks, even if the list is fresh", async () => {
     execBrew.mockResolvedValue(outdatedResult());
     await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
