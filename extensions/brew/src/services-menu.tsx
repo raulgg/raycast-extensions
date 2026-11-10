@@ -39,7 +39,7 @@ import { useBrewServices } from "./hooks/useBrewServices";
 import { useMenuBarUpgrades } from "./hooks/useMenuBarUpgrades";
 import { upgradeAllPackages, upgradeOnePackage } from "./components/actions";
 import { serviceStatusIcon, type ServicesMutate } from "./components/serviceActions";
-import { ERROR_ICON, UP_TO_DATE_ICON, WARNING_ICON } from "./components/palette";
+import { ERROR_ICON, UPDATE_AVAILABLE_ICON, UP_TO_DATE_ICON, WARNING_ICON } from "./components/palette";
 import {
   menuBarServicesSectionTitle,
   menuBarTitle,
@@ -177,19 +177,11 @@ function UpgradesSection(props: {
       <MenuBarExtra.Section title={menuBarUpgradesSectionTitle(count)}>
         {formulae.length > 0 && <MenuBarExtra.Item title="Formulae" />}
         {formulae.map((formula) => (
-          <MenuBarExtra.Item
-            key={`formula:${formula.name}`}
-            title={formula.name}
-            onAction={() => void upgradePackage(formula, props.onReload)}
-          />
+          <PackageUpgradeSubmenu key={`formula:${formula.name}`} item={formula} onReload={props.onReload} />
         ))}
         {casks.length > 0 && <MenuBarExtra.Item title="Casks" />}
         {casks.map((cask) => (
-          <MenuBarExtra.Item
-            key={`cask:${cask.name}`}
-            title={cask.name}
-            onAction={() => void upgradePackage(cask, props.onReload)}
-          />
+          <PackageUpgradeSubmenu key={`cask:${cask.name}`} item={cask} onReload={props.onReload} />
         ))}
         <MenuBarExtra.Submenu title="All Upgrades">
           <MenuBarExtra.Item
@@ -221,6 +213,40 @@ function UpgradesSection(props: {
       {checking && <MenuBarExtra.Item title="Checking upgrades…" />}
     </MenuBarExtra.Section>
   );
+}
+
+function PackageUpgradeSubmenu(props: { item: OutdatedFormula | OutdatedCask; onReload: () => void }) {
+  const pinned = props.item.pinned ? "Pinned" : undefined;
+  return (
+    <MenuBarExtra.Submenu title={props.item.name} icon={UPDATE_AVAILABLE_ICON}>
+      <MenuBarExtra.Item
+        title={upgradeVersionTitle(props.item)}
+        icon={UPDATE_AVAILABLE_ICON}
+        tooltip={pinned}
+        onAction={() => upgradePackage(props.item, props.onReload)}
+      />
+      <MenuBarExtra.Item
+        title="Preview Upgrade"
+        icon={Icon.Eye}
+        onAction={() =>
+          launchCommand({
+            name: "outdated",
+            type: LaunchType.UserInitiated,
+            context: { previewUpgrade: props.item },
+          })
+        }
+      />
+    </MenuBarExtra.Submenu>
+  );
+}
+
+function upgradeVersionTitle(item: OutdatedFormula | OutdatedCask): string {
+  const from = item.installed_versions[0];
+  const to = item.current_version;
+  if (from && to) {
+    return `Upgrade ${from} → ${to}`;
+  }
+  return "Upgrade";
 }
 
 async function upgradePackage(item: OutdatedFormula | OutdatedCask, onReload: () => void) {

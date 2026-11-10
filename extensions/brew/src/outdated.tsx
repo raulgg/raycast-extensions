@@ -12,7 +12,18 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Action, ActionPanel, Icon, Keyboard, launchCommand, LaunchType, showToast, Toast } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Icon,
+  Keyboard,
+  launchCommand,
+  LaunchProps,
+  LaunchType,
+  showToast,
+  Toast,
+  useNavigation,
+} from "@raycast/api";
 import {
   ensureError,
   showBrewFailureToast,
@@ -45,6 +56,7 @@ import { OutdatedActionSections, OutdatedUpgradeAction, UpgradingActionPanel } f
 import { pin, unpin } from "./components/actions";
 import { OutdatedList, statusIcon } from "./components/outdatedList";
 import { UpgradePreview } from "./components/installPreview";
+import { ensureTrusted } from "./components/trust";
 import { STATUS_COLOR } from "./components/palette";
 
 // Blue, not green: green CheckCircle is the engine's "upgraded" outcome icon,
@@ -61,9 +73,21 @@ const EXCLUDED_ICON = { source: Icon.CircleDisabled, tintColor: STATUS_COLOR.mut
 // A pinned row is excluded too — the pin accessory is what says why.
 const PINNED_ICON = EXCLUDED_ICON;
 
-function ShowUpgradesContent() {
+function ShowUpgradesContent(props: { previewTarget?: OutdatedFormula | OutdatedCask }) {
   const [filter, setFilter] = useState(InstallableFilterType.all);
+  const { push } = useNavigation();
   const { isLoading, isRefreshing, data, error, revalidate, cancelRefresh } = useBrewOutdated();
+  const previewOpened = useRef(false);
+  useEffect(() => {
+    const target = props.previewTarget;
+    if (!target || previewOpened.current) return;
+    previewOpened.current = true;
+    // Same gate as Preview Upgrade in the list: the dry run trusts a named
+    // package by itself, so the question has to land before the view mounts.
+    void ensureTrusted(target).then((trusted) => {
+      if (trusted) push(<UpgradePreview target={target} onAction={() => revalidate()} />);
+    });
+  }, [props.previewTarget, push, revalidate]);
   const upgrade = useBrewUpgrade();
 
   // The user's last full selection map; the review selection shown is this
@@ -489,10 +513,12 @@ function ReviewActionPanel(props: {
   );
 }
 
-export default function Main() {
+export default function Main(
+  props: LaunchProps<{ launchContext?: { previewUpgrade?: OutdatedFormula | OutdatedCask } }>,
+) {
   return (
     <ErrorBoundary>
-      <ShowUpgradesContent />
+      <ShowUpgradesContent previewTarget={props.launchContext?.previewUpgrade} />
     </ErrorBoundary>
   );
 }
