@@ -740,6 +740,11 @@ export async function upgradeOnePackage(item: Cask | Nameable): Promise<boolean>
   return result.outcome === "skipped" && result.refresh === true;
 }
 
+/** Upgrade All from the menu bar. Same path as the Upgrade All action, including Greedy Upgrades. */
+export function upgradeAllPackages(): Promise<boolean> {
+  return upgradeAll();
+}
+
 async function upgradeAll(): Promise<boolean> {
   const handle = showActionToast({
     title: "Upgrading all packages",
