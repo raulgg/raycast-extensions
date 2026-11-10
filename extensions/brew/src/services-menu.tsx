@@ -221,7 +221,7 @@ function PackageUpgradeSubmenu(props: { item: OutdatedFormula | OutdatedCask; on
     <MenuBarExtra.Submenu title={props.item.name} icon={UPDATE_AVAILABLE_ICON}>
       <MenuBarExtra.Item
         title={upgradeVersionTitle(props.item)}
-        icon={UPDATE_AVAILABLE_ICON}
+        icon={Icon.ArrowUpCircle}
         tooltip={pinned}
         onAction={() => upgradePackage(props.item, props.onReload)}
       />
