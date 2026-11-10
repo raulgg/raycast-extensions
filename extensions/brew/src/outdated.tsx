@@ -20,12 +20,15 @@ import {
   launchCommand,
   LaunchProps,
   LaunchType,
+  List,
   showToast,
   Toast,
   useNavigation,
 } from "@raycast/api";
 import {
+  brewName,
   ensureError,
+  markOutdatedSnapshotDirty,
   showBrewFailureToast,
   upgradeKey,
   type OutdatedCask,
@@ -73,21 +76,9 @@ const EXCLUDED_ICON = { source: Icon.CircleDisabled, tintColor: STATUS_COLOR.mut
 // A pinned row is excluded too — the pin accessory is what says why.
 const PINNED_ICON = EXCLUDED_ICON;
 
-function ShowUpgradesContent(props: { previewTarget?: OutdatedFormula | OutdatedCask }) {
+function ShowUpgradesContent() {
   const [filter, setFilter] = useState(InstallableFilterType.all);
-  const { push } = useNavigation();
   const { isLoading, isRefreshing, data, error, revalidate, cancelRefresh } = useBrewOutdated();
-  const previewOpened = useRef(false);
-  useEffect(() => {
-    const target = props.previewTarget;
-    if (!target || previewOpened.current) return;
-    previewOpened.current = true;
-    // Same gate as Preview Upgrade in the list: the dry run trusts a named
-    // package by itself, so the question has to land before the view mounts.
-    void ensureTrusted(target).then((trusted) => {
-      if (trusted) push(<UpgradePreview target={target} onAction={() => revalidate()} />);
-    });
-  }, [props.previewTarget, push, revalidate]);
   const upgrade = useBrewUpgrade();
 
   // The user's last full selection map; the review selection shown is this
@@ -513,12 +504,59 @@ function ReviewActionPanel(props: {
   );
 }
 
+/**
+ * Menu-bar Preview Upgrade launches this command with a package already chosen.
+ *
+ * Show Upgrades must not mount for that launch. Its hook fetches outdated
+ * packages and then runs `brew update`, and that update holds Homebrew's lock
+ * in front of the trust check and the preview's own dry run — the list paints,
+ * and the preview waits until the update finishes. This root stays a loading
+ * frame, with no outdated fetch, until the package is trusted and the preview
+ * is pushed. The list mounts if trust is declined, or when that preview is
+ * popped. It stays unmounted while the preview is opening.
+ */
+function MenuBarUpgradePreview(props: { target: OutdatedFormula | OutdatedCask }) {
+  const [showList, setShowList] = useState(false);
+  if (showList) return <ShowUpgradesContent />;
+  return <PreviewHandoff target={props.target} onShowList={() => setShowList(true)} />;
+}
+
+function PreviewHandoff(props: { target: OutdatedFormula | OutdatedCask; onShowList: () => void }) {
+  const { push } = useNavigation();
+  const opened = useRef(false);
+  const onShowList = useRef(props.onShowList);
+  onShowList.current = props.onShowList;
+
+  useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
+    const target = props.target;
+    // Same gate as Preview Upgrade in the list: the dry run trusts a named
+    // package by itself, so the question has to land before the view mounts.
+    void ensureTrusted(target).then((trusted) => {
+      if (!trusted) {
+        onShowList.current();
+        return;
+      }
+      push(
+        <UpgradePreview
+          target={target}
+          // The list is not mounted, so there is nothing to revalidate. Mark
+          // the snapshot dirty and the list withholds it until its own fetch
+          // when this preview is popped.
+          onAction={() => markOutdatedSnapshotDirty()}
+        />,
+        () => onShowList.current(),
+      );
+    });
+  }, [props.target, push]);
+
+  return <List isLoading navigationTitle={`Preview Upgrade: ${brewName(props.target)}`} />;
+}
+
 export default function Main(
   props: LaunchProps<{ launchContext?: { previewUpgrade?: OutdatedFormula | OutdatedCask } }>,
 ) {
-  return (
-    <ErrorBoundary>
-      <ShowUpgradesContent previewTarget={props.launchContext?.previewUpgrade} />
-    </ErrorBoundary>
-  );
+  const target = props.launchContext?.previewUpgrade;
+  return <ErrorBoundary>{target ? <MenuBarUpgradePreview target={target} /> : <ShowUpgradesContent />}</ErrorBoundary>;
 }
