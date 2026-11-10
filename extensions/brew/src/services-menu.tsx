@@ -6,10 +6,10 @@
  * stay on the command's one-minute `interval`, with an optimistic `mutate`
  * after each action. Upgrades are not polled that often: the list is cached
  * for about 6 hours (`menu-bar-upgrades`), and "Refresh upgrades" fetches
- * immediately. Neither path runs `brew update`. Services come first, then
- * Upgrades. Open Manage Services, Open Show Upgrades, and Refresh share the
- * last group, with Refresh last. Turning the upgrade count off drops the
- * Upgrades section and Open Show Upgrades.
+ * immediately. Neither path runs `brew update`. Service names stay on the
+ * first screen. Start, Stop, Restart, and Manage Services live in All
+ * Services. Refresh stays in the footer. Turning the upgrade count off drops
+ * the Upgrades section and Open Show Upgrades.
  *
  * Always render the extra. Returning null removes the services icon.
  */
@@ -101,7 +101,7 @@ export default function Command() {
         {!isLoading && !error && services.length === 0 && <MenuBarExtra.Item title="No services found" />}
       </MenuBarExtra.Section>
 
-      <MenuBarExtra.Section>
+      <MenuBarExtra.Submenu title="All Services">
         <MenuBarExtra.Item
           title="Start All Services"
           icon={ACTION_ICONS.start}
@@ -117,7 +117,14 @@ export default function Command() {
           icon={ACTION_ICONS.restart}
           onAction={() => handleAction("restart", ALL_SERVICES, mutate)}
         />
-      </MenuBarExtra.Section>
+        <MenuBarExtra.Section>
+          <MenuBarExtra.Item
+            title="Open Manage Services"
+            icon={Icon.AppWindowList}
+            onAction={() => launchCommand({ name: "manage-services", type: LaunchType.UserInitiated })}
+          />
+        </MenuBarExtra.Section>
+      </MenuBarExtra.Submenu>
 
       {showUpgradeCount && (
         <UpgradesSection
@@ -129,11 +136,6 @@ export default function Command() {
       )}
 
       <MenuBarExtra.Section>
-        <MenuBarExtra.Item
-          title="Open Manage Services"
-          icon={Icon.AppWindowList}
-          onAction={() => launchCommand({ name: "manage-services", type: LaunchType.UserInitiated })}
-        />
         {showUpgradeCount && !upgradesPending && (
           <MenuBarExtra.Item
             title="Open Show Upgrades"
