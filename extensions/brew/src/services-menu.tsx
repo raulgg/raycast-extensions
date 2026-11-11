@@ -150,7 +150,7 @@ export default function Command() {
         )}
         <MenuBarExtra.Item
           title="Refresh"
-          icon={Icon.ArrowClockwise}
+          icon={Icon.Repeat}
           onAction={async () => {
             // Return the promise. A click closes the menu and unloads the
             // command; without the await the outdated fetch dies and the
