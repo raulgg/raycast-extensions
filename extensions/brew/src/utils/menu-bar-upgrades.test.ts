@@ -76,10 +76,13 @@ describe("menu bar title", () => {
     expect(menuBarUpgradesSectionTitle(3)).toBe("Upgrades \u00b7 3 outdated");
   });
 
-  it("puts the running count on the services section title", () => {
-    expect(menuBarServicesSectionTitle(0)).toBe("Services");
-    expect(menuBarServicesSectionTitle(1)).toBe("Services \u00b7 1 running");
-    expect(menuBarServicesSectionTitle(2)).toBe("Services \u00b7 2 running");
+  it("puts running and error counts on the services section title", () => {
+    expect(menuBarServicesSectionTitle(0, 0)).toBe("Services");
+    expect(menuBarServicesSectionTitle(1, 0)).toBe("1 running");
+    expect(menuBarServicesSectionTitle(2, 0)).toBe("2 running");
+    expect(menuBarServicesSectionTitle(0, 1)).toBe("1 error");
+    expect(menuBarServicesSectionTitle(0, 2)).toBe("2 errors");
+    expect(menuBarServicesSectionTitle(1, 2)).toBe("1 running \u00b7 2 errors");
   });
 });
 
@@ -357,7 +360,7 @@ describe("services menu bar manifest", () => {
       title: "Brew Menu Bar",
       mode: "menu-bar",
       interval: "1m",
-      keywords: ["services", "homebrew"],
+      keywords: ["services", "upgrades", "homebrew"],
     });
     expect(command?.preferences).toContainEqual(
       expect.objectContaining({ name: "showUpgradeCount", type: "checkbox", default: true }),

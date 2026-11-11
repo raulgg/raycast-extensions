@@ -99,12 +99,20 @@ export function menuBarUpgradesSectionTitle(upgradeCount: number): string {
   return `Upgrades \u00b7 ${upgradeCount} outdated`;
 }
 
-/** Services section title. `Services · 2 running` when any are running. */
-export function menuBarServicesSectionTitle(runningServices: number): string {
-  if (runningServices <= 0) {
-    return "Services";
+/**
+ * Services status line. Running and error counts join with a middle dot
+ * (`1 running · 2 errors`). With neither, the line is `Services`.
+ */
+export function menuBarServicesSectionTitle(runningServices: number, erroredServices: number): string {
+  const statusSegments: string[] = [];
+
+  if (runningServices > 0) {
+    statusSegments.push(`${runningServices} running`);
   }
-  return `Services \u00b7 ${runningServices} running`;
+  if (erroredServices > 0) {
+    statusSegments.push(formatCount(erroredServices, "error"));
+  }
+  return statusSegments.length > 0 ? statusSegments.join(" \u00b7 ") : "Services";
 }
 
 export function menuBarUpgradeCount(results: OutdatedResults): number {

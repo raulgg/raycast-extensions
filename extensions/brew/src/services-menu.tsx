@@ -77,6 +77,7 @@ export default function Command() {
 
   const services = data ?? [];
   const running = services.filter(brewServiceIsRunning);
+  const errored = services.filter((service) => service.status === "error");
   // Unknown (still loading, failed with nothing cached, or the preference is
   // off) leaves the title as the service count alone. Zero is a real count.
   const upgradeCount = showUpgradeCount && upgrades.data ? menuBarUpgradeCount(upgrades.data) : undefined;
@@ -89,7 +90,33 @@ export default function Command() {
       tooltip={menuBarTooltip(running.length, upgradeCount)}
       isLoading={isLoading || upgrades.isLoading}
     >
-      <MenuBarExtra.Section title={menuBarServicesSectionTitle(running.length)}>
+      <MenuBarExtra.Section title="Services">
+        <MenuBarExtra.Submenu title="All Services">
+          <MenuBarExtra.Item
+            title="Start All Services"
+            icon={ACTION_ICONS.start}
+            onAction={() => handleAction("start", ALL_SERVICES, mutate)}
+          />
+          <MenuBarExtra.Item
+            title="Stop All Services"
+            icon={ACTION_ICONS.stop}
+            onAction={() => handleAction("stop", ALL_SERVICES, mutate)}
+          />
+          <MenuBarExtra.Item
+            title="Restart All Services"
+            icon={ACTION_ICONS.restart}
+            onAction={() => handleAction("restart", ALL_SERVICES, mutate)}
+          />
+          <MenuBarExtra.Section>
+            <MenuBarExtra.Item
+              title="Open Manage Services"
+              icon={Icon.AppWindowList}
+              onAction={() => launchCommand({ name: "manage-services", type: LaunchType.UserInitiated })}
+            />
+          </MenuBarExtra.Section>
+        </MenuBarExtra.Submenu>
+
+        <MenuBarExtra.Item title={menuBarServicesSectionTitle(running.length, errored.length)} />
         {services.map((service) => (
           <ServiceSubmenu key={service.name} service={service} mutate={mutate} />
         ))}
@@ -103,31 +130,6 @@ export default function Command() {
         )}
         {!isLoading && !error && services.length === 0 && <MenuBarExtra.Item title="No services found" />}
       </MenuBarExtra.Section>
-
-      <MenuBarExtra.Submenu title="All Services">
-        <MenuBarExtra.Item
-          title="Start All Services"
-          icon={ACTION_ICONS.start}
-          onAction={() => handleAction("start", ALL_SERVICES, mutate)}
-        />
-        <MenuBarExtra.Item
-          title="Stop All Services"
-          icon={ACTION_ICONS.stop}
-          onAction={() => handleAction("stop", ALL_SERVICES, mutate)}
-        />
-        <MenuBarExtra.Item
-          title="Restart All Services"
-          icon={ACTION_ICONS.restart}
-          onAction={() => handleAction("restart", ALL_SERVICES, mutate)}
-        />
-        <MenuBarExtra.Section>
-          <MenuBarExtra.Item
-            title="Open Manage Services"
-            icon={Icon.AppWindowList}
-            onAction={() => launchCommand({ name: "manage-services", type: LaunchType.UserInitiated })}
-          />
-        </MenuBarExtra.Section>
-      </MenuBarExtra.Submenu>
 
       {showUpgradeCount && (
         <UpgradesSection
@@ -176,14 +178,6 @@ function UpgradesSection(props: {
     const { formulae, casks } = props.results;
     return (
       <MenuBarExtra.Section title={menuBarUpgradesSectionTitle(count)}>
-        {formulae.length > 0 && <MenuBarExtra.Item title="Formulae" />}
-        {formulae.map((formula) => (
-          <PackageUpgradeSubmenu key={`formula:${formula.name}`} item={formula} onReload={props.onReload} />
-        ))}
-        {casks.length > 0 && <MenuBarExtra.Item title="Casks" />}
-        {casks.map((cask) => (
-          <PackageUpgradeSubmenu key={`cask:${cask.name}`} item={cask} onReload={props.onReload} />
-        ))}
         <MenuBarExtra.Submenu title="All Upgrades">
           <MenuBarExtra.Item
             title="Upgrade All"
@@ -209,6 +203,16 @@ function UpgradesSection(props: {
             />
           </MenuBarExtra.Section>
         </MenuBarExtra.Submenu>
+
+        {formulae.length > 0 && <MenuBarExtra.Item title="Formulae" />}
+        {formulae.map((formula) => (
+          <PackageUpgradeSubmenu key={`formula:${formula.name}`} item={formula} onReload={props.onReload} />
+        ))}
+
+        {casks.length > 0 && <MenuBarExtra.Item title="Casks" />}
+        {casks.map((cask) => (
+          <PackageUpgradeSubmenu key={`cask:${cask.name}`} item={cask} onReload={props.onReload} />
+        ))}
       </MenuBarExtra.Section>
     );
   }
