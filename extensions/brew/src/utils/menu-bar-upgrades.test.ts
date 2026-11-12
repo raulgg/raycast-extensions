@@ -23,7 +23,7 @@ const {
   menuBarUpgradesSectionTitle,
 } = await import("./menu-bar-upgrades");
 
-const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+const ONE_HOUR_MS = 1 * 60 * 60 * 1000;
 const NO_UPDATE = { env: { HOMEBREW_NO_AUTO_UPDATE: "1" } };
 
 const OUTDATED_STDOUT = JSON.stringify({
@@ -125,7 +125,7 @@ describe("menu bar upgrade fetch", () => {
     expect(execBrew).not.toHaveBeenCalled();
   });
 
-  it("reuses a list that is less than 6 hours old", async () => {
+  it("reuses a list that is less than 1 hour old", async () => {
     execBrew.mockResolvedValue(outdatedResult());
     await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
     execBrew.mockClear();
@@ -133,7 +133,7 @@ describe("menu bar upgrade fetch", () => {
     const reused = await loadMenuBarUpgrades({
       enabled: true,
       greedy: false,
-      now: 1_000 + SIX_HOURS_MS - 1,
+      now: 1_000 + ONE_HOUR_MS - 1,
     });
 
     expect(reused.status).toBe("cached");
@@ -143,7 +143,7 @@ describe("menu bar upgrade fetch", () => {
     }
   });
 
-  it("fetches again once the list is 6 hours old", async () => {
+  it("fetches again once the list is 1 hour old", async () => {
     execBrew.mockResolvedValue(outdatedResult());
     await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
     execBrew.mockClear();
@@ -151,7 +151,7 @@ describe("menu bar upgrade fetch", () => {
     const again = await loadMenuBarUpgrades({
       enabled: true,
       greedy: false,
-      now: 1_000 + SIX_HOURS_MS,
+      now: 1_000 + ONE_HOUR_MS,
     });
 
     expect(again.status).toBe("fetched");
@@ -216,7 +216,7 @@ describe("menu bar upgrade fetch", () => {
     await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
     execBrew.mockRejectedValueOnce(new Error("brew: lock"));
 
-    const failedAt = 1_000 + SIX_HOURS_MS;
+    const failedAt = 1_000 + ONE_HOUR_MS;
     const failed = await loadMenuBarUpgrades({ enabled: true, greedy: false, now: failedAt });
 
     expect(failed.status).toBe("failed");
@@ -264,12 +264,12 @@ describe("menu bar upgrade fetch", () => {
     expect(forced.status).toBe("failed");
     expect(execBrew).toHaveBeenCalledTimes(2);
 
-    const sixHoursAfterForce = await loadMenuBarUpgrades({
+    const oneHourAfterForce = await loadMenuBarUpgrades({
       enabled: true,
       greedy: false,
-      now: 1_000 + 120_000 + SIX_HOURS_MS,
+      now: 1_000 + 120_000 + ONE_HOUR_MS,
     });
-    expect(sixHoursAfterForce.status).toBe("failed");
+    expect(oneHourAfterForce.status).toBe("failed");
     expect(execBrew).toHaveBeenCalledTimes(3);
     expect(execBrew.mock.calls.map((call) => call[0])).toEqual([
       "outdated --json=v2",

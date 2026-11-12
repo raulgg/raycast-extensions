@@ -3,7 +3,7 @@
  *
  * Paints from the cached snapshot immediately, and fetches only when that
  * snapshot is missing, was taken under a different Greedy Upgrades setting,
- * or the last check — success or failure — is at least 6 hours old. No toast
+ * or the last check — success or failure — is at least 1 hour old. No toast
  * and no HUD: a background launch throws on toast, and the refresh itself is
  * supposed to stay quiet.
  */

@@ -5,7 +5,7 @@
  * Homebrew has no way to notify us when a service's state changes, so services
  * stay on the command's one-minute `interval`, with an optimistic `mutate`
  * after each action. Upgrades are not polled that often: the list is cached
- * for about 6 hours (`menu-bar-upgrades`), and "Refresh upgrades" fetches
+ * for about 1 hour (`menu-bar-upgrades`), and "Refresh upgrades" fetches
  * immediately. Neither path runs `brew update`. Service names stay on the
  * first screen. Start, Stop, Restart, and Manage Services live in All
  * Services. Pending packages share one Upgrades section: Formulae and Casks

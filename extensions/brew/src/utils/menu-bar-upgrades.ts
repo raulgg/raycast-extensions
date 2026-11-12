@@ -5,7 +5,7 @@
  * `brew outdated` does not: it is only as fresh as the last `brew update`, and
  * running it on every tick would spend that cost on a number that rarely
  * changes. The list and the time of the last check are kept and reused until
- * they are 6 hours old, including a check that failed — otherwise the
+ * they are 1 hour old, including a check that failed — otherwise the
  * one-minute service tick would run `brew outdated` on every launch.
  * "Refresh upgrades" passes `force` and fetches immediately.
  *
@@ -26,7 +26,7 @@ import { formatCount } from "./text";
 import type { OutdatedResults } from "./types";
 
 /** Reuse a fetched list until it is this old. A forced refresh ignores it. */
-const MAX_AGE_MS = 6 * 60 * 60 * 1000;
+const MAX_AGE_MS = 1 * 60 * 60 * 1000;
 
 export const MENU_BAR_UPGRADES_CACHE_NAMESPACE = "services-menu";
 export const MENU_BAR_UPGRADES_CACHE_KEY = "upgrades";

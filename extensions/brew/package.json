@@ -178,7 +178,7 @@
           "name": "showUpgradeCount",
           "title": "Menu Bar",
           "label": "Show upgrade count",
-          "description": "Show how many packages can be upgraded next to the running services, and list them in the menu. Uses the Greedy Upgrades setting, and checks about every 6 hours.",
+          "description": "Show how many packages can be upgraded next to the running services, and list them in the menu. Uses the Greedy Upgrades setting, and checks about every hour.",
           "type": "checkbox",
           "required": false,
           "default": true
