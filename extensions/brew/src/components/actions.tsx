@@ -1,4 +1,4 @@
-import { Action, Alert, confirmAlert, Icon, Keyboard, showToast, Toast } from "@raycast/api";
+import { Action, Alert, confirmAlert, Icon, Keyboard, showHUD, showToast, Toast } from "@raycast/api";
 import { useBrewDependencies } from "../hooks/useBrewDependencies";
 import { ensureTrusted } from "./trust";
 import {
@@ -25,6 +25,7 @@ import {
   formatCount,
   type Cask,
   ensureError,
+  isBackgroundLaunch,
   isPinnedRefusal,
   upgradeSkipReason,
   type Formula,
@@ -626,12 +627,16 @@ async function upgrade(formula: Cask | Nameable): Promise<boolean | typeof DECLI
     const declined = upgradeSkipReason(`${result.stderr ?? ""}\n${result.stdout ?? ""}`, brewIdentifier(formula));
     if (declined) {
       await handle.hide();
-      await showToast({
-        style: Toast.Style.Failure,
-        title: `Did not upgrade ${name}`,
-        message: declined,
-        primaryAction: copyLogsAction(`Did not upgrade ${name}\n\n${declined}`, { hideToast: true }),
-      });
+      if (isBackgroundLaunch()) {
+        await showHUD(`Did not upgrade ${name}. ${declined}`);
+      } else {
+        await showToast({
+          style: Toast.Style.Failure,
+          title: `Did not upgrade ${name}`,
+          message: declined,
+          primaryAction: copyLogsAction(`Did not upgrade ${name}\n\n${declined}`, { hideToast: true }),
+        });
+      }
       return DECLINED;
     }
 
@@ -700,11 +705,16 @@ async function upgradeChecked(
   let unpinned = false;
   if (pinnedOnDisk) {
     if (!opts?.allowUnpin) {
-      await showToast({
-        style: Toast.Style.Success,
-        title: "Skipping Pinned Upgrades",
-        message: `${brewName(item)} is pinned. Unpin it (⌘ .) to upgrade.`,
-      });
+      const name = brewName(item);
+      if (isBackgroundLaunch()) {
+        await showHUD(`${name} is pinned. Unpin it to upgrade.`);
+      } else {
+        await showToast({
+          style: Toast.Style.Success,
+          title: "Skipping Pinned Upgrades",
+          message: `${name} is pinned. Unpin it (⌘ .) to upgrade.`,
+        });
+      }
       return { outcome: "skipped", refresh: stalePin };
     }
     // The pin is the only thing in the way and the user just asked for the
@@ -740,12 +750,12 @@ export async function upgradeOnePackage(item: Cask | Nameable): Promise<boolean>
   return result.outcome === "skipped" && result.refresh === true;
 }
 
-/** Upgrade All from the menu bar. Same path as the Upgrade All action, including Greedy Upgrades. */
-export function upgradeAllPackages(): Promise<boolean> {
-  return upgradeAll();
-}
-
-async function upgradeAll(): Promise<boolean> {
+/**
+ * Upgrade everything outdated. The menu bar and `FormulaUpgradeAllAction` both
+ * call this. Includes Greedy Upgrades. A background menu-bar launch reports
+ * through HUD, because Toast is rejected there.
+ */
+export async function upgradeAll(): Promise<boolean> {
   const handle = showActionToast({
     title: "Upgrading all packages",
     message: "This may take a while...",
@@ -789,11 +799,19 @@ export async function pin(item: Pinnable, kind: PinKind): Promise<boolean> {
 
 export async function unpin(item: Pinnable, kind: PinKind): Promise<boolean> {
   const name = brewName(item as Cask | Nameable);
-  showToast(Toast.Style.Animated, `Unpinning ${name}`);
+  if (isBackgroundLaunch()) {
+    await showHUD(`Unpinning ${name}`);
+  } else {
+    await showToast(Toast.Style.Animated, `Unpinning ${name}`);
+  }
   try {
     await brewUnpin(item, kind);
     item.pinned = false;
-    showToast(Toast.Style.Success, `Unpinned ${name}`);
+    if (isBackgroundLaunch()) {
+      await showHUD(`Unpinned ${name}`);
+    } else {
+      await showToast(Toast.Style.Success, `Unpinned ${name}`);
+    }
     return true;
   } catch (err) {
     showBrewFailureToast(`Unpin ${kind} failed`, ensureError(err));

@@ -38,7 +38,7 @@ import {
 } from "./utils";
 import { useBrewServices } from "./hooks/useBrewServices";
 import { useMenuBarUpgrades } from "./hooks/useMenuBarUpgrades";
-import { upgradeAllPackages, upgradeOnePackage } from "./components/actions";
+import { upgradeAll, upgradeOnePackage } from "./components/actions";
 import { serviceStatusIcon, type ServicesMutate } from "./components/serviceActions";
 import { ERROR_ICON, UPDATE_AVAILABLE_ICON, UP_TO_DATE_ICON, WARNING_ICON } from "./components/palette";
 import {
@@ -154,7 +154,7 @@ export default function Command() {
           onAction={async () => {
             // Return the promise. A click closes the menu and unloads the
             // command; without the await the outdated fetch dies and the
-            // six-hour snapshot stays on screen. Services run after, so the
+            // one-hour snapshot stays on screen. Services run after, so the
             // two brew processes do not take Homebrew's lock from each other.
             if (showUpgradeCount) {
               await upgrades.refresh();
@@ -171,18 +171,22 @@ function UpgradesSection(props: {
   results: OutdatedResults | undefined;
   error: Error | undefined;
   isLoading: boolean;
-  onReload: () => void;
+  onReload: () => Promise<void>;
 }) {
   const count = props.results ? menuBarUpgradeCount(props.results) : 0;
   if (props.results && count > 0) {
     const { formulae, casks } = props.results;
+    const sharedNames = new Set(
+      formulae.filter((formula) => casks.some((cask) => cask.name === formula.name)).map((formula) => formula.name),
+    );
     return (
       <MenuBarExtra.Section title={menuBarUpgradesSectionTitle(count)}>
+        {props.error && <UpgradeFailureItem error={props.error} onRefresh={props.onReload} />}
         <MenuBarExtra.Submenu title="All Upgrades">
           <MenuBarExtra.Item
             title="Upgrade All"
             icon={Icon.ArrowUpCircle}
-            onAction={() => void upgradeEverything(props.onReload)}
+            onAction={() => upgradeEverything(props.onReload)}
           />
           <MenuBarExtra.Item
             title="Preview Upgrades"
@@ -191,7 +195,7 @@ function UpgradesSection(props: {
               launchCommand({
                 name: "outdated",
                 type: LaunchType.UserInitiated,
-                context: { previewUpgrades: props.results },
+                context: { mode: "preview-all", outdated: props.results },
               })
             }
           />
@@ -206,12 +210,24 @@ function UpgradesSection(props: {
 
         {formulae.length > 0 && <MenuBarExtra.Item title="Formulae" />}
         {formulae.map((formula) => (
-          <PackageUpgradeSubmenu key={`formula:${formula.name}`} item={formula} onReload={props.onReload} />
+          <PackageUpgradeSubmenu
+            key={`formula:${formula.name}`}
+            item={formula}
+            kind="formula"
+            title={sharedNames.has(formula.name) ? `${formula.name} (formula)` : formula.name}
+            onReload={props.onReload}
+          />
         ))}
 
         {casks.length > 0 && <MenuBarExtra.Item title="Casks" />}
         {casks.map((cask) => (
-          <PackageUpgradeSubmenu key={`cask:${cask.name}`} item={cask} onReload={props.onReload} />
+          <PackageUpgradeSubmenu
+            key={`cask:${cask.name}`}
+            item={cask}
+            kind="cask"
+            title={sharedNames.has(cask.name) ? `${cask.name} (cask)` : cask.name}
+            onReload={props.onReload}
+          />
         ))}
       </MenuBarExtra.Section>
     );
@@ -231,14 +247,18 @@ function UpgradesSection(props: {
   );
 }
 
-function PackageUpgradeSubmenu(props: { item: OutdatedFormula | OutdatedCask; onReload: () => void }) {
-  const pinned = props.item.pinned ? "Pinned" : undefined;
+function PackageUpgradeSubmenu(props: {
+  item: OutdatedFormula | OutdatedCask;
+  kind: "formula" | "cask";
+  title: string;
+  onReload: () => Promise<void>;
+}) {
   return (
-    <MenuBarExtra.Submenu title={props.item.name} icon={UPDATE_AVAILABLE_ICON}>
+    <MenuBarExtra.Submenu title={props.title} icon={UPDATE_AVAILABLE_ICON}>
       <MenuBarExtra.Item
-        title={upgradeVersionTitle(props.item)}
+        title={upgradeVersionTitle(props.item, props.kind)}
         icon={Icon.ArrowUpCircle}
-        tooltip={pinned}
+        tooltip={props.item.pinned ? "Pinned" : undefined}
         onAction={() => upgradePackage(props.item, props.onReload)}
       />
       <MenuBarExtra.Item
@@ -248,7 +268,7 @@ function PackageUpgradeSubmenu(props: { item: OutdatedFormula | OutdatedCask; on
           launchCommand({
             name: "outdated",
             type: LaunchType.UserInitiated,
-            context: { previewUpgrade: props.item },
+            context: { mode: "preview", target: props.item },
           })
         }
       />
@@ -256,34 +276,34 @@ function PackageUpgradeSubmenu(props: { item: OutdatedFormula | OutdatedCask; on
   );
 }
 
-function upgradeVersionTitle(item: OutdatedFormula | OutdatedCask): string {
+function upgradeVersionTitle(item: OutdatedFormula | OutdatedCask, kind: "formula" | "cask"): string {
   const from = item.installed_versions[0];
   const to = item.current_version;
-  if (from && to) {
-    return `Upgrade ${from} → ${to}`;
+  const version = from && to ? `${from} → ${to}` : undefined;
+  if (item.pinned) {
+    const noun = kind === "cask" ? "Cask" : "Formula";
+    return version ? `Unpin ${noun} and Upgrade ${version}` : `Unpin ${noun} and Upgrade`;
   }
-  return "Upgrade";
+  return version ? `Upgrade ${version}` : "Upgrade";
 }
 
-async function upgradePackage(item: OutdatedFormula | OutdatedCask, onReload: () => void) {
-  const reload = await upgradeOnePackage(item);
-  if (!reload) {
+async function finishUpgrade(shouldReload: boolean, onReload: () => Promise<void>) {
+  if (!shouldReload) {
     return;
   }
   markOutdatedSnapshotDirty();
-  onReload();
+  await onReload();
 }
 
-async function upgradeEverything(onReload: () => void) {
-  const reloaded = await upgradeAllPackages();
-  if (!reloaded) {
-    return;
-  }
-  markOutdatedSnapshotDirty();
-  onReload();
+async function upgradePackage(item: OutdatedFormula | OutdatedCask, onReload: () => Promise<void>) {
+  await finishUpgrade(await upgradeOnePackage(item), onReload);
 }
 
-function UpgradeFailureItem(props: { error: Error; onRefresh: () => void }) {
+async function upgradeEverything(onReload: () => Promise<void>) {
+  await finishUpgrade(await upgradeAll(), onReload);
+}
+
+function UpgradeFailureItem(props: { error: Error; onRefresh: () => Promise<void> }) {
   const copy = outdatedFetchFailureCopy(props.error);
   return (
     <MenuBarExtra.Item

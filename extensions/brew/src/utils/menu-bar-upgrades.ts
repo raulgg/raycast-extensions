@@ -9,8 +9,9 @@
  * one-minute service tick would run `brew outdated` on every launch.
  * "Refresh upgrades" passes `force` and fetches immediately.
  *
- * This path never runs `brew update`. `HOMEBREW_NO_AUTO_UPDATE` is set as well
- * so Homebrew does not perform one on its own before the outdated read.
+ * This path never runs `brew update`. It calls `brewFetchOutdated` with
+ * `skipUpdate`, which sets `HOMEBREW_NO_AUTO_UPDATE` so Homebrew does not
+ * perform one on its own before the outdated read.
  *
  * The snapshot records whether it was fetched with Greedy Upgrades. Show
  * Upgrades uses that same preference, so a list cached under the other setting
@@ -18,8 +19,8 @@
  */
 
 import { Cache } from "@raycast/api";
-import { BrewLockError, ParseError, ensureError, getErrorMessage, isBrewLockError } from "./errors";
-import { execBrew } from "./brew/commands";
+import { BrewLockError, ensureError, getErrorMessage, isBrewLockError } from "./errors";
+import { brewFetchOutdated } from "./brew/fetch";
 import { normalizeOutdatedResults } from "./brew/helpers";
 import { brewLogger } from "./logger";
 import { formatCount } from "./text";
@@ -119,12 +120,9 @@ export function menuBarUpgradeCount(results: OutdatedResults): number {
   return results.formulae.length + results.casks.length;
 }
 
-/**
- * Formulae, then casks, in the order `brew outdated` reported them. Pinned
- * packages stay: Show Upgrades lists them too, and this count is that list.
- */
-export function menuBarUpgradeNames(results: OutdatedResults): string[] {
-  return [...results.formulae.map((formula) => formula.name), ...results.casks.map((cask) => cask.name)];
+/** Drop the menu snapshot so the next check runs `brew outdated` instead of reusing it. */
+export function invalidateMenuBarUpgrades(): void {
+  cache.remove(MENU_BAR_UPGRADES_CACHE_KEY);
 }
 
 /**
@@ -150,41 +148,55 @@ export function loadMenuBarUpgrades(options: LoadMenuBarUpgradesOptions): Promis
   if (!options.enabled) {
     return Promise.resolve({ status: "disabled" });
   }
-  // A menu-bar launch and a strict-mode remount can ask together. One brew
-  // process is enough; a second hits Homebrew's lock and looks like a failure.
-  const key = `${options.force ? "force" : "auto"}:${options.greedy ? "greedy" : "plain"}`;
+  // One brew outdated per Greedy Upgrades setting. A menu-bar launch, a
+  // strict-mode remount, and Refresh share it. A second process is what the
+  // cache writer must not start. A cache hit does not take the slot, so
+  // Refresh can still fetch when nothing is running.
+  const key = options.greedy ? "greedy" : "plain";
   const existing = inflight.get(key);
   if (existing) {
     return existing;
   }
-  const run = loadMenuBarUpgradesNow(options).finally(() => {
+
+  const now = options.now ?? Date.now();
+  const snapshot = readSnapshot();
+  const matching = snapshot?.greedy === options.greedy ? snapshot : undefined;
+  if (!options.force && matching && isFresh(matching, now)) {
+    const remembered = rememberedLoad(matching);
+    if (remembered) {
+      return Promise.resolve(remembered);
+    }
+  }
+
+  const run = fetchMenuBarUpgrades(options, now, matching).finally(() => {
     inflight.delete(key);
   });
   inflight.set(key, run);
   return run;
 }
 
-async function loadMenuBarUpgradesNow(options: LoadMenuBarUpgradesOptions): Promise<MenuBarUpgradesLoad> {
-  const now = options.now ?? Date.now();
-  const snapshot = readSnapshot();
-  const matching = snapshot?.greedy === options.greedy ? snapshot : undefined;
-
-  if (!options.force && matching && isFresh(matching, now)) {
-    if (matching.failure) {
-      return {
-        status: "failed",
-        error: failureError(matching.failure),
-        results: matching.results,
-        fetchedAt: matching.attemptedAt,
-      };
-    }
-    if (matching.results) {
-      return { status: "cached", results: matching.results, fetchedAt: matching.attemptedAt };
-    }
+function rememberedLoad(matching: Snapshot): MenuBarUpgradesLoad | undefined {
+  if (matching.failure) {
+    return {
+      status: "failed",
+      error: failureError(matching.failure),
+      results: matching.results,
+      fetchedAt: matching.attemptedAt,
+    };
   }
+  if (matching.results) {
+    return { status: "cached", results: matching.results, fetchedAt: matching.attemptedAt };
+  }
+  return undefined;
+}
 
+async function fetchMenuBarUpgrades(
+  options: LoadMenuBarUpgradesOptions,
+  now: number,
+  matching: Snapshot | undefined,
+): Promise<MenuBarUpgradesLoad> {
   try {
-    const results = await fetchOutdatedWithoutUpdate(options.greedy);
+    const results = await brewFetchOutdated(options.greedy, undefined, true);
     const fetched: Snapshot = { attemptedAt: now, greedy: options.greedy, results };
     cache.set(MENU_BAR_UPGRADES_CACHE_KEY, JSON.stringify(fetched));
     return { status: "fetched", results, fetchedAt: now };
@@ -268,28 +280,4 @@ function isOutdatedResults(value: unknown): value is OutdatedResults {
   }
   const { formulae, casks } = value as Partial<OutdatedResults>;
   return Array.isArray(formulae) && Array.isArray(casks);
-}
-
-/**
- * `brew outdated` with no preceding `brew update`. Show Upgrades updates first;
- * the menu bar must not, on a timer or from Refresh upgrades.
- */
-async function fetchOutdatedWithoutUpdate(greedy: boolean): Promise<OutdatedResults> {
-  const cmd = greedy ? "outdated --json=v2 --greedy" : "outdated --json=v2";
-  brewLogger.log("Fetching menu bar upgrades", { greedy });
-  const output = await execBrew(cmd, { env: { HOMEBREW_NO_AUTO_UPDATE: "1" } });
-  return parseOutdated(output.stdout);
-}
-
-function parseOutdated(stdout: string): OutdatedResults {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stdout);
-  } catch (err) {
-    throw new ParseError("Failed to parse brew outdated output", { cause: ensureError(err) });
-  }
-  if (!isOutdatedResults(parsed)) {
-    throw new ParseError("Failed to parse brew outdated output");
-  }
-  return normalizeOutdatedResults(parsed);
 }

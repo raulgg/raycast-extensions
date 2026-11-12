@@ -4,7 +4,7 @@
  * Provides functions for displaying toast notifications.
  */
 
-import { Clipboard, Toast, showHUD } from "@raycast/api";
+import { Clipboard, environment, LaunchType, Toast, showHUD } from "@raycast/api";
 import { ExecError } from "./types";
 import { uiLogger } from "./logger";
 import { isRecoverableError, getErrorMessage, isBrewLockError } from "./errors";
@@ -44,6 +44,11 @@ export interface ActionToastHandle {
  * with a live Cancel. Updating the same toast keeps the requests on one toast,
  * and clearing its actions removes Cancel along with the progress message.
  */
+/** Menu-bar interval launches reject Toast and Alert. HUD is the surface that still works. */
+export function isBackgroundLaunch(): boolean {
+  return environment.launchType === LaunchType.Background;
+}
+
 async function settle(toast: Toast, style: Toast.Style, title: string, hudMessage: string): Promise<void> {
   if (preferences.closeAfterAction) {
     // Close window and show HUD. Dismissal is best-effort: it must not gate the HUD.
@@ -63,6 +68,20 @@ async function settle(toast: Toast, style: Toast.Style, title: string, hudMessag
  * Returns a handle for updating progress and showing final HUD notifications.
  */
 export function showActionToast(actionOptions: ActionToastOptions): ActionToastHandle {
+  if (isBackgroundLaunch()) {
+    const controller = actionOptions.cancelable ? new AbortController() : undefined;
+    const started = actionOptions.message ? `${actionOptions.title}. ${actionOptions.message}` : actionOptions.title;
+    void showHUD(started);
+    return {
+      abort: controller,
+      updateMessage: () => {},
+      updateTitle: () => {},
+      showSuccessHUD: (message: string) => showHUD(message),
+      showFailureHUD: (message: string) => showHUD(message),
+      hide: () => {},
+    };
+  }
+
   const options: Toast.Options = {
     style: Toast.Style.Animated,
     title: actionOptions.title,
@@ -153,6 +172,14 @@ export async function showBrewFailureToast(
 ): Promise<void> {
   if (error.name === "AbortError") {
     uiLogger.log("Operation aborted by user");
+    return;
+  }
+
+  if (isBackgroundLaunch()) {
+    const message = options?.summary?.headline ?? getErrorMessage(error);
+    const hudTitle = isBrewLockError(error) ? "Brew is Busy" : title;
+    uiLogger.error(hudTitle, { errorType: error.name, message: error.message, background: true });
+    await showHUD(message ? `${hudTitle}. ${message}` : hudTitle);
     return;
   }
 

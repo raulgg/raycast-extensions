@@ -74,7 +74,7 @@ export { supportPath, bundleIdentifier, cachePath, clearCache } from "./cache";
 export { markOutdatedSnapshotDirty, clearOutdatedSnapshotDirty, isOutdatedSnapshotDirty } from "./outdated-dirty";
 
 // Toast
-export { copyLogsAction, showActionToast, showBrewFailureToast } from "./toast";
+export { copyLogsAction, isBackgroundLaunch, showActionToast, showBrewFailureToast } from "./toast";
 export type { ActionToastHandle } from "./toast";
 
 // Array extensions (side-effect import to add prototype methods)

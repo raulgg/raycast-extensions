@@ -86,7 +86,16 @@ export function getPreferenceValues<T = Record<string, unknown>>(): T {
   return { ...defaults } as T;
 }
 
-export const environment = { assetsPath: "/tmp/assets", supportPath: "/tmp/support" };
+export const LaunchType = {
+  UserInitiated: "userInitiated",
+  Background: "background",
+} as const;
+
+export const environment: {
+  assetsPath: string;
+  supportPath: string;
+  launchType?: (typeof LaunchType)[keyof typeof LaunchType];
+} = { assetsPath: "/tmp/assets", supportPath: "/tmp/support" };
 
 /**
  * In-memory stand-in for Raycast's on-disk `Cache`. Instances that share a

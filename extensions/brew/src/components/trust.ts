@@ -10,7 +10,7 @@
  * untrusted taps' packages there and warns rather than trusting them.
  */
 
-import { Alert, confirmAlert } from "@raycast/api";
+import { Alert, confirmAlert, showHUD } from "@raycast/api";
 import {
   actionsLogger,
   brewIdentifier,
@@ -19,6 +19,7 @@ import {
   brewTapCommand,
   ensureError,
   execBrew,
+  isBackgroundLaunch,
   isCask,
   showBrewFailureToast,
   thirdPartyTapOf,
@@ -47,6 +48,12 @@ export async function ensureTrusted(item: Cask | Nameable): Promise<boolean> {
   }
 
   const command = brewTapCommand("trust", cask ? "--cask" : "--formula", fullName);
+  // A background menu-bar launch throws on Alert. Do not trust the package
+  // silently: the upgrade would grant trust by itself.
+  if (isBackgroundLaunch()) {
+    await showHUD(`Trust ${name} from Show Upgrades before upgrading it`);
+    return false;
+  }
   const confirmed = await confirmAlert({
     title: `Trust ${name}?`,
     message: [

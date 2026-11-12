@@ -52,6 +52,7 @@ import {
   type SelectionState,
 } from "./utils/upgrade-selection";
 import { useBrewOutdated } from "./hooks/useBrewOutdated";
+import { invalidateMenuBarUpgrades } from "./utils/menu-bar-upgrades";
 import { useBrewUpgrade } from "./hooks/useBrewUpgrade";
 import { InstallableFilterDropdown, InstallableFilterType } from "./components/filter";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -541,10 +542,9 @@ function PreviewHandoff(props: { target: OutdatedFormula | OutdatedCask; onShowL
       push(
         <UpgradePreview
           target={target}
-          // The list is not mounted, so there is nothing to revalidate. Mark
-          // the snapshot dirty and the list withholds it until its own fetch
-          // when this preview is popped.
-          onAction={() => markOutdatedSnapshotDirty()}
+          // Show Upgrades withholds its own snapshot. The menu bar list is a
+          // different cache, so drop that too or the badge keeps the old count.
+          onAction={noteMenuBarUpgrade}
         />,
         () => onShowList.current(),
       );
@@ -554,21 +554,21 @@ function PreviewHandoff(props: { target: OutdatedFormula | OutdatedCask; onShowL
   return <List isLoading navigationTitle={`Preview Upgrade: ${brewName(props.target)}`} />;
 }
 
-export default function Main(
-  props: LaunchProps<{
-    launchContext?: {
-      previewUpgrade?: OutdatedFormula | OutdatedCask;
-      /** Menu-bar Preview Upgrades. The same `UpgradePreview` Show Upgrades pushes, with no single package. */
-      previewUpgrades?: OutdatedResults;
-    };
-  }>,
-) {
-  const target = props.launchContext?.previewUpgrade;
-  const upgrades = props.launchContext?.previewUpgrades;
-  if (target) {
+type OutdatedLaunchContext =
+  | { mode: "preview"; target: OutdatedFormula | OutdatedCask }
+  | { mode: "preview-all"; outdated: OutdatedResults };
+
+function noteMenuBarUpgrade(): void {
+  markOutdatedSnapshotDirty();
+  invalidateMenuBarUpgrades();
+}
+
+export default function Main(props: LaunchProps<{ launchContext?: OutdatedLaunchContext }>) {
+  const context = props.launchContext;
+  if (context?.mode === "preview") {
     return (
       <ErrorBoundary>
-        <MenuBarUpgradePreview target={target} />
+        <MenuBarUpgradePreview target={context.target} />
       </ErrorBoundary>
     );
   }
@@ -576,10 +576,10 @@ export default function Main(
   // skips untrusted taps instead of trusting them, which is why Show Upgrades
   // pushes this view directly. It is the root here so Show Upgrades does not
   // mount and start its own `brew update` under the dry run.
-  if (upgrades) {
+  if (context?.mode === "preview-all") {
     return (
       <ErrorBoundary>
-        <UpgradePreview outdated={upgrades} onAction={() => markOutdatedSnapshotDirty()} />
+        <UpgradePreview outdated={context.outdated} onAction={noteMenuBarUpgrade} />
       </ErrorBoundary>
     );
   }

@@ -312,7 +312,8 @@ export function brewMapInstalled(installed?: InstallableResults): InstalledMap |
  *
  * @param greedy - Include auto-updating casks
  * @param cancel - AbortController for cancellation
- * @param skipUpdate - Skip brew update (use cached index). Faster but may miss recent updates.
+ * @param skipUpdate - Skip brew update and set `HOMEBREW_NO_AUTO_UPDATE` so
+ *   Homebrew does not update on its own. Faster, and it may miss recent updates.
  */
 export async function brewFetchOutdated(
   greedy: boolean,
@@ -329,7 +330,10 @@ export async function brewFetchOutdated(
   if (!skipUpdate) {
     await brewUpdate(cancel);
   }
-  const output = await execBrew(cmd, { signal: cancel });
+  const output = await execBrew(cmd, {
+    ...(cancel ? { signal: cancel } : {}),
+    ...(skipUpdate ? { env: { HOMEBREW_NO_AUTO_UPDATE: "1" } } : {}),
+  });
   const results = normalizeOutdatedResults(JSON.parse(output.stdout) as OutdatedResults);
   brewLogger.log("Outdated packages fetched", {
     formulaeCount: results.formulae.length,

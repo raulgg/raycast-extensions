@@ -19,9 +19,13 @@ const {
   menuBarTooltip,
   menuBarUpgradeCount,
   menuBarServicesSectionTitle,
-  menuBarUpgradeNames,
   menuBarUpgradesSectionTitle,
+  invalidateMenuBarUpgrades,
 } = await import("./menu-bar-upgrades");
+
+function upgradeNames(results: { formulae: { name: string }[]; casks: { name: string }[] }): string[] {
+  return [...results.formulae.map((formula) => formula.name), ...results.casks.map((cask) => cask.name)];
+}
 
 const ONE_HOUR_MS = 1 * 60 * 60 * 1000;
 const NO_UPDATE = { env: { HOMEBREW_NO_AUTO_UPDATE: "1" } };
@@ -103,7 +107,7 @@ describe("menu bar upgrade fetch", () => {
     if (outcome.status === "fetched") {
       // Pinned wget stays. Show Upgrades lists it, and this count is that list.
       expect(menuBarUpgradeCount(outcome.results)).toBe(3);
-      expect(menuBarUpgradeNames(outcome.results)).toEqual(["wget", "openssl@3", "visual-studio-code"]);
+      expect(upgradeNames(outcome.results)).toEqual(["wget", "openssl@3", "visual-studio-code"]);
     }
   });
 
@@ -139,7 +143,7 @@ describe("menu bar upgrade fetch", () => {
     expect(reused.status).toBe("cached");
     expect(execBrew).not.toHaveBeenCalled();
     if (reused.status === "cached") {
-      expect(menuBarUpgradeNames(reused.results)).toEqual(["wget", "openssl@3", "visual-studio-code"]);
+      expect(upgradeNames(reused.results)).toEqual(["wget", "openssl@3", "visual-studio-code"]);
     }
   });
 
@@ -178,7 +182,7 @@ describe("menu bar upgrade fetch", () => {
     expect(refreshed.status).toBe("fetched");
     expect(shown.status).toBe("cached");
     if (shown.status === "cached") {
-      expect(menuBarUpgradeNames(shown.results)).toEqual(["wget"]);
+      expect(upgradeNames(shown.results)).toEqual(["wget"]);
       expect(menuBarTitle(2, menuBarUpgradeCount(shown.results))).toBe("2 \u21911");
     }
     expect(execBrew).not.toHaveBeenCalled();
@@ -221,7 +225,7 @@ describe("menu bar upgrade fetch", () => {
 
     expect(failed.status).toBe("failed");
     if (failed.status === "failed") {
-      expect(menuBarUpgradeNames(failed.results ?? { formulae: [], casks: [] })).toEqual([
+      expect(upgradeNames(failed.results ?? { formulae: [], casks: [] })).toEqual([
         "wget",
         "openssl@3",
         "visual-studio-code",
@@ -237,7 +241,7 @@ describe("menu bar upgrade fetch", () => {
     const minuteLater = await loadMenuBarUpgrades({ enabled: true, greedy: false, now: failedAt + 60_000 });
     expect(minuteLater.status).toBe("failed");
     if (minuteLater.status === "failed") {
-      expect(menuBarUpgradeNames(minuteLater.results ?? { formulae: [], casks: [] })).toEqual([
+      expect(upgradeNames(minuteLater.results ?? { formulae: [], casks: [] })).toEqual([
         "wget",
         "openssl@3",
         "visual-studio-code",
@@ -320,6 +324,36 @@ describe("menu bar upgrade fetch", () => {
     expect(b.status).toBe("fetched");
   });
 
+  it("joins Refresh onto the upgrade check already running for that setting", async () => {
+    let resolveBrew: (value: { stdout: string; stderr: string }) => void = () => {};
+    execBrew.mockReturnValue(
+      new Promise((resolve) => {
+        resolveBrew = resolve;
+      }),
+    );
+
+    const automatic = loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
+    const forced = loadMenuBarUpgrades({ enabled: true, greedy: false, force: true, now: 1_000 });
+    resolveBrew(emptyResult());
+    const [a, b] = await Promise.all([automatic, forced]);
+
+    expect(execBrew).toHaveBeenCalledTimes(1);
+    expect(a.status).toBe("fetched");
+    expect(b.status).toBe("fetched");
+  });
+
+  it("fetches again after a preview upgrade drops the cached list", async () => {
+    execBrew.mockResolvedValue(outdatedResult());
+    await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
+    invalidateMenuBarUpgrades();
+    execBrew.mockClear();
+
+    const again = await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 2_000 });
+
+    expect(again.status).toBe("fetched");
+    expect(execBrew).toHaveBeenCalledTimes(1);
+  });
+
   it("caches an empty outdated list so an up-to-date Mac is not checked every minute", async () => {
     execBrew.mockResolvedValue(emptyResult());
     const fetched = await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
@@ -331,7 +365,7 @@ describe("menu bar upgrade fetch", () => {
     expect(reused.status).toBe("cached");
     if (reused.status === "cached") {
       expect(menuBarUpgradeCount(reused.results)).toBe(0);
-      expect(menuBarUpgradeNames(reused.results)).toEqual([]);
+      expect(upgradeNames(reused.results)).toEqual([]);
     }
     expect(execBrew).not.toHaveBeenCalled();
   });
