@@ -14,8 +14,21 @@ import { MENU_BAR_UPGRADES_CACHE_KEY, MENU_BAR_UPGRADES_CACHE_NAMESPACE } from "
 const execBrew = vi.hoisted(() => vi.fn());
 vi.mock("./brew/commands", () => ({ execBrew }));
 
+const pinnedOnDisk = vi.hoisted(() => vi.fn());
+vi.mock("./brew/helpers", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./brew/helpers")>()),
+  brewPinnedIdentifiersSync: pinnedOnDisk,
+}));
+
+function pinOnDisk(formulae: string[], casks: string[] = []) {
+  pinnedOnDisk.mockReturnValue({ formulae: new Set(formulae), casks: new Set(casks) });
+}
+
 const {
   loadMenuBarUpgrades,
+  menuBarPinnedCount,
+  menuBarPinnedTitle,
+  peekMenuBarUpgrades,
   menuBarTitle,
   menuBarTooltip,
   menuBarUpgradeCount,
@@ -96,6 +109,8 @@ describe("menu bar upgrade fetch", () => {
   beforeEach(async () => {
     clearUpgradeCache();
     execBrew.mockReset();
+    pinnedOnDisk.mockReset();
+    pinOnDisk(["wget"]);
     await LocalStorage.clear();
   });
 
@@ -108,8 +123,9 @@ describe("menu bar upgrade fetch", () => {
     expect(execBrew.mock.calls.map((call) => call[0])).toEqual(["outdated --json=v2"]);
     expect(execBrew).toHaveBeenCalledWith("outdated --json=v2", NO_UPDATE);
     if (outcome.status === "fetched") {
-      // Pinned wget stays. Show Upgrades lists it, and this count is that list.
-      expect(menuBarUpgradeCount(outcome.results)).toBe(3);
+      // Pinned wget stays on the list but is not pending.
+      expect(menuBarUpgradeCount(outcome.results)).toBe(2);
+      expect(menuBarPinnedCount(outcome.results)).toBe(1);
       expect(upgradeNames(outcome.results)).toEqual(["wget", "openssl@3", "visual-studio-code"]);
     }
   });
@@ -167,6 +183,7 @@ describe("menu bar upgrade fetch", () => {
   });
 
   it("replaces a fresh empty list when Refresh asks and brew now reports a package", async () => {
+    pinOnDisk([]);
     execBrew.mockResolvedValue(emptyResult());
     await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
     execBrew.mockClear();
@@ -234,7 +251,7 @@ describe("menu bar upgrade fetch", () => {
         "visual-studio-code",
       ]);
       expect(menuBarUpgradesSectionTitle(menuBarUpgradeCount(failed.results ?? { formulae: [], casks: [] }))).toBe(
-        "Upgrades \u00b7 3 outdated",
+        "Upgrades \u00b7 2 outdated",
       );
     }
     execBrew.mockClear();
@@ -380,7 +397,7 @@ describe("menu bar upgrade fetch", () => {
     expect(reused.status).toBe("cached");
     if (reused.status === "cached") {
       expect(upgradeNames(reused.results)).toEqual(["wget", "visual-studio-code"]);
-      expect(menuBarUpgradeCount(reused.results)).toBe(2);
+      expect(menuBarUpgradeCount(reused.results)).toBe(1);
     }
   });
 
@@ -485,5 +502,121 @@ describe("services menu bar manifest", () => {
     expect(command).toMatchObject({ name: "run-upgrade", title: "Run Queued Upgrade", mode: "no-view" });
     expect(command?.interval).toBeUndefined();
     expect(command?.disabledByDefault).toBeUndefined();
+  });
+});
+
+describe("menu bar pins", () => {
+  beforeEach(async () => {
+    clearUpgradeCache();
+    execBrew.mockReset();
+    pinnedOnDisk.mockReset();
+    await LocalStorage.clear();
+  });
+
+  it("marks a package pinned after the snapshot without calling brew", async () => {
+    pinOnDisk([]);
+    execBrew.mockResolvedValue(outdatedResult());
+    await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
+    execBrew.mockClear();
+    pinOnDisk(["wget", "openssl@3"]);
+
+    const reused = await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 2_000 });
+
+    expect(execBrew).not.toHaveBeenCalled();
+    expect(reused.status).toBe("cached");
+    if (reused.status === "cached") {
+      expect(upgradeNames(reused.results)).toEqual(["wget", "openssl@3", "visual-studio-code"]);
+      expect(menuBarUpgradeCount(reused.results)).toBe(1);
+      expect(menuBarPinnedCount(reused.results)).toBe(2);
+      expect(menuBarTitle(2, menuBarUpgradeCount(reused.results))).toBe("2 \u21911");
+    }
+  });
+
+  it("counts a package again once it is unpinned", async () => {
+    pinOnDisk(["wget"]);
+    execBrew.mockResolvedValue(outdatedResult());
+    await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
+    pinOnDisk([]);
+
+    const reused = await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 2_000 });
+
+    if (reused.status !== "cached") throw new Error(`expected cached, got ${reused.status}`);
+    expect(menuBarUpgradeCount(reused.results)).toBe(3);
+    expect(menuBarPinnedCount(reused.results)).toBe(0);
+  });
+
+  it("applies pins to the list painted before the async read", async () => {
+    pinOnDisk([]);
+    execBrew.mockResolvedValue(outdatedResult());
+    await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
+    pinOnDisk(["openssl@3"]);
+
+    const peeked = peekMenuBarUpgrades(false, 2_000);
+
+    expect(peeked.results && menuBarUpgradeCount(peeked.results)).toBe(2);
+    expect(peeked.results && menuBarPinnedCount(peeked.results)).toBe(1);
+  });
+
+  it("keeps formula and cask pins apart", async () => {
+    pinOnDisk(["visual-studio-code"]);
+    execBrew.mockResolvedValue(outdatedResult());
+    const formulaPin = await loadMenuBarUpgrades({ enabled: true, greedy: false, force: true, now: 1_000 });
+    pinOnDisk([], ["visual-studio-code"]);
+    const caskPin = await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 2_000 });
+
+    if (formulaPin.status !== "fetched" || caskPin.status !== "cached") throw new Error("unexpected status");
+    expect(formulaPin.results.casks[0].pinned).toBe(false);
+    expect(caskPin.results.casks[0].pinned).toBe(true);
+    expect(menuBarUpgradeCount(caskPin.results)).toBe(2);
+  });
+
+  it("matches a tapped formula by its short pin name", async () => {
+    pinOnDisk(["birdclaw"]);
+    execBrew.mockResolvedValue({
+      stdout: JSON.stringify({
+        formulae: [
+          { name: "steipete/tap/birdclaw", pinned: false, current_version: "2.0", installed_versions: ["1.0"] },
+        ],
+        casks: [],
+      }),
+      stderr: "",
+    });
+
+    const outcome = await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
+
+    if (outcome.status !== "fetched") throw new Error(`expected fetched, got ${outcome.status}`);
+    expect(menuBarUpgradeCount(outcome.results)).toBe(0);
+    expect(menuBarTitle(1, menuBarUpgradeCount(outcome.results))).toBe("1");
+  });
+
+  it("keeps brew's own flags when the pin directories cannot be read", async () => {
+    pinnedOnDisk.mockImplementation(() => {
+      throw Object.assign(new Error("EACCES"), { code: "EACCES" });
+    });
+    execBrew.mockResolvedValue(outdatedResult());
+
+    const outcome = await loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
+
+    if (outcome.status !== "fetched") throw new Error(`expected fetched, got ${outcome.status}`);
+    expect(menuBarUpgradeCount(outcome.results)).toBe(2);
+    expect(menuBarPinnedCount(outcome.results)).toBe(1);
+  });
+
+  it("hides a removed package whether or not it is pinned", async () => {
+    const start = Date.now();
+    pinOnDisk(["wget"]);
+    execBrew.mockResolvedValue(outdatedResult());
+    await loadMenuBarUpgrades({ enabled: true, greedy: false, now: start });
+    await forgetUpgraded([{ name: "wget", isCask: false }], start + 1_500);
+
+    const reused = await loadMenuBarUpgrades({ enabled: true, greedy: false, now: start + 2_000 });
+
+    if (reused.status !== "cached") throw new Error(`expected cached, got ${reused.status}`);
+    expect(upgradeNames(reused.results)).toEqual(["openssl@3", "visual-studio-code"]);
+    expect(menuBarPinnedCount(reused.results)).toBe(0);
+  });
+
+  it("titles the pinned submenu with its count", () => {
+    expect(menuBarPinnedTitle(4)).toBe("Pinned \u00b7 4");
   });
 });

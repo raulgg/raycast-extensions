@@ -10,10 +10,11 @@
  * first screen. Start, Stop, Restart, and Manage Services live in All
  * Services. Pending packages share one Upgrades section: Formulae and Casks
  * are headings, each name upgrades that package, and All Upgrades holds
- * Upgrade All and Preview Upgrades, then Show Upgrades below the line. At
- * zero the section is Upgrades and the only row is Up to date. Refresh stays
- * alone in the footer when upgrades are pending. Turning the upgrade count
- * off drops the Upgrades section.
+ * Upgrade All and Preview Upgrades, then Show Upgrades below the line.
+ * Pinned packages are not counted and sit in one Pinned submenu at the end of
+ * the section. At zero the section is Upgrades and Up to date is the only row
+ * besides Pinned. Refresh stays alone in the footer when upgrades are
+ * pending. Turning the upgrade count off drops the Upgrades section.
  *
  * Always render the extra. Returning null removes the services icon.
  */
@@ -50,6 +51,8 @@ import {
 } from "./components/palette";
 import {
   menuBarServicesSectionTitle,
+  menuBarPinnedCount,
+  menuBarPinnedTitle,
   menuBarTitle,
   menuBarTooltip,
   menuBarUpgradeCount,
@@ -185,11 +188,17 @@ function UpgradesSection(props: {
   liveRun?: UpgradeRunRecord;
 }) {
   const count = props.results ? menuBarUpgradeCount(props.results) : 0;
+  const sharedNames = new Set(
+    (props.results?.formulae ?? [])
+      .filter((formula) => props.results?.casks.some((cask) => cask.name === formula.name))
+      .map((formula) => formula.name),
+  );
+  const pinned = props.results && menuBarPinnedCount(props.results) > 0 && (
+    <PinnedSubmenu results={props.results} sharedNames={sharedNames} onReload={props.onReload} />
+  );
   if (props.results && count > 0) {
-    const { formulae, casks } = props.results;
-    const sharedNames = new Set(
-      formulae.filter((formula) => casks.some((cask) => cask.name === formula.name)).map((formula) => formula.name),
-    );
+    const formulae = props.results.formulae.filter((formula) => !formula.pinned);
+    const casks = props.results.casks.filter((cask) => !cask.pinned);
     return (
       <MenuBarExtra.Section title={menuBarUpgradesSectionTitle(count)}>
         {props.error && <UpgradeFailureItem error={props.error} onRefresh={props.onReload} />}
@@ -258,6 +267,7 @@ function UpgradesSection(props: {
             upgrading={packageStatus(props.liveRun, cask.name, true) === "upgrading"}
           />
         ))}
+        {pinned}
       </MenuBarExtra.Section>
     );
   }
@@ -272,7 +282,36 @@ function UpgradesSection(props: {
       {upToDate && <MenuBarExtra.Item title="Up to date" icon={UP_TO_DATE_ICON} />}
       {failed && props.error && <UpgradeFailureItem error={props.error} onRefresh={props.onReload} />}
       {checking && <MenuBarExtra.Item title="Checking upgrades…" />}
+      {pinned}
     </MenuBarExtra.Section>
+  );
+}
+
+/** Pinned packages are outdated but not pending: brew will not upgrade them until unpinned. */
+function PinnedSubmenu(props: { results: OutdatedResults; sharedNames: Set<string>; onReload: () => Promise<void> }) {
+  const formulae = props.results.formulae.filter((formula) => formula.pinned);
+  const casks = props.results.casks.filter((cask) => cask.pinned);
+  return (
+    <MenuBarExtra.Submenu title={menuBarPinnedTitle(formulae.length + casks.length)} icon={Icon.Tack}>
+      {formulae.map((formula) => (
+        <PackageUpgradeSubmenu
+          key={`formula:${formula.name}`}
+          item={formula}
+          kind="formula"
+          title={props.sharedNames.has(formula.name) ? `${formula.name} (formula)` : formula.name}
+          onReload={props.onReload}
+        />
+      ))}
+      {casks.map((cask) => (
+        <PackageUpgradeSubmenu
+          key={`cask:${cask.name}`}
+          item={cask}
+          kind="cask"
+          title={props.sharedNames.has(cask.name) ? `${cask.name} (cask)` : cask.name}
+          onReload={props.onReload}
+        />
+      ))}
+    </MenuBarExtra.Submenu>
   );
 }
 
@@ -300,7 +339,7 @@ function PackageUpgradeSubmenu(props: {
     );
   }
   return (
-    <MenuBarExtra.Submenu title={props.title} icon={UPDATE_AVAILABLE_ICON}>
+    <MenuBarExtra.Submenu title={props.title} icon={props.item.pinned ? Icon.Tack : UPDATE_AVAILABLE_ICON}>
       {props.item.pinned ? (
         <MenuBarExtra.Item title={version ? `Pinned ${version}` : "Pinned"} icon={Icon.Tack} tooltip="Pinned" />
       ) : (

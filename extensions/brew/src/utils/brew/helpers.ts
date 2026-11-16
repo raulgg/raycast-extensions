@@ -4,6 +4,7 @@
  * Provides utility functions for working with brew packages.
  */
 
+import { readdirSync } from "fs";
 import { readdir } from "fs/promises";
 import { join as path_join } from "path";
 import { Cask, Formula, InstalledVersion, Nameable, OutdatedResults } from "../types";
@@ -315,6 +316,25 @@ export async function brewPinnedIdentifiers(): Promise<{ formulae: Set<string>; 
   };
   const [formulae, casks] = await Promise.all([read("pinned"), read("pinned_casks")]);
   return { formulae, casks };
+}
+
+/**
+ * `brewPinnedIdentifiers` for a render that cannot await: the menu bar paints
+ * its cached list synchronously on every one-minute launch, and an async read
+ * would flash the pre-pin count first. Same directories, same ENOENT rule.
+ */
+export function brewPinnedIdentifiersSync(): { formulae: Set<string>; casks: Set<string> } {
+  const read = (dir: string): Set<string> => {
+    try {
+      return new Set(readdirSync(brewPath(path_join("var/homebrew", dir))));
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
+        return new Set();
+      }
+      throw err;
+    }
+  };
+  return { formulae: read("pinned"), casks: read("pinned_casks") };
 }
 
 /// Options

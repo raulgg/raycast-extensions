@@ -16,12 +16,17 @@
  * The snapshot records whether it was fetched with Greedy Upgrades. Show
  * Upgrades uses that same preference, so a list cached under the other setting
  * is not the count the menu should show.
+ *
+ * Pins are read from Homebrew's pin directories each time the list is read,
+ * not taken from the snapshot: a pin made from the CLI or another command
+ * during the hour would otherwise leave the package counted as pending. The
+ * pending count excludes pinned packages; the menu lists them under Pinned.
  */
 
 import { Cache } from "@raycast/api";
 import { BrewLockError, ensureError, getErrorMessage, isBrewLockError } from "./errors";
 import { brewFetchOutdated } from "./brew/fetch";
-import { normalizeOutdatedResults } from "./brew/helpers";
+import { brewPinnedIdentifiersSync, isPinnedPackage, normalizeOutdatedResults } from "./brew/helpers";
 import { brewLogger } from "./logger";
 import { readRemoved, subtractRemoved } from "./outdated-removed";
 import { formatCount } from "./text";
@@ -123,8 +128,51 @@ export function menuBarServicesSectionTitle(runningServices: number, erroredServ
   return statusSegments.length > 0 ? statusSegments.join(" \u00b7 ") : "Services";
 }
 
+/** Packages an upgrade would act on. Pinned ones are counted by `menuBarPinnedCount`. */
 export function menuBarUpgradeCount(results: OutdatedResults): number {
-  return results.formulae.length + results.casks.length;
+  return (
+    results.formulae.filter((formula) => !formula.pinned).length + results.casks.filter((cask) => !cask.pinned).length
+  );
+}
+
+export function menuBarPinnedCount(results: OutdatedResults): number {
+  return (
+    results.formulae.filter((formula) => formula.pinned).length + results.casks.filter((cask) => cask.pinned).length
+  );
+}
+
+export function menuBarPinnedTitle(pinnedCount: number): string {
+  return `Pinned \u00b7 ${pinnedCount}`;
+}
+
+/** Copies of the rows with `pinned` taken from Homebrew's pin directories. */
+export function applyPins(
+  results: OutdatedResults,
+  pins: { formulae: Set<string>; casks: Set<string> },
+): OutdatedResults {
+  return {
+    ...results,
+    formulae: results.formulae.map((formula) => withPinned(formula, isPinnedPackage(pins, formula.name, false))),
+    casks: results.casks.map((cask) => withPinned(cask, isPinnedPackage(pins, cask.name, true))),
+  };
+}
+
+function withPinned<T extends { pinned: boolean }>(item: T, pinned: boolean): T {
+  return item.pinned === pinned ? item : { ...item, pinned };
+}
+
+/**
+ * The list with today's pins. An unreadable pin directory keeps the flags brew
+ * reported: this is display only, and the upgrade paths read pins themselves
+ * and fail closed.
+ */
+function withCurrentPins(results: OutdatedResults): OutdatedResults {
+  try {
+    return applyPins(results, brewPinnedIdentifiersSync());
+  } catch (err) {
+    brewLogger.warn("Menu bar could not read pins", { message: getErrorMessage(ensureError(err)) });
+    return results;
+  }
 }
 
 /** Drop the menu snapshot so the next check runs `brew outdated` instead of reusing it. */
@@ -145,7 +193,7 @@ export function peekMenuBarUpgrades(
     return { fresh: false };
   }
   return {
-    results: snapshot.results,
+    results: snapshot.results && withCurrentPins(snapshot.results),
     fresh: isFresh(snapshot, now),
     startedAt: snapshot.resultsStartedAt,
     error: snapshot.failure ? failureError(snapshot.failure) : undefined,
@@ -182,12 +230,12 @@ export function loadMenuBarUpgrades(options: LoadMenuBarUpgradesOptions): Promis
   if (!options.force && matching && isFresh(matching, now)) {
     const remembered = rememberedLoad(matching);
     if (remembered) {
-      return applyRemovals(remembered);
+      return applyLocalState(remembered);
     }
   }
 
   const run = fetchMenuBarUpgrades(options, now, matching)
-    .then(applyRemovals)
+    .then(applyLocalState)
     .finally(() => {
       inflight.delete(key);
     });
@@ -257,11 +305,15 @@ async function fetchMenuBarUpgrades(
   }
 }
 
-/** Hide packages that finished after this list was fetched. The stored list stays intact. */
-async function applyRemovals(load: MenuBarUpgradesLoad): Promise<MenuBarUpgradesLoad> {
-  if (load.status === "disabled" || !load.results || load.startedAt === undefined) return load;
-  const removed = await readRemoved();
-  return { ...load, results: subtractRemoved(load.results, removed, load.startedAt) };
+/**
+ * Hide packages that finished after this list was fetched, and mark today's
+ * pins. The stored list stays intact.
+ */
+async function applyLocalState(load: MenuBarUpgradesLoad): Promise<MenuBarUpgradesLoad> {
+  if (load.status === "disabled" || !load.results) return load;
+  const results =
+    load.startedAt === undefined ? load.results : subtractRemoved(load.results, await readRemoved(), load.startedAt);
+  return { ...load, results: withCurrentPins(results) };
 }
 
 function failureError(failure: StoredFailure): Error {
