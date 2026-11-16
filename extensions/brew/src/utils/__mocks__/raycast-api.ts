@@ -167,6 +167,31 @@ export const Icon = new Proxy({}, { get: (_target, key) => String(key) });
  * it; `__raycast.reset()` in a beforeEach keeps runs independent.
  */
 
+const localItems = new Map<string, string | number | boolean>();
+
+/**
+ * In-memory stand-in for Raycast's per-extension `LocalStorage`. `getItem`
+ * reads the map on every call, which is the property the upgrade record
+ * depends on: a value written by one command is visible to the next read.
+ */
+export const LocalStorage = {
+  async getItem<T = string>(key: string): Promise<T | undefined> {
+    return localItems.get(key) as T | undefined;
+  },
+  async setItem(key: string, value: string | number | boolean): Promise<void> {
+    localItems.set(key, value);
+  },
+  async removeItem(key: string): Promise<void> {
+    localItems.delete(key);
+  },
+  async allItems(): Promise<Record<string, string | number | boolean>> {
+    return Object.fromEntries(localItems);
+  },
+  async clear(): Promise<void> {
+    localItems.clear();
+  },
+};
+
 export const __raycast = {
   /** What `confirmAlert` returns next. */
   confirmAlertResponse: true,
@@ -174,14 +199,31 @@ export const __raycast = {
   toasts: [] as MockToast[],
   huds: [] as string[],
   clipboard: [] as string[],
+  launches: [] as { name: string; type: string; context?: unknown }[],
+  /** When set, the next `launchCommand` rejects with this error and clears it. */
+  launchError: undefined as Error | undefined,
   reset() {
     __raycast.confirmAlertResponse = true;
     __raycast.alerts.length = 0;
     __raycast.toasts.length = 0;
     __raycast.huds.length = 0;
     __raycast.clipboard.length = 0;
+    __raycast.launches.length = 0;
+    __raycast.launchError = undefined;
+    localItems.clear();
+    environment.launchType = undefined;
   },
 };
+
+/** Resolves once the command has been launched, not when it finishes. */
+export async function launchCommand(options: { name: string; type: string; context?: unknown }): Promise<void> {
+  __raycast.launches.push({ name: options.name, type: options.type, context: options.context });
+  const error = __raycast.launchError;
+  if (error) {
+    __raycast.launchError = undefined;
+    throw error;
+  }
+}
 
 export const Alert = {
   ActionStyle: { Default: "default", Destructive: "destructive", Cancel: "cancel" },
@@ -194,19 +236,30 @@ export async function confirmAlert(options: { title: string; message?: string })
 
 type ToastAction = { title: string; onAction: (toast: MockToast) => void | Promise<void> };
 
-/** A Toast that remembers every message it was given, so progress can be asserted. */
+/** A Toast that remembers every message and title it was given, so progress can be asserted. */
 class MockToast {
   static Style = { Animated: "animated", Success: "success", Failure: "failure" };
   style?: string;
-  title = "";
   primaryAction?: ToastAction;
   secondaryAction?: ToastAction;
   /** Every message this toast has held, in order. */
   readonly messages: string[] = [];
+  /** Every title this toast has held, in order. */
+  readonly titles: string[] = [];
   private current?: string;
+  private currentTitle = "";
 
   constructor(options: Record<string, unknown> = {}) {
     Object.assign(this, options);
+  }
+
+  get title(): string {
+    return this.currentTitle;
+  }
+
+  set title(value: string) {
+    this.currentTitle = value;
+    this.titles.push(value);
   }
 
   get message(): string | undefined {

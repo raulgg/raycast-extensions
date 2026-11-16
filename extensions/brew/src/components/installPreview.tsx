@@ -20,6 +20,7 @@ import {
   type OutdatedCask,
   type OutdatedFormula,
   type OutdatedResults,
+  type UpgradePackage,
 } from "../utils";
 import type { DryRunEntry, DryRunSection } from "../utils/brew/dry-run";
 // Imported straight from the module, not the barrel: the barrel is owned elsewhere.
@@ -558,6 +559,11 @@ export function UpgradePreview(props: {
    */
   outdated?: OutdatedResults;
   onAction: (result: boolean) => void;
+  /**
+   * Whole-machine preview only. Runs the shared batch on the packages this
+   * preview listed. Absent, Upgrade All stays the unnamed `brew upgrade`.
+   */
+  onUpgradeAll?: (selection: UpgradePackage[]) => void;
 }) {
   const { target, outdated } = props;
   const targetName = target ? brewName(target) : undefined;
@@ -659,7 +665,24 @@ export function UpgradePreview(props: {
               {/* Whole-machine only. A preview of ONE package must not offer to
                   upgrade everything — the view names a single package, and the
                   action would act on every outdated one. */}
-              {canUpgrade && !target && <Actions.FormulaUpgradeAllAction onAction={props.onAction} />}
+              {canUpgrade && !target && props.onUpgradeAll && (
+                <Action
+                  title="Upgrade All"
+                  icon={Icon.ArrowUpCircle}
+                  shortcut={{ modifiers: ["cmd", "opt"], key: "u" }}
+                  onAction={() => {
+                    const selection = (plan?.entries ?? []).flatMap((entry) => {
+                      const row = rowTarget(entry.name);
+                      if (!row) return [];
+                      return [{ name: isCask(row) ? row.token : row.name, isCask: isCask(row) }];
+                    });
+                    props.onUpgradeAll?.(selection);
+                  }}
+                />
+              )}
+              {canUpgrade && !target && !props.onUpgradeAll && (
+                <Actions.FormulaUpgradeAllAction onAction={props.onAction} />
+              )}
               {canUpgrade && <RunInTerminalAction verb="Upgrade" command={command} />}
             </ActionPanel.Section>
             <PreviewCopyActions

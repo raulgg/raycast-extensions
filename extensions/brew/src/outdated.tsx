@@ -28,7 +28,6 @@ import {
 import {
   brewName,
   ensureError,
-  markOutdatedSnapshotDirty,
   showBrewFailureToast,
   upgradeKey,
   type OutdatedCask,
@@ -52,12 +51,13 @@ import {
   type SelectionState,
 } from "./utils/upgrade-selection";
 import { useBrewOutdated } from "./hooks/useBrewOutdated";
-import { invalidateMenuBarUpgrades } from "./utils/menu-bar-upgrades";
 import { useBrewUpgrade } from "./hooks/useBrewUpgrade";
 import { InstallableFilterDropdown, InstallableFilterType } from "./components/filter";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { OutdatedActionSections, OutdatedUpgradeAction, UpgradingActionPanel } from "./components/actionPanels";
 import { pin, unpin } from "./components/actions";
+import { readLiveRun, requestCancel, type UpgradeRunRecord } from "./utils/upgrade-run";
+import { runTrackedOutdatedUpgrade } from "./utils/tracked-upgrade";
 import { OutdatedList, statusIcon } from "./components/outdatedList";
 import { UpgradePreview } from "./components/installPreview";
 import { ensureTrusted } from "./components/trust";
@@ -79,8 +79,9 @@ const PINNED_ICON = EXCLUDED_ICON;
 
 function ShowUpgradesContent() {
   const [filter, setFilter] = useState(InstallableFilterType.all);
-  const { isLoading, isRefreshing, data, error, revalidate, cancelRefresh } = useBrewOutdated();
+  const { isLoading, isRefreshing, data, error, revalidate, cancelRefresh, liveRun } = useBrewOutdated();
   const upgrade = useBrewUpgrade();
+  const busy = Boolean(liveRun) || upgrade.isUpgrading;
 
   // The user's last full selection map; the review selection shown is this
   // merged with the freshest package list (new packages get the default,
@@ -90,29 +91,20 @@ function ShowUpgradesContent() {
   // until brew's own data catches up.
   const [pinOverrides, setPinOverrides] = useState<ReadonlyMap<string, boolean>>(new Map());
 
-  // During a run the review deliberately stays on the pre-run data: a
-  // package the run's update discovered was not reviewed and must read "Not
-  // in this upgrade" rather than selected. After the run the review follows
-  // the re-fetch below and settles to post-run reality, falling back to the
-  // run's own snapshot only until data exists.
-  const reviewSource = upgrade.isUpgrading ? data : (data ?? upgrade.outdated);
+  // The list on screen is the cached fetch, minus packages that finished
+  // after that fetch started. A run does not replace it: re-fetching would
+  // drop packages the run did not upgrade and add ones its `brew update`
+  // discovered. The run's own snapshot is only the fallback when the cache
+  // is empty.
+  const reviewSource = data ?? (liveRun ? outdatedFromRun(liveRun) : upgrade.outdated);
 
-  // After a run, re-fetch so the review reflects what is outdated now:
-  // upgraded packages drop off (the toast reports the count), failures stay
-  // visible with their status, and a completed review is never backed by the
-  // snapshot taken before the upgrades. The run already did its own brew
-  // update, so this fetch is cheap and current.
-  const wasUpgradingRef = useRef(false);
   useEffect(() => {
-    if (upgrade.isUpgrading) {
-      wasUpgradingRef.current = true;
-      return;
+    if (!liveRun) return;
+    for (const pkg of liveRun.packages) {
+      if (!pkg.status) continue;
+      upgrade.setPackageState({ name: pkg.name, isCask: pkg.isCask }, { status: pkg.status });
     }
-    if (wasUpgradingRef.current) {
-      wasUpgradingRef.current = false;
-      revalidate();
-    }
-  }, [upgrade.isUpgrading, revalidate]);
+  }, [liveRun, upgrade]);
 
   const reviewPackages = useMemo<SelectablePackage[]>(() => {
     const fetched: SelectablePackage[] = [
@@ -162,14 +154,19 @@ function ShowUpgradesContent() {
   const allSelected = selectedCount === upgradableCount && upgradableCount > 0;
   const runTitle = selectedCount === upgradableCount ? "Upgrade All" : `Upgrade ${selectedCount} Selected`;
 
-  const handleAction = useCallback(() => {
-    // Show the refreshed results, rather than those fetched by the upgrade
+  const refreshList = useCallback(() => {
     upgrade.reset();
     revalidate();
   }, [upgrade, revalidate]);
 
+  // An upgrade result does not refetch. The removal record is what drops the
+  // packages that finished; resetting here only clears the row status.
+  const finishUpgradeAction = useCallback(() => {
+    upgrade.reset();
+  }, [upgrade]);
+
   const startUpgrade = useCallback(async () => {
-    if (upgrade.isUpgrading) return;
+    if (busy) return;
     // A package the last run already upgraded stays visible with its status,
     // but launching another run for it would only no-op after a pointless
     // brew update — the engine's own reconciliation would drop it anyway.
@@ -190,7 +187,7 @@ function ShowUpgradesContent() {
     await cancelRefresh();
     if (upgrade.states.size > 0) upgrade.reset();
     upgrade.upgradeAll(packages);
-  }, [upgrade, cancelRefresh, reviewPackages, reviewSelection]);
+  }, [busy, upgrade, cancelRefresh, reviewPackages, reviewSelection]);
 
   const toggle = useCallback((key: string) => setSelection(toggleSelection(reviewSelection, key)), [reviewSelection]);
 
@@ -221,12 +218,12 @@ function ShowUpgradesContent() {
       if (reviewSelection.get(key) !== true) {
         return {
           value: EXCLUDED_ICON,
-          tooltip: upgrade.isUpgrading ? "Not in this upgrade" : "Excluded from upgrade",
+          tooltip: busy ? "Not in this upgrade" : "Excluded from upgrade",
         };
       }
-      return upgrade.isUpgrading ? statusIcon(undefined) : { value: INCLUDED_ICON, tooltip: "Included in upgrade" };
+      return busy ? statusIcon(undefined) : { value: INCLUDED_ICON, tooltip: "Included in upgrade" };
     },
-    [upgrade.states, upgrade.isUpgrading, pinOverrides, reviewSelection],
+    [upgrade.states, busy, pinOverrides, reviewSelection],
   );
 
   // The list partitions rows into Pinned sections and draws the tack from each
@@ -235,19 +232,23 @@ function ShowUpgradesContent() {
   // with the wrong accessory, until a refetch lands (or forever, if it fails).
   // It is also what tells the whole-machine preview which of its rows are
   // casks: brew's upgrade table does not say.
-  const listSource = applyPinOverridesToResults(
-    upgrade.isUpgrading ? (upgrade.outdated ?? data) : (data ?? upgrade.outdated),
-    pinOverrides,
-  );
+  const listSource = applyPinOverridesToResults(reviewSource, pinOverrides);
 
   const actions = useCallback(
     (item: OutdatedCask | OutdatedFormula, isCask: boolean) => {
-      if (upgrade.isUpgrading) {
+      if (busy) {
         return (
           <UpgradingActionPanel
             outdated={item}
             pinned={(pinOverrides.get(selectionKey(isCask ? "cask" : "formula", item.name)) ?? item.pinned) === true}
-            onCancel={upgrade.cancel}
+            onCancel={() => {
+              // The cancel key is what the owner watches. This does not abort a
+              // toast in this process; that toast belongs to whichever command
+              // is running brew.
+              void readLiveRun().then((run) => {
+                if (run) void requestCancel(run.id);
+              });
+            }}
           />
         );
       }
@@ -266,11 +267,16 @@ function ShowUpgradesContent() {
           onStart={startUpgrade}
           onPinChange={(pinned) => handlePinChange(item, isCask ? "cask" : "formula", pinned)}
           onUpgrade={(status) => upgrade.setPackageState({ name: item.name, isCask }, { status })}
-          onAction={handleAction}
+          onUpgraded={finishUpgradeAction}
+          onUpgradeAll={(selection) => {
+            void upgrade.upgradeAll(selection);
+          }}
+          onAction={refreshList}
         />
       );
     },
     [
+      busy,
       upgrade,
       listSource,
       pinOverrides,
@@ -282,20 +288,21 @@ function ShowUpgradesContent() {
       toggleAll,
       startUpgrade,
       handlePinChange,
-      handleAction,
+      refreshList,
+      finishUpgradeAction,
     ],
   );
 
   return (
     <OutdatedList
       outdated={listSource}
-      isLoading={isLoading || isRefreshing || upgrade.isUpgrading}
+      isLoading={isLoading || isRefreshing || busy}
       filterType={filter}
-      searchBarPlaceholder={upgrade.isUpgrading ? "Upgrading…" : undefined}
+      searchBarPlaceholder={busy ? "Upgrading…" : undefined}
       searchBarAccessory={<InstallableFilterDropdown onSelect={setFilter} />}
       icon={icon}
       actions={actions}
-      onAction={handleAction}
+      onAction={refreshList}
       error={error}
       onRetry={revalidate}
       emptyActions={
@@ -305,7 +312,7 @@ function ShowUpgradesContent() {
             title="Refresh"
             icon={Icon.ArrowClockwise}
             shortcut={Keyboard.Shortcut.Common.Refresh}
-            onAction={handleAction}
+            onAction={refreshList}
           />
         </ActionPanel>
       }
@@ -329,6 +336,22 @@ async function showInstalled() {
  * object identity React memoization depends on, and never mutates it: the same
  * payload is held by the fetch cache and the upgrade engine's snapshot.
  */
+function outdatedFromRun(run: UpgradeRunRecord): OutdatedResults {
+  const formulae: OutdatedResults["formulae"] = [];
+  const casks: OutdatedResults["casks"] = [];
+  for (const pkg of run.packages) {
+    const row = {
+      name: pkg.name,
+      current_version: pkg.to ?? "",
+      installed_versions: pkg.from ? [pkg.from] : [],
+      pinned: pkg.pinned === true,
+    };
+    if (pkg.isCask) casks.push({ ...row, token: pkg.name });
+    else formulae.push(row);
+  }
+  return { formulae, casks };
+}
+
 function applyPinOverridesToResults(
   results: OutdatedResults | undefined,
   overrides: ReadonlyMap<string, boolean>,
@@ -372,6 +395,9 @@ function ReviewActionPanel(props: {
   onStart: () => void;
   onPinChange: (pinned: boolean) => void;
   onUpgrade: (status: UpgradePackageStatus) => void;
+  /** Upgrade finished. Resets upgrade state and does not refetch. */
+  onUpgraded: (result: boolean) => void;
+  onUpgradeAll: (selection: UpgradePackage[]) => void;
   onAction: (result: boolean) => void;
 }) {
   // The second action in the panel is where Raycast binds ⌘↩ — the run
@@ -393,7 +419,7 @@ function ReviewActionPanel(props: {
       title="Preview Upgrades"
       icon={Icon.Eye}
       shortcut={{ modifiers: ["cmd", "shift"], key: "i" }}
-      target={<UpgradePreview outdated={props.results} onAction={props.onAction} />}
+      target={<UpgradePreview outdated={props.results} onAction={props.onUpgraded} onUpgradeAll={props.onUpgradeAll} />}
     />
   );
   // This row's own upgrade, not the machine's. Cheap next to the all-packages
@@ -407,7 +433,7 @@ function ReviewActionPanel(props: {
       title={`Preview Upgrade of ${props.outdated.name}`}
       icon={Icon.Eye}
       shortcut={{ modifiers: ["cmd", "opt"], key: "i" }}
-      target={<UpgradePreview target={props.outdated} onAction={props.onAction} />}
+      target={<UpgradePreview target={props.outdated} onAction={props.onUpgraded} />}
     />
   );
   const toggleAllAction = (
@@ -539,15 +565,7 @@ function PreviewHandoff(props: { target: OutdatedFormula | OutdatedCask; onShowL
         onShowList.current();
         return;
       }
-      push(
-        <UpgradePreview
-          target={target}
-          // Show Upgrades withholds its own snapshot. The menu bar list is a
-          // different cache, so drop that too or the badge keeps the old count.
-          onAction={noteMenuBarUpgrade}
-        />,
-        () => onShowList.current(),
-      );
+      push(<UpgradePreview target={target} onAction={leaveUpgradedPackage} />, () => onShowList.current());
     });
   }, [props.target, push]);
 
@@ -558,9 +576,9 @@ type OutdatedLaunchContext =
   | { mode: "preview"; target: OutdatedFormula | OutdatedCask }
   | { mode: "preview-all"; outdated: OutdatedResults };
 
-function noteMenuBarUpgrade(): void {
-  markOutdatedSnapshotDirty();
-  invalidateMenuBarUpgrades();
+function leaveUpgradedPackage(): void {
+  // The upgrade recorded the package that finished. The next open subtracts
+  // that key from the list it already has. Refetching here drops the rest.
 }
 
 export default function Main(props: LaunchProps<{ launchContext?: OutdatedLaunchContext }>) {
@@ -579,7 +597,13 @@ export default function Main(props: LaunchProps<{ launchContext?: OutdatedLaunch
   if (context?.mode === "preview-all") {
     return (
       <ErrorBoundary>
-        <UpgradePreview outdated={context.outdated} onAction={noteMenuBarUpgrade} />
+        <UpgradePreview
+          outdated={context.outdated}
+          onAction={leaveUpgradedPackage}
+          onUpgradeAll={(selection) => {
+            void runTrackedOutdatedUpgrade({ selection, controller: new AbortController() });
+          }}
+        />
       </ErrorBoundary>
     );
   }

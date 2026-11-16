@@ -132,6 +132,17 @@
       ]
     },
     {
+      "name": "run-upgrade",
+      "title": "Run Queued Upgrade",
+      "subtitle": "Brew",
+      "description": "Run a Homebrew upgrade queued from the menu bar or Show Upgrades",
+      "mode": "no-view",
+      "keywords": [
+        "upgrade",
+        "homebrew"
+      ]
+    },
+    {
       "name": "manage-services",
       "title": "Manage Services",
       "subtitle": "Brew",

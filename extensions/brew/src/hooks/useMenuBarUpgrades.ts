@@ -10,12 +10,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { loadMenuBarUpgrades, peekMenuBarUpgrades, type MenuBarUpgradesLoad } from "../utils/menu-bar-upgrades";
+import { readRemoved, subscribeRemoved, subtractRemoved } from "../utils/outdated-removed";
+import { clearFinishedRun, readLiveRun, readUpgradeRun, type UpgradeRunRecord } from "../utils/upgrade-run";
 import type { OutdatedResults } from "../utils/types";
 
 interface MenuBarUpgradesState {
   isLoading: boolean;
   data?: OutdatedResults;
   error?: Error;
+  /** Fetch start of `data`, so a later removal can be compared without refetching. */
+  startedAt?: number;
+  liveRun?: UpgradeRunRecord;
 }
 
 export function useMenuBarUpgrades(enabled: boolean, greedy: boolean) {
@@ -27,10 +32,10 @@ export function useMenuBarUpgrades(enabled: boolean, greedy: boolean) {
       return;
     }
     if (outcome.status === "failed") {
-      setState({ isLoading: false, data: outcome.results, error: outcome.error });
+      setState({ isLoading: false, data: outcome.results, error: outcome.error, startedAt: outcome.startedAt });
       return;
     }
-    setState({ isLoading: false, data: outcome.results });
+    setState({ isLoading: false, data: outcome.results, startedAt: outcome.startedAt });
   }, []);
 
   useEffect(() => {
@@ -39,15 +44,46 @@ export function useMenuBarUpgrades(enabled: boolean, greedy: boolean) {
       return;
     }
     let cancelled = false;
-    void loadMenuBarUpgrades({ enabled: true, greedy }).then((outcome) => {
-      if (!cancelled) {
-        apply(outcome);
+    void (async () => {
+      const live = await readLiveRun();
+      const removed = await readRemoved();
+      if (cancelled) return;
+      if (!live) {
+        const stored = await readUpgradeRun();
+        if (stored && stored.phase !== "queued" && stored.phase !== "running") await clearFinishedRun();
       }
-    });
+      if (cancelled) return;
+      if (live) {
+        // A live run holds Homebrew's lock. Paint the snapshot we already
+        // have, minus packages that finished, and do not call brew.
+        const peeked = peekMenuBarUpgrades(greedy);
+        const data =
+          peeked.results && peeked.startedAt !== undefined
+            ? subtractRemoved(peeked.results, removed, peeked.startedAt)
+            : peeked.results;
+        setState({ isLoading: false, data, error: peeked.error, startedAt: peeked.startedAt, liveRun: live });
+        return;
+      }
+      const outcome = await loadMenuBarUpgrades({ enabled: true, greedy });
+      if (!cancelled) apply(outcome);
+    })();
     return () => {
       cancelled = true;
     };
   }, [enabled, greedy, apply]);
+
+  // A removal written in this process (the click is still this command, until
+  // the worker owns brew) drops that package without another `brew outdated`.
+  useEffect(() => {
+    return subscribeRemoved(() => {
+      void readRemoved().then((removed) => {
+        setState((current) => {
+          if (!current.data || current.startedAt === undefined) return current;
+          return { ...current, data: subtractRemoved(current.data, removed, current.startedAt) };
+        });
+      });
+    });
+  }, []);
 
   const refresh = useCallback(() => {
     setState((current) => ({ ...current, isLoading: true }));
@@ -62,8 +98,9 @@ function initialState(enabled: boolean, greedy: boolean): MenuBarUpgradesState {
     return { isLoading: false };
   }
   const peeked = peekMenuBarUpgrades(greedy);
-  // `isLoading` has to be true on the first render when a fetch is required.
-  // The menu bar unloads as soon as it flips to false, which would cancel a
-  // fetch that started in an effect after a first paint of false.
-  return { isLoading: !peeked.fresh, data: peeked.results, error: peeked.error };
+  // Stay loading until the removal read is applied, even when the snapshot is
+  // fresh. The menu bar unloads as soon as loading flips to false, which would
+  // cancel that read, and clearing the peeked list would blink the arrow off
+  // the title for the length of it. The peeked count stays up meanwhile.
+  return { isLoading: true, data: peeked.results, error: peeked.error };
 }

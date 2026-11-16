@@ -19,7 +19,8 @@ import { actionsLogger } from "../logger";
 import { execBrewWithProgress, BrewProgress, DEFAULT_STALE_TIMEOUT_MS } from "./progress";
 import { getErrorMessage, ensureError, StaleProcessError, BrewLockError, upgradeSkipReason } from "../errors";
 import { preferences } from "../preferences";
-import { brewPinnedIdentifiers, isPinnedPackage, normalizeOutdatedResults } from "./helpers";
+import { brewPinnedIdentifiers, isPinnedPackage, normalizeOutdatedResults, thirdPartyTapOf } from "./helpers";
+import { brewPackageTrust } from "./taps";
 
 /// Upgrade Types
 
@@ -174,12 +175,29 @@ export async function brewUpgradeOutdated(options?: UpgradeOptions): Promise<Upg
     packages = restrictToSelection(packages, options.selection);
   }
 
-  onEvent?.({ type: "start", outdated, packages, skipped: pinned });
+  // A named `brew upgrade` installs an untrusted tap's package. An unnamed
+  // `brew upgrade` skips those taps, and this batch does too: the click that
+  // wanted one package already asked. A trust check that itself fails is a
+  // skip, so a locked brew is not treated as a yes.
+  const untrusted: { pkg: UpgradePackage; message: string }[] = [];
+  const runnable: UpgradePackage[] = [];
+  for (const pkg of packages) {
+    const reason = await untrustedBatchSkip(pkg);
+    if (reason) untrusted.push({ pkg, message: reason });
+    else runnable.push(pkg);
+  }
+  packages = runnable;
+
+  const skipped = [...pinned, ...untrusted.map((entry) => entry.pkg)];
+  onEvent?.({ type: "start", outdated, packages, skipped });
   for (const pkg of pinned) {
     onEvent?.({ type: "package", package: pkg, status: "skipped", message: "Pinned" });
   }
+  for (const entry of untrusted) {
+    onEvent?.({ type: "package", package: entry.pkg, status: "skipped", message: entry.message });
+  }
 
-  const summary: UpgradeSummary = { upgraded: [], failed: [], skipped: [...pinned], canceled: false };
+  const summary: UpgradeSummary = { upgraded: [], failed: [], skipped: [...skipped], canceled: false };
 
   if (packages.length === 0) {
     actionsLogger.log("No packages to upgrade");
@@ -318,4 +336,27 @@ export async function brewUpgradeOutdated(options?: UpgradeOptions): Promise<Upg
   });
 
   return summary;
+}
+
+/**
+ * Why a batch should not name this package, or undefined when brew may.
+ *
+ * Core and cask need no check. An outdated cask carries no tap, so its name
+ * is unqualified and this returns undefined — the same packages an unnamed
+ * `brew upgrade` would still try. `unsupported` is Homebrew from before trust
+ * existed: there is nothing to skip.
+ */
+export async function untrustedBatchSkip(pkg: UpgradePackage): Promise<string | undefined> {
+  const tap = thirdPartyTapOf({ name: pkg.name });
+  if (!tap) return undefined;
+  try {
+    const state = await brewPackageTrust(tap, pkg.name, pkg.isCask);
+    return state === "untrusted" ? "Untrusted" : undefined;
+  } catch (err) {
+    actionsLogger.warn("Could not check whether a package is trusted", {
+      name: pkg.name,
+      error: getErrorMessage(err),
+    });
+    return "Could not check trust";
+  }
 }

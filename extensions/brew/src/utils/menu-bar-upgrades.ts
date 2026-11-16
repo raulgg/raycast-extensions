@@ -23,6 +23,7 @@ import { BrewLockError, ensureError, getErrorMessage, isBrewLockError } from "./
 import { brewFetchOutdated } from "./brew/fetch";
 import { normalizeOutdatedResults } from "./brew/helpers";
 import { brewLogger } from "./logger";
+import { readRemoved, subtractRemoved } from "./outdated-removed";
 import { formatCount } from "./text";
 import type { OutdatedResults } from "./types";
 
@@ -42,6 +43,12 @@ interface StoredFailure {
 interface Snapshot {
   /** When the last check ran, whether it succeeded or not. */
   attemptedAt: number;
+  /**
+   * When the fetch that produced `results` started. A failed check keeps the
+   * previous value: `attemptedAt` is rewritten on failure, so it is not the
+   * fetch time a removal is compared against.
+   */
+  resultsStartedAt?: number;
   greedy: boolean;
   /** Absent when a check has never succeeded. Never an empty stand-in for a failure. */
   results?: OutdatedResults;
@@ -50,8 +57,8 @@ interface Snapshot {
 
 export type MenuBarUpgradesLoad =
   | { status: "disabled" }
-  | { status: "cached" | "fetched"; results: OutdatedResults; fetchedAt: number }
-  | { status: "failed"; error: Error; results?: OutdatedResults; fetchedAt?: number };
+  | { status: "cached" | "fetched"; results: OutdatedResults; fetchedAt: number; startedAt?: number }
+  | { status: "failed"; error: Error; results?: OutdatedResults; fetchedAt?: number; startedAt?: number };
 
 export interface LoadMenuBarUpgradesOptions {
   /** Command preference. When false, nothing here runs `brew`. */
@@ -132,7 +139,7 @@ export function invalidateMenuBarUpgrades(): void {
 export function peekMenuBarUpgrades(
   greedy: boolean,
   now = Date.now(),
-): { results?: OutdatedResults; fresh: boolean; error?: Error } {
+): { results?: OutdatedResults; fresh: boolean; error?: Error; startedAt?: number } {
   const snapshot = readSnapshot();
   if (!snapshot || snapshot.greedy !== greedy) {
     return { fresh: false };
@@ -140,8 +147,19 @@ export function peekMenuBarUpgrades(
   return {
     results: snapshot.results,
     fresh: isFresh(snapshot, now),
+    startedAt: snapshot.resultsStartedAt,
     error: snapshot.failure ? failureError(snapshot.failure) : undefined,
   };
+}
+
+/**
+ * The upgrade check already running for this Greedy Upgrades setting, if this
+ * process started one. Callers join that promise. This never starts
+ * `brew outdated`: a different process cannot see the map, and a miss here
+ * means there is nothing to wait for.
+ */
+export function pendingMenuBarUpgrades(greedy: boolean): Promise<MenuBarUpgradesLoad> | undefined {
+  return inflight.get(inflightKey(greedy));
 }
 
 export function loadMenuBarUpgrades(options: LoadMenuBarUpgradesOptions): Promise<MenuBarUpgradesLoad> {
@@ -152,7 +170,7 @@ export function loadMenuBarUpgrades(options: LoadMenuBarUpgradesOptions): Promis
   // strict-mode remount, and Refresh share it. A second process is what the
   // cache writer must not start. A cache hit does not take the slot, so
   // Refresh can still fetch when nothing is running.
-  const key = options.greedy ? "greedy" : "plain";
+  const key = inflightKey(options.greedy);
   const existing = inflight.get(key);
   if (existing) {
     return existing;
@@ -164,15 +182,21 @@ export function loadMenuBarUpgrades(options: LoadMenuBarUpgradesOptions): Promis
   if (!options.force && matching && isFresh(matching, now)) {
     const remembered = rememberedLoad(matching);
     if (remembered) {
-      return Promise.resolve(remembered);
+      return applyRemovals(remembered);
     }
   }
 
-  const run = fetchMenuBarUpgrades(options, now, matching).finally(() => {
-    inflight.delete(key);
-  });
+  const run = fetchMenuBarUpgrades(options, now, matching)
+    .then(applyRemovals)
+    .finally(() => {
+      inflight.delete(key);
+    });
   inflight.set(key, run);
   return run;
+}
+
+function inflightKey(greedy: boolean): string {
+  return greedy ? "greedy" : "plain";
 }
 
 function rememberedLoad(matching: Snapshot): MenuBarUpgradesLoad | undefined {
@@ -182,10 +206,16 @@ function rememberedLoad(matching: Snapshot): MenuBarUpgradesLoad | undefined {
       error: failureError(matching.failure),
       results: matching.results,
       fetchedAt: matching.attemptedAt,
+      startedAt: matching.resultsStartedAt,
     };
   }
   if (matching.results) {
-    return { status: "cached", results: matching.results, fetchedAt: matching.attemptedAt };
+    return {
+      status: "cached",
+      results: matching.results,
+      fetchedAt: matching.attemptedAt,
+      startedAt: matching.resultsStartedAt,
+    };
   }
   return undefined;
 }
@@ -195,27 +225,43 @@ async function fetchMenuBarUpgrades(
   now: number,
   matching: Snapshot | undefined,
 ): Promise<MenuBarUpgradesLoad> {
+  const startedAt = now;
   try {
     const results = await brewFetchOutdated(options.greedy, undefined, true);
-    const fetched: Snapshot = { attemptedAt: now, greedy: options.greedy, results };
+    const fetched: Snapshot = { attemptedAt: now, resultsStartedAt: startedAt, greedy: options.greedy, results };
     cache.set(MENU_BAR_UPGRADES_CACHE_KEY, JSON.stringify(fetched));
-    return { status: "fetched", results, fetchedAt: now };
+    return { status: "fetched", results, fetchedAt: now, startedAt };
   } catch (err) {
     const error = ensureError(err);
     brewLogger.warn("Menu bar upgrade check failed", { message: error.message });
     // Remember the attempt, and keep the last matching list. An empty results
     // write would claim the machine is up to date. The attempt time stops the
     // one-minute relaunch from running brew again until the check is old.
+    // The previous fetch start stays: this attempt did not produce a list.
     const failure: StoredFailure = { lock: isBrewLockError(error), message: getErrorMessage(error) };
     const remembered: Snapshot = {
       attemptedAt: now,
+      resultsStartedAt: matching?.resultsStartedAt,
       greedy: options.greedy,
       results: matching?.results,
       failure,
     };
     cache.set(MENU_BAR_UPGRADES_CACHE_KEY, JSON.stringify(remembered));
-    return { status: "failed", error, results: matching?.results, fetchedAt: matching?.attemptedAt };
+    return {
+      status: "failed",
+      error,
+      results: matching?.results,
+      fetchedAt: matching?.attemptedAt,
+      startedAt: matching?.resultsStartedAt,
+    };
   }
+}
+
+/** Hide packages that finished after this list was fetched. The stored list stays intact. */
+async function applyRemovals(load: MenuBarUpgradesLoad): Promise<MenuBarUpgradesLoad> {
+  if (load.status === "disabled" || !load.results || load.startedAt === undefined) return load;
+  const removed = await readRemoved();
+  return { ...load, results: subtractRemoved(load.results, removed, load.startedAt) };
 }
 
 function failureError(failure: StoredFailure): Error {
@@ -256,6 +302,12 @@ function readSnapshot(): Snapshot | undefined {
     if (results === null) {
       return undefined;
     }
+    if (
+      parsed.resultsStartedAt !== undefined &&
+      (typeof parsed.resultsStartedAt !== "number" || !Number.isFinite(parsed.resultsStartedAt))
+    ) {
+      return undefined;
+    }
     const failure = parsed.failure === undefined ? undefined : readFailure(parsed.failure);
     if (parsed.failure !== undefined && !failure) {
       return undefined;
@@ -265,6 +317,7 @@ function readSnapshot(): Snapshot | undefined {
     }
     return {
       attemptedAt: parsed.attemptedAt,
+      resultsStartedAt: parsed.resultsStartedAt,
       greedy: parsed.greedy,
       results: results ? normalizeOutdatedResults(results) : undefined,
       failure,

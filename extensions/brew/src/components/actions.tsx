@@ -1,6 +1,15 @@
 import { Action, Alert, confirmAlert, Icon, Keyboard, showHUD, showToast, Toast } from "@raycast/api";
 import { useBrewDependencies } from "../hooks/useBrewDependencies";
 import { ensureTrusted } from "./trust";
+import { execUpgrade } from "../utils/upgrade-one";
+import {
+  claimRun,
+  isCancelRequested,
+  queueRun,
+  readLiveRun,
+  readUpgradeRun,
+  writeUpgradeRun,
+} from "../utils/upgrade-run";
 import {
   type BrewProgress,
   brewInstallWithProgress,
@@ -18,7 +27,6 @@ import {
   brewInstalledVersion,
   brewAvailableVersion,
   brewIsOutdated,
-  brewUpgradeSingleWithProgress,
   brewCaskLinkPreview,
   type CaskLinkVerb,
   confirmAndRun,
@@ -27,7 +35,6 @@ import {
   ensureError,
   isBackgroundLaunch,
   isPinnedRefusal,
-  upgradeSkipReason,
   type Formula,
   type Nameable,
   type PinKind,
@@ -600,56 +607,6 @@ async function uninstall(
   }
 }
 
-/** Homebrew ran, exited 0, and chose not to upgrade — neither success nor failure. */
-const DECLINED = "declined" as const;
-
-async function upgrade(formula: Cask | Nameable): Promise<boolean | typeof DECLINED> {
-  // Declined trust is a skip, not a failure: nothing ran, and the row is intact.
-  if (!(await ensureTrusted(formula))) return DECLINED;
-  const name = brewName(formula);
-  const handle = showActionToast({
-    title: `Upgrading ${name}`,
-    message: "",
-    cancelable: true,
-  });
-  try {
-    // Use progress-enabled upgrade to show download progress
-    const result = await brewUpgradeSingleWithProgress(
-      formula,
-      (progress: BrewProgress) => {
-        handle.updateMessage(progress.message);
-      },
-      handle.abort?.signal,
-    );
-
-    // Exit 0 is not proof of an upgrade — brew warns and skips a disabled,
-    // unavailable or already-current package.
-    const declined = upgradeSkipReason(`${result.stderr ?? ""}\n${result.stdout ?? ""}`, brewIdentifier(formula));
-    if (declined) {
-      await handle.hide();
-      if (isBackgroundLaunch()) {
-        await showHUD(`Did not upgrade ${name}. ${declined}`);
-      } else {
-        await showToast({
-          style: Toast.Style.Failure,
-          title: `Did not upgrade ${name}`,
-          message: declined,
-          primaryAction: copyLogsAction(`Did not upgrade ${name}\n\n${declined}`, { hideToast: true }),
-        });
-      }
-      return DECLINED;
-    }
-
-    await handle.showSuccessHUD(`Upgraded ${name}`);
-    return true;
-  } catch (err) {
-    const error = ensureError(err);
-    await handle.showFailureHUD(`Failed to upgrade ${name}`);
-    showBrewFailureToast("Upgrade failed", error);
-    return false;
-  }
-}
-
 /**
  * What happened to a single-package upgrade attempt.
  *
@@ -686,16 +643,21 @@ type UpgradeOutcome =
  * and Show Installed say true, where the only sensible reading of pressing
  * Upgrade on a pinned row is "do the thing".
  */
-async function upgradeChecked(
+/**
+ * Pin check, then trust. Ready means brew may run. Skipped means a pin or a
+ * declined trust question stopped it. Aborted means the pin directory or an
+ * unpin could not be completed, which is already reported.
+ *
+ * `allowUnpin` is false for Show Upgrades and the menu bar: a row that says
+ * skipped must not quietly unpin itself. Search and Show Installed pass true.
+ */
+export async function prepareUpgrade(
   item: Cask | Nameable,
-  opts?: { allowUnpin?: boolean; onStart?: () => void },
-): Promise<UpgradeOutcome> {
+  opts?: { allowUnpin?: boolean },
+): Promise<{ status: "ready"; refresh: boolean } | { status: "skipped"; refresh: boolean } | { status: "aborted" }> {
   const cask = isCask(item);
-
   const pins = await readPins("Upgrade");
-  if (!pins) {
-    return { outcome: "aborted" };
-  }
+  if (!pins) return { status: "aborted" };
 
   // Identity, not display name: `brewName` gives a cask its title.
   const pinnedOnDisk = isPinnedPackage(pins, brewIdentifier(item), cask);
@@ -715,38 +677,48 @@ async function upgradeChecked(
           message: `${name} is pinned. Unpin it (⌘ .) to upgrade.`,
         });
       }
-      return { outcome: "skipped", refresh: stalePin };
+      return { status: "skipped", refresh: stalePin };
     }
-    // The pin is the only thing in the way and the user just asked for the
-    // upgrade — so lift it, then proceed.
     if (!(await unpin(item as Pinnable, cask ? "cask" : "formula"))) {
-      return { outcome: "aborted" };
+      return { status: "aborted" };
     }
     unpinned = true;
   }
 
+  // Declined trust is a skip, not a failure: nothing ran, and the row is intact.
+  if (!(await ensureTrusted(item))) {
+    return { status: "skipped", refresh: unpinned || stalePin };
+  }
+  return { status: "ready", refresh: unpinned || stalePin };
+}
+
+async function upgradeChecked(
+  item: Cask | Nameable,
+  opts?: { allowUnpin?: boolean; onStart?: () => void },
+): Promise<UpgradeOutcome> {
+  const prepared = await prepareUpgrade(item, { allowUnpin: opts?.allowUnpin });
+  if (prepared.status === "aborted") return { outcome: "aborted" };
+  if (prepared.status === "skipped") return { outcome: "skipped", refresh: prepared.refresh };
+
   opts?.onStart?.();
-  const result = await upgrade(item);
-  // A decline still leaves the lifted pin behind: brew can exit 0 and refuse
+  const result = await execUpgrade(item);
+  if (result === "aborted") return { outcome: "aborted" };
+  // A decline still leaves a lifted pin behind: brew can exit 0 and refuse
   // (already current, disabled, unavailable), so this is not the failure path.
-  return result === DECLINED
-    ? { outcome: "skipped", refresh: unpinned || stalePin }
-    : { outcome: "upgraded", ok: result };
+  return result === "skipped"
+    ? { outcome: "skipped", refresh: prepared.refresh }
+    : { outcome: "upgraded", ok: result === "upgraded" };
 }
 
 /**
  * Upgrade the one package a menu-bar row names.
  *
- * Same path as Upgrade on Search and Show Installed: the pin directory is
- * read first, and a pin is lifted because the click has no other way to say
- * "upgrade this anyway". Feedback is that path's own HUD. Returns whether the
- * caller's outdated list should be re-read.
+ * A package that actually upgraded is recorded inside `upgrade` and leaves
+ * both lists by subtraction. The boolean is only the stale-pin case: the row
+ * disagreed with the pin directory, so the caller has to refresh that snapshot.
  */
 export async function upgradeOnePackage(item: Cask | Nameable): Promise<boolean> {
-  const result = await upgradeChecked(item, { allowUnpin: true });
-  if (result.outcome === "upgraded") {
-    return result.ok;
-  }
+  const result = await upgradeChecked(item, { allowUnpin: false });
   return result.outcome === "skipped" && result.refresh === true;
 }
 
@@ -754,22 +726,51 @@ export async function upgradeOnePackage(item: Cask | Nameable): Promise<boolean>
  * Upgrade everything outdated. The menu bar and `FormulaUpgradeAllAction` both
  * call this. Includes Greedy Upgrades. A background menu-bar launch reports
  * through HUD, because Toast is rejected there.
+ *
+ * One exit code covers the whole machine, so this writes no removal keys:
+ * guessing which names finished would drop the wrong rows.
  */
 export async function upgradeAll(): Promise<boolean> {
+  if (await readLiveRun()) {
+    if (isBackgroundLaunch()) await showHUD("An upgrade is already running");
+    else await showToast({ style: Toast.Style.Failure, title: "An upgrade is already running" });
+    return false;
+  }
+  const queued = await queueRun({ scope: "all", selection: [], packages: [] });
+  const claimed = await claimRun(queued.id, "upgrade-all");
+  if (!claimed) return false;
+
   const handle = showActionToast({
     title: "Upgrading all packages",
     message: "This may take a while...",
     cancelable: true,
   });
+  const timer = setInterval(() => {
+    void (async () => {
+      if (await isCancelRequested(claimed.id)) handle.abort?.abort();
+      const current = await readUpgradeRun();
+      if (!current || current.id !== claimed.id || current.phase !== "running") return;
+      await writeUpgradeRun({ ...current, heartbeatAt: Date.now() });
+    })();
+  }, 1000);
+  let phase: "done" | "failed" | "canceled" = "failed";
   try {
     await brewUpgradeAll(preferences.greedyUpgrades, handle.abort?.signal);
     await handle.showSuccessHUD("All packages upgraded");
+    phase = "done";
     return true;
   } catch (err) {
     const error = ensureError(err);
     await handle.showFailureHUD("Failed to upgrade packages");
     showBrewFailureToast("Upgrade failed", error);
+    phase = handle.abort?.signal.aborted ? "canceled" : "failed";
     return false;
+  } finally {
+    clearInterval(timer);
+    const current = await readUpgradeRun();
+    if (current && current.id === claimed.id && current.owner === "upgrade-all") {
+      await writeUpgradeRun({ ...current, phase, heartbeatAt: Date.now() });
+    }
   }
 }
 

@@ -26,7 +26,6 @@ import {
   ensureError,
   getErrorMessage,
   isBrewLockError,
-  markOutdatedSnapshotDirty,
   outdatedFetchFailureCopy,
   runServiceCommand,
   SERVICE_ACTION_COPY,
@@ -38,9 +37,17 @@ import {
 } from "./utils";
 import { useBrewServices } from "./hooks/useBrewServices";
 import { useMenuBarUpgrades } from "./hooks/useMenuBarUpgrades";
-import { upgradeAll, upgradeOnePackage } from "./components/actions";
+import { prepareUpgrade } from "./components/actions";
+import { queueMenuUpgrade } from "./utils/menu-upgrade";
+import { readLiveRun, requestCancel, type UpgradeRunPackage, type UpgradeRunRecord } from "./utils/upgrade-run";
 import { serviceStatusIcon, type ServicesMutate } from "./components/serviceActions";
-import { ERROR_ICON, UPDATE_AVAILABLE_ICON, UP_TO_DATE_ICON, WARNING_ICON } from "./components/palette";
+import {
+  ERROR_ICON,
+  IN_PROGRESS_ICON,
+  UPDATE_AVAILABLE_ICON,
+  UP_TO_DATE_ICON,
+  WARNING_ICON,
+} from "./components/palette";
 import {
   menuBarServicesSectionTitle,
   menuBarTitle,
@@ -137,6 +144,7 @@ export default function Command() {
           error={upgrades.error}
           isLoading={upgrades.isLoading}
           onReload={() => upgrades.refresh()}
+          liveRun={upgrades.liveRun}
         />
       )}
 
@@ -156,7 +164,9 @@ export default function Command() {
             // command; without the await the outdated fetch dies and the
             // one-hour snapshot stays on screen. Services run after, so the
             // two brew processes do not take Homebrew's lock from each other.
-            if (showUpgradeCount) {
+            // A live upgrade holds the brew lock. Refresh services, and leave
+            // the upgrade list until that run finishes.
+            if (showUpgradeCount && !upgrades.liveRun) {
               await upgrades.refresh();
             }
             await revalidate();
@@ -172,6 +182,7 @@ function UpgradesSection(props: {
   error: Error | undefined;
   isLoading: boolean;
   onReload: () => Promise<void>;
+  liveRun?: UpgradeRunRecord;
 }) {
   const count = props.results ? menuBarUpgradeCount(props.results) : 0;
   if (props.results && count > 0) {
@@ -183,11 +194,27 @@ function UpgradesSection(props: {
       <MenuBarExtra.Section title={menuBarUpgradesSectionTitle(count)}>
         {props.error && <UpgradeFailureItem error={props.error} onRefresh={props.onReload} />}
         <MenuBarExtra.Submenu title="All Upgrades">
-          <MenuBarExtra.Item
-            title="Upgrade All"
-            icon={Icon.ArrowUpCircle}
-            onAction={() => upgradeEverything(props.onReload)}
-          />
+          {props.liveRun ? (
+            <>
+              <MenuBarExtra.Item title="Upgrade in progress" icon={IN_PROGRESS_ICON} />
+              <MenuBarExtra.Item
+                title="Cancel Upgrade"
+                icon={Icon.XMarkCircle}
+                onAction={() => {
+                  const id = props.liveRun?.id;
+                  if (id) void requestCancel(id);
+                }}
+              />
+            </>
+          ) : (
+            <MenuBarExtra.Item
+              title="Upgrade All"
+              icon={Icon.ArrowUpCircle}
+              onAction={() => {
+                if (props.results) void upgradeEverything(props.results, props.onReload);
+              }}
+            />
+          )}
           <MenuBarExtra.Item
             title="Preview Upgrades"
             icon={Icon.Eye}
@@ -216,6 +243,7 @@ function UpgradesSection(props: {
             kind="formula"
             title={sharedNames.has(formula.name) ? `${formula.name} (formula)` : formula.name}
             onReload={props.onReload}
+            upgrading={packageStatus(props.liveRun, formula.name, false) === "upgrading"}
           />
         ))}
 
@@ -227,6 +255,7 @@ function UpgradesSection(props: {
             kind="cask"
             title={sharedNames.has(cask.name) ? `${cask.name} (cask)` : cask.name}
             onReload={props.onReload}
+            upgrading={packageStatus(props.liveRun, cask.name, true) === "upgrading"}
           />
         ))}
       </MenuBarExtra.Section>
@@ -247,20 +276,40 @@ function UpgradesSection(props: {
   );
 }
 
+function packageStatus(
+  run: UpgradeRunRecord | undefined,
+  name: string,
+  isCask: boolean,
+): UpgradeRunPackage["status"] | undefined {
+  return run?.packages.find((pkg) => pkg.name === name && pkg.isCask === isCask)?.status;
+}
+
 function PackageUpgradeSubmenu(props: {
   item: OutdatedFormula | OutdatedCask;
   kind: "formula" | "cask";
   title: string;
   onReload: () => Promise<void>;
+  upgrading?: boolean;
 }) {
+  const version = versionLabel(props.item);
+  if (props.upgrading) {
+    return (
+      <MenuBarExtra.Submenu title={props.title} icon={IN_PROGRESS_ICON}>
+        <MenuBarExtra.Item title="Upgrading" />
+      </MenuBarExtra.Submenu>
+    );
+  }
   return (
     <MenuBarExtra.Submenu title={props.title} icon={UPDATE_AVAILABLE_ICON}>
-      <MenuBarExtra.Item
-        title={upgradeVersionTitle(props.item, props.kind)}
-        icon={Icon.ArrowUpCircle}
-        tooltip={props.item.pinned ? "Pinned" : undefined}
-        onAction={() => upgradePackage(props.item, props.onReload)}
-      />
+      {props.item.pinned ? (
+        <MenuBarExtra.Item title={version ? `Pinned ${version}` : "Pinned"} icon={Icon.Tack} tooltip="Pinned" />
+      ) : (
+        <MenuBarExtra.Item
+          title={version ? `Upgrade ${version}` : "Upgrade"}
+          icon={Icon.ArrowUpCircle}
+          onAction={() => upgradePackage(props.item, props.kind, props.onReload)}
+        />
+      )}
       <MenuBarExtra.Item
         title="Preview Upgrade"
         icon={Icon.Eye}
@@ -276,31 +325,71 @@ function PackageUpgradeSubmenu(props: {
   );
 }
 
-function upgradeVersionTitle(item: OutdatedFormula | OutdatedCask, kind: "formula" | "cask"): string {
+function versionLabel(item: OutdatedFormula | OutdatedCask): string | undefined {
   const from = item.installed_versions[0];
   const to = item.current_version;
-  const version = from && to ? `${from} → ${to}` : undefined;
-  if (item.pinned) {
-    const noun = kind === "cask" ? "Cask" : "Formula";
-    return version ? `Unpin ${noun} and Upgrade ${version}` : `Unpin ${noun} and Upgrade`;
-  }
-  return version ? `Upgrade ${version}` : "Upgrade";
+  return from && to ? `${from} → ${to}` : undefined;
 }
 
-async function finishUpgrade(shouldReload: boolean, onReload: () => Promise<void>) {
-  if (!shouldReload) {
-    return;
-  }
-  markOutdatedSnapshotDirty();
-  await onReload();
+function toRunPackage(
+  item: OutdatedFormula | OutdatedCask,
+  isCask: boolean,
+  status?: UpgradeRunPackage["status"],
+): UpgradeRunPackage {
+  return {
+    name: item.name,
+    isCask,
+    from: item.installed_versions[0],
+    to: item.current_version,
+    pinned: item.pinned,
+    status,
+  };
 }
 
-async function upgradePackage(item: OutdatedFormula | OutdatedCask, onReload: () => Promise<void>) {
-  await finishUpgrade(await upgradeOnePackage(item), onReload);
+async function launchQueuedUpgrade(): Promise<void> {
+  await launchCommand({ name: "run-upgrade", type: LaunchType.Background });
 }
 
-async function upgradeEverything(onReload: () => Promise<void>) {
-  await finishUpgrade(await upgradeAll(), onReload);
+async function upgradePackage(
+  item: OutdatedFormula | OutdatedCask,
+  kind: "formula" | "cask",
+  onReload: () => Promise<void>,
+) {
+  const isCask = kind === "cask";
+  const live = await readLiveRun();
+  // A live run wins before the pin and trust questions. Those belong to the
+  // click; the worker cannot ask them.
+  const prepared = live ? undefined : await prepareUpgrade(item, { allowUnpin: false });
+  const decision = await queueMenuUpgrade(
+    {
+      live,
+      scope: "one",
+      prepare: prepared,
+      selection: [{ name: item.name, isCask }],
+      packages: [toRunPackage(item, isCask, "upgrading")],
+    },
+    launchQueuedUpgrade,
+  );
+  if (decision.hud) await showHUD(decision.hud);
+  if (decision.refresh) await onReload();
+}
+
+async function upgradeEverything(results: OutdatedResults, onReload: () => Promise<void>) {
+  const packages = [
+    ...results.formulae.map((formula) => toRunPackage(formula, false)),
+    ...results.casks.map((cask) => toRunPackage(cask, true)),
+  ];
+  const decision = await queueMenuUpgrade(
+    {
+      live: await readLiveRun(),
+      scope: "all",
+      selection: packages.filter((pkg) => !pkg.pinned).map(({ name, isCask }) => ({ name, isCask })),
+      packages: packages.map((pkg) => (pkg.pinned ? pkg : { ...pkg, status: "upgrading" as const })),
+    },
+    launchQueuedUpgrade,
+  );
+  if (decision.hud) await showHUD(decision.hud);
+  if (decision.refresh) await onReload();
 }
 
 function UpgradeFailureItem(props: { error: Error; onRefresh: () => Promise<void> }) {

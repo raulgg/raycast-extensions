@@ -6,8 +6,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Cache } from "@raycast/api";
+import { Cache, LocalStorage } from "@raycast/api";
 import { BrewLockError } from "./errors";
+import { forgetUpgraded } from "./outdated-removed";
 import { MENU_BAR_UPGRADES_CACHE_KEY, MENU_BAR_UPGRADES_CACHE_NAMESPACE } from "./menu-bar-upgrades";
 
 const execBrew = vi.hoisted(() => vi.fn());
@@ -21,6 +22,7 @@ const {
   menuBarServicesSectionTitle,
   menuBarUpgradesSectionTitle,
   invalidateMenuBarUpgrades,
+  pendingMenuBarUpgrades,
 } = await import("./menu-bar-upgrades");
 
 function upgradeNames(results: { formulae: { name: string }[]; casks: { name: string }[] }): string[] {
@@ -91,9 +93,10 @@ describe("menu bar title", () => {
 });
 
 describe("menu bar upgrade fetch", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     clearUpgradeCache();
     execBrew.mockReset();
+    await LocalStorage.clear();
   });
 
   it("runs brew outdated and never brew update", async () => {
@@ -306,6 +309,28 @@ describe("menu bar upgrade fetch", () => {
     expect(execBrew).toHaveBeenCalledTimes(1);
   });
 
+  it("returns the in-flight check and does not start brew outdated", async () => {
+    expect(pendingMenuBarUpgrades(false)).toBeUndefined();
+
+    let resolveBrew: (value: { stdout: string; stderr: string }) => void = () => {};
+    execBrew.mockReturnValue(
+      new Promise((resolve) => {
+        resolveBrew = resolve;
+      }),
+    );
+
+    const running = loadMenuBarUpgrades({ enabled: true, greedy: false, now: 1_000 });
+    expect(pendingMenuBarUpgrades(false)).toBe(running);
+    expect(pendingMenuBarUpgrades(true)).toBeUndefined();
+    expect(execBrew).toHaveBeenCalledTimes(1);
+
+    resolveBrew(emptyResult());
+    await running;
+
+    expect(pendingMenuBarUpgrades(false)).toBeUndefined();
+    expect(execBrew).toHaveBeenCalledTimes(1);
+  });
+
   it("shares one brew outdated between callers that arrive together", async () => {
     let resolveBrew: (value: { stdout: string; stderr: string }) => void = () => {};
     execBrew.mockReturnValue(
@@ -340,6 +365,54 @@ describe("menu bar upgrade fetch", () => {
     expect(execBrew).toHaveBeenCalledTimes(1);
     expect(a.status).toBe("fetched");
     expect(b.status).toBe("fetched");
+  });
+
+  it("drops a removed package from a fresh snapshot without calling brew", async () => {
+    const start = Date.now();
+    execBrew.mockResolvedValue(outdatedResult());
+    await loadMenuBarUpgrades({ enabled: true, greedy: false, now: start });
+    await forgetUpgraded([{ name: "openssl@3", isCask: false }], start + 1_500);
+    execBrew.mockClear();
+
+    const reused = await loadMenuBarUpgrades({ enabled: true, greedy: false, now: start + 2_000 });
+
+    expect(execBrew).not.toHaveBeenCalled();
+    expect(reused.status).toBe("cached");
+    if (reused.status === "cached") {
+      expect(upgradeNames(reused.results)).toEqual(["wget", "visual-studio-code"]);
+      expect(menuBarUpgradeCount(reused.results)).toBe(2);
+    }
+  });
+
+  it("shows a package a forced refresh still lists", async () => {
+    const start = Date.now();
+    execBrew.mockResolvedValue(outdatedResult());
+    await loadMenuBarUpgrades({ enabled: true, greedy: false, now: start });
+    await forgetUpgraded([{ name: "openssl@3", isCask: false }], start + 1_500);
+    execBrew.mockClear();
+
+    const forced = await loadMenuBarUpgrades({ enabled: true, greedy: false, force: true, now: start + 3_000 });
+
+    expect(execBrew).toHaveBeenCalledTimes(1);
+    expect(forced.status).toBe("fetched");
+    if (forced.status === "fetched") {
+      expect(upgradeNames(forced.results)).toEqual(["wget", "openssl@3", "visual-studio-code"]);
+    }
+  });
+
+  it("keeps the previous fetch start when a later check fails", async () => {
+    const start = Date.now();
+    execBrew.mockResolvedValueOnce(outdatedResult());
+    await loadMenuBarUpgrades({ enabled: true, greedy: false, now: start });
+    await forgetUpgraded([{ name: "openssl@3", isCask: false }], start + 1_500);
+
+    execBrew.mockRejectedValueOnce(new Error("brew: command not found"));
+    const failed = await loadMenuBarUpgrades({ enabled: true, greedy: false, force: true, now: start + 4_000 });
+
+    expect(failed.status).toBe("failed");
+    if (failed.status === "failed") {
+      expect(upgradeNames(failed.results ?? { formulae: [], casks: [] })).toEqual(["wget", "visual-studio-code"]);
+    }
   });
 
   it("fetches again after a preview upgrade drops the cached list", async () => {
@@ -399,5 +472,18 @@ describe("services menu bar manifest", () => {
     expect(command?.preferences).toContainEqual(
       expect.objectContaining({ name: "showUpgradeCount", type: "checkbox", default: true }),
     );
+  });
+
+  it("keeps Run Queued Upgrade launchable, with no interval", () => {
+    const root = process.env.RAYCAST_EXTENSION_ROOT;
+    if (!root) throw new Error("RAYCAST_EXTENSION_ROOT is not set");
+    const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+      commands: { name: string; title: string; mode: string; interval?: string; disabledByDefault?: boolean }[];
+    };
+    const command = manifest.commands.find((entry) => entry.name === "run-upgrade");
+
+    expect(command).toMatchObject({ name: "run-upgrade", title: "Run Queued Upgrade", mode: "no-view" });
+    expect(command?.interval).toBeUndefined();
+    expect(command?.disabledByDefault).toBeUndefined();
   });
 });

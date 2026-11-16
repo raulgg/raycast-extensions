@@ -15,7 +15,9 @@ import {
   copyLogsAction,
   getErrorMessage,
 } from "../utils";
-import { preferences, isOutdatedSnapshotDirty, clearOutdatedSnapshotDirty, outdatedFetchFailureCopy } from "../utils";
+import { preferences, outdatedFetchFailureCopy } from "../utils";
+import { readRemoved, subscribeRemoved, subtractRemoved } from "../utils/outdated-removed";
+import { clearFinishedRun, readLiveRun, readUpgradeRun, type UpgradeRunRecord } from "../utils/upgrade-run";
 
 /**
  * Hook to fetch and cache outdated brew packages.
@@ -37,25 +39,79 @@ export function useBrewOutdated(options?: { backgroundRefresh?: boolean }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasRefreshedRef = useRef(false);
   const refreshAbortRef = useRef<AbortController | null>(null);
-  // An upgrade run since the last fetch means the cached snapshot is known
-  // stale — it still lists the packages that were just upgraded. Captured
-  // once at mount: a run re-marking the flag mid-lifecycle must not blank a
-  // list that is already showing fresh data.
-  const [wasDirtyAtMount] = useState(() => isOutdatedSnapshotDirty());
-  const hasFreshFetchRef = useRef(false);
+  const [removed, setRemoved] = useState<Map<string, number> | undefined>(undefined);
+  const [watch, setWatch] = useState<{ ready: boolean; liveRun?: UpgradeRunRecord; signature: string }>({
+    ready: false,
+    signature: "",
+  });
+  // "pending" until the first read. "on" fetches. "off" after a live run, so
+  // the run ending does not start another `brew outdated`.
+  const [fetchMode, setFetchMode] = useState<"pending" | "on" | "off">("pending");
+
+  useEffect(() => {
+    if (!watch.ready) return;
+    setFetchMode((mode) => {
+      if (watch.liveRun) return "off";
+      if (mode === "pending") return "on";
+      return mode;
+    });
+  }, [watch.ready, watch.liveRun]);
+
+  // One poll for the run record and the removal keys. setState only when the
+  // text changed, so a quiet second does not re-render the list.
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      const [run, live, removedNow] = await Promise.all([readUpgradeRun(), readLiveRun(), readRemoved()]);
+      if (cancelled) return;
+      if (run && run.phase !== "queued" && run.phase !== "running") await clearFinishedRun();
+      const signature = `${live ? JSON.stringify(live) : ""}\n${removedSignature(removedNow)}`;
+      setWatch((current) =>
+        current.ready && current.signature === signature ? current : { ready: true, liveRun: live, signature },
+      );
+      setRemoved((current) =>
+        current && removedSignature(current) === removedSignature(removedNow) ? current : removedNow,
+      );
+    };
+    void tick();
+    const timer = setInterval(() => void tick(), 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  // The removal record is what hides a package that already upgraded. Read it
+  // before the first paint, and again when this process writes another key.
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      void readRemoved().then((map) => {
+        if (!cancelled) setRemoved(map);
+      });
+    };
+    load();
+    const unsubscribe = subscribeRemoved(load);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
 
   const result = useCachedPromise(
-    async (): Promise<OutdatedResults> => {
+    async (): Promise<OutdatedResults & { startedAt: number }> => {
+      // Taken before the fetch. A removal is hidden only when it is later
+      // than this, so an in-flight read cannot put an upgraded package back.
+      const startedAt = Date.now();
       // On first load, skip update for speed
       // The background refresh will update the data
       const fresh = await brewFetchOutdated(preferences.greedyUpgrades, undefined, true);
-      hasFreshFetchRef.current = true;
-      clearOutdatedSnapshotDirty();
-      return fresh;
+      return { ...fresh, startedAt };
     },
     [],
     {
       keepPreviousData: true,
+      execute: fetchMode === "on",
       onError: async (error) => {
         brewLogger.error("Failed to fetch outdated packages", {
           errorType: error.name,
@@ -67,11 +123,9 @@ export function useBrewOutdated(options?: { backgroundRefresh?: boolean }) {
         // renders a full-screen failure view (OutdatedErrorView) with its own
         // Retry — a toast on top of it would just duplicate the message.
         // Toast only when cached packages are actually on screen and the
-        // toast is the sole failure signal — a withheld dirty snapshot is
-        // not on screen, so it gets the full-screen view, not a toast.
-        const withheld = wasDirtyAtMount && !hasFreshFetchRef.current;
+        // toast is the sole failure signal.
         const hasCachedPackages =
-          !withheld && result.data !== undefined && (result.data.formulae.length > 0 || result.data.casks.length > 0);
+          result.data !== undefined && (result.data.formulae.length > 0 || result.data.casks.length > 0);
         if (!hasCachedPackages) return;
 
         const copy = outdatedFetchFailureCopy(error);
@@ -154,24 +208,27 @@ export function useBrewOutdated(options?: { backgroundRefresh?: boolean }) {
     await refreshPromiseRef.current;
   }, []);
 
-  // Start background refresh after initial data loads. Not on a failed or
-  // withheld initial fetch: internally cached data still exists then, but the
-  // screen is showing the failure view (or nothing) — kicking off a long
-  // `brew update` would bury that behind a checking spinner; Retry is the
-  // recovery path instead.
+  // A run that starts while `brew update` is in flight has to take the lock.
   useEffect(() => {
-    const withholding = wasDirtyAtMount && !hasFreshFetchRef.current;
+    if (watch.liveRun) void cancelRefresh();
+  }, [watch.liveRun, cancelRefresh]);
+
+  // Start background refresh after initial data loads. Not on a failed
+  // initial fetch: internally cached data still exists then, but the screen
+  // is showing the failure view — kicking off a long `brew update` would bury
+  // that behind a checking spinner; Retry is the recovery path instead.
+  useEffect(() => {
     if (
       backgroundRefresh &&
+      !watch.liveRun &&
       !result.isLoading &&
       result.data &&
       !result.error &&
-      !withholding &&
       !hasRefreshedRef.current
     ) {
       refreshInBackground();
     }
-  }, [backgroundRefresh, result.isLoading, result.data, result.error, wasDirtyAtMount, refreshInBackground]);
+  }, [backgroundRefresh, watch.liveRun, result.isLoading, result.data, result.error, refreshInBackground]);
 
   // Abort an in-flight background `brew update` when the command unmounts —
   // left running, it can race the next command's own update for Homebrew's
@@ -182,24 +239,35 @@ export function useBrewOutdated(options?: { backgroundRefresh?: boolean }) {
     };
   }, []);
 
-  // Withhold a known-stale snapshot until a fresh fetch has landed — painting
-  // the pre-run list and then swapping it out reads as a glitch. Gating on
-  // the fetch (not on isLoading) keeps the stale list withheld even when that
-  // fetch fails: the loading placeholder and the error view are honest; the
-  // stale list is not.
-  const withholding = wasDirtyAtMount && !hasFreshFetchRef.current;
+  const removalsReady = removed !== undefined;
+  const normalized = result.data ? normalizeOutdatedResults(result.data) : undefined;
+  const startedAt = startedAtOf(normalized);
+  const visible =
+    normalized && removed && startedAt !== undefined ? subtractRemoved(normalized, removed, startedAt) : normalized;
   return {
     ...result,
     // `useCachedPromise` persists between command runs, so `data` can be a
     // snapshot written before outdated casks carried a `token` — without which
     // every brew argv built from these rows loses its `--cask`. Normalizing on
     // read migrates those in place; it is idempotent for fresh data.
-    data: withholding ? undefined : result.data && normalizeOutdatedResults(result.data),
-    // While withholding with no failure yet, the commands must read as
-    // loading — data alone being undefined would render neither rows, nor an
-    // empty state, nor an error.
-    isLoading: result.isLoading || (withholding && !result.error),
+    // Hold the list until the removal record has been read, so a package that
+    // already upgraded is not painted and then removed.
+    data: removalsReady ? visible : undefined,
+    isLoading: result.isLoading || !removalsReady,
     isRefreshing,
     cancelRefresh,
+    liveRun: watch.liveRun,
   };
+}
+
+function removedSignature(removed: Map<string, number>): string {
+  return [...removed.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([key, at]) => `${key}=${at}`)
+    .join("|");
+}
+
+function startedAtOf(data: OutdatedResults | undefined): number | undefined {
+  const value = (data as { startedAt?: unknown } | undefined)?.startedAt;
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

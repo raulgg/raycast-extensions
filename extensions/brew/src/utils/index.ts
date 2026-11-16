@@ -71,8 +71,6 @@ export {
 
 // Cache
 export { supportPath, bundleIdentifier, cachePath, clearCache } from "./cache";
-export { markOutdatedSnapshotDirty, clearOutdatedSnapshotDirty, isOutdatedSnapshotDirty } from "./outdated-dirty";
-
 // Toast
 export { copyLogsAction, isBackgroundLaunch, showActionToast, showBrewFailureToast } from "./toast";
 export type { ActionToastHandle } from "./toast";
